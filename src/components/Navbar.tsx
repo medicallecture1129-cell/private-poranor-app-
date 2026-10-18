@@ -13,18 +13,21 @@ import {
   CheckCircle2, 
   X,
   Cloud,
-  Bell
+  Bell,
+  Palette,
+  Sparkles
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const { user, role, logout } = useAuth();
-  const { theme, toggleTheme, colorTheme, setColorTheme } = useTheme();
+  const { theme, toggleTheme, colorTheme, setColorTheme, activeThemeOption } = useTheme();
 
   const [settings, setSettings] = useState<PortalSettings>(DEFAULT_PORTAL_SETTINGS);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showThemePicker, setShowThemePicker] = useState(false);
 
   // Subscribe to real-time Portal Settings from Firestore
   useEffect(() => {
@@ -135,10 +138,99 @@ export const Navbar: React.FC = () => {
               </span>
             )}
 
-            {/* Theme Toggle */}
+            {/* Palette & Theme Controls */}
+            <div className="relative">
+              <button
+                onClick={() => setShowThemePicker(!showThemePicker)}
+                aria-label="Change Theme Palette"
+                className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all cursor-pointer flex items-center gap-1.5"
+                title="থিম কালার ও ভাইব পরিবর্তন করুন"
+              >
+                <Palette className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <span 
+                  className="w-2.5 h-2.5 rounded-full ring-2 ring-white dark:ring-slate-900 shadow-xs"
+                  style={{ backgroundColor: activeThemeOption.colorHex }}
+                />
+              </button>
+
+              {/* Quick Theme Picker Popover */}
+              {showThemePicker && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setShowThemePicker(false)} 
+                  />
+                  <div className="absolute right-0 mt-2 w-72 p-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 space-y-3.5">
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        <span className="font-bold text-xs text-slate-900 dark:text-white">থিম ভাইব ও কালার</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">9 Palettes</span>
+                    </div>
+
+                    {/* Dark / Light Mode Switcher */}
+                    <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl">
+                      <button
+                        onClick={() => toggleTheme()}
+                        className={`py-1.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          theme === 'light'
+                            ? 'bg-white text-slate-900 shadow-xs'
+                            : 'text-slate-500 hover:text-slate-900'
+                        }`}
+                      >
+                        <Sun className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Light</span>
+                      </button>
+                      <button
+                        onClick={() => toggleTheme()}
+                        className={`py-1.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          theme === 'dark'
+                            ? 'bg-slate-900 text-white shadow-xs'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <Moon className="w-3.5 h-3.5 text-blue-400" />
+                        <span>Dark</span>
+                      </button>
+                    </div>
+
+                    {/* Color Swatches Grid */}
+                    <div className="grid grid-cols-3 gap-2 pt-1">
+                      {AVAILABLE_THEMES.map((t) => {
+                        const isSelected = colorTheme === t.id;
+                        return (
+                          <button
+                            key={t.id}
+                            onClick={() => {
+                              setColorTheme(t.id);
+                            }}
+                            className={`p-2 rounded-2xl border text-[11px] font-semibold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                              isSelected
+                                ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-950/60 shadow-xs ring-2 ring-blue-500/20'
+                                : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                            }`}
+                          >
+                            <span 
+                              className="w-4 h-4 rounded-full shadow-inner ring-2 ring-white dark:ring-slate-900" 
+                              style={{ backgroundColor: t.colorHex }}
+                            />
+                            <span className="truncate max-w-full text-[10px] text-slate-700 dark:text-slate-300">
+                              {t.nameBn}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Quick Dark/Light Toggle */}
             <button
               onClick={toggleTheme}
-              aria-label="Toggle theme"
+              aria-label="Toggle theme mode"
               className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors cursor-pointer"
               title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             >

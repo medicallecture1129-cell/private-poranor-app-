@@ -13,8 +13,13 @@ import {
   GraduationCap,
   Sun,
   Minus,
-  Plus
+  Plus,
+  ExternalLink,
+  Tv,
+  Sparkles,
+  AlertCircle
 } from 'lucide-react';
+import { extractYouTubeId, getGoogleDriveEmbedUrl, getYouTubeWatchUrl } from '../../utils/mediaUrl';
 
 interface ProtectedVideoPlayerProps {
   title: string;
@@ -38,6 +43,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const html5VideoRef = useRef<HTMLVideoElement | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const playerRef = useRef<any>(null);
   const hideControlsTimerRef = useRef<any>(null);
   const uniquePlayerId = useRef(`yt-player-${Math.random().toString(36).substring(2, 9)}`);
@@ -54,6 +60,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const lastTapRef = useRef<{ time: number; x: number }>({ time: 0, x: 0 });
 
   const [isPlaying, setIsPlaying] = useState(false);
+  const [hasStarted, setHasStarted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
@@ -62,42 +69,18 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
-  const [isApiReady, setIsApiReady] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [playerMode, setPlayerMode] = useState<'smart' | 'native'>('smart');
 
   // Gesture indicators
   const [skipFeedback, setSkipFeedback] = useState<{ side: 'left' | 'right'; text: string } | null>(null);
   const [gestureFeedback, setGestureFeedback] = useState<{ type: 'brightness' | 'volume'; value: number } | null>(null);
   const [playFeedback, setPlayFeedback] = useState<'play' | 'pause' | null>(null);
 
-  // Extract YouTube ID if valid
-  const getYouTubeId = (rawUrl: string): string | null => {
-    try {
-      if (!rawUrl) return null;
-      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-      const match = rawUrl.match(regExp);
-      return match && match[2].length === 11 ? match[2] : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const videoId = getYouTubeId(url);
+  // Extract YouTube ID with robust universal parser
+  const videoId = extractYouTubeId(url);
   const isDriveVideo = !videoId && url.includes('drive.google.com');
   const isDirectVideo = !videoId && !isDriveVideo;
-
-  // Convert Google Drive link to preview embed format if applicable
-  const getDriveEmbedUrl = (rawUrl: string): string => {
-    try {
-      const match = rawUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || rawUrl.match(/id=([a-zA-Z0-9_-]+)/);
-      if (match && match[1]) {
-        return `https://drive.google.com/file/d/${match[1]}/preview`;
-      }
-      return rawUrl;
-    } catch {
-      return rawUrl;
-    }
-  };
 
   // Listen to popstate / hardware back button to close speed menu or player
   useEffect(() => {
@@ -116,96 +99,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     return () => window.removeEventListener('popstate', handlePopState);
   }, [showSpeedMenu, isFullscreen, onClose, isInline]);
 
-  // Load YouTube IFrame API script if YouTube video
-  useEffect(() => {
-    if (!videoId) return;
-
-    if (!window.YT) {
-      const tag = document.createElement('script');
-      tag.src = 'https://www.youtube.com/iframe_api';
-      const firstScriptTag = document.getElementsByTagName('script')[0];
-      firstScriptTag?.parentNode?.insertBefore(tag, firstScriptTag);
-
-      window.onYouTubeIframeAPIReady = () => {
-        setIsApiReady(true);
-      };
-    } else if (window.YT && window.YT.Player) {
-      setIsApiReady(true);
-    }
-  }, [videoId]);
-
-  // Initialize YouTube Player
-  useEffect(() => {
-    if (!videoId || !isApiReady) return;
-
-    try {
-      if (playerRef.current && playerRef.current.destroy) {
-        playerRef.current.destroy();
-      }
-    } catch {}
-
-    const playerDiv = document.getElementById(uniquePlayerId.current);
-    if (!playerDiv) return;
-
-    const player = new window.YT.Player(uniquePlayerId.current, {
-      videoId: videoId,
-      playerVars: {
-        autoplay: 0,
-        controls: 0,
-        disablekb: 1,
-        fs: 0,
-        modestbranding: 1,
-        rel: 0,
-        showinfo: 0,
-        iv_load_policy: 3,
-        playsinline: 1,
-        origin: window.location.origin,
-        enablejsapi: 1
-      },
-      events: {
-        onReady: (event: any) => {
-          playerRef.current = event.target;
-          try {
-            const dur = event.target.getDuration();
-            if (dur) setDuration(dur);
-            event.target.setPlaybackRate(playbackSpeed);
-          } catch {}
-        },
-        onStateChange: (event: any) => {
-          if (event.data === window.YT.PlayerState.PLAYING) {
-            setIsPlaying(true);
-            resetHideTimer();
-          } else if (event.data === window.YT.PlayerState.PAUSED) {
-            setIsPlaying(false);
-            setControlsVisible(true);
-          } else if (event.data === window.YT.PlayerState.ENDED) {
-            setIsPlaying(false);
-            setControlsVisible(true);
-          }
-        }
-      }
-    });
-
-    const interval = setInterval(() => {
-      if (playerRef.current && playerRef.current.getCurrentTime) {
-        const curr = playerRef.current.getCurrentTime() || 0;
-        setCurrentTime(curr);
-        const dur = playerRef.current.getDuration() || 0;
-        if (dur > 0) setDuration(dur);
-      }
-    }, 350);
-
-    return () => {
-      clearInterval(interval);
-      try {
-        if (playerRef.current && playerRef.current.destroy) {
-          playerRef.current.destroy();
-        }
-      } catch {}
-    };
-  }, [isApiReady, videoId]);
-
-  // Fullscreen change events
+  // Fullscreen change events & keyboard shortcuts
   useEffect(() => {
     const handleFullscreenChange = () => {
       const isNowFullscreen = !!(
@@ -251,7 +145,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [showSpeedMenu, isFullscreen, onClose, isInline]);
+  }, [showSpeedMenu, isFullscreen, onClose, isInline, isPlaying]);
 
   // Autohide controls after inactivity
   const resetHideTimer = () => {
@@ -270,6 +164,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 
   // Play / Pause toggle with smooth feedback
   const togglePlay = () => {
+    setHasStarted(true);
+
     if (isDirectVideo && html5VideoRef.current) {
       if (html5VideoRef.current.paused) {
         html5VideoRef.current.play();
@@ -286,19 +182,21 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       return;
     }
 
-    if (!playerRef.current) return;
-    if (isPlaying) {
-      playerRef.current.pauseVideo();
-      setIsPlaying(false);
-      setPlayFeedback('pause');
-      setControlsVisible(true);
-    } else {
-      playerRef.current.playVideo();
-      setIsPlaying(true);
-      setPlayFeedback('play');
-      resetHideTimer();
+    if (videoId) {
+      // Toggle YouTube iframe state via postMessage
+      if (iframeRef.current && iframeRef.current.contentWindow) {
+        const action = isPlaying ? 'pauseVideo' : 'playVideo';
+        iframeRef.current.contentWindow.postMessage(
+          JSON.stringify({ event: 'command', func: action, args: [] }),
+          '*'
+        );
+      }
+      setIsPlaying(!isPlaying);
+      setPlayFeedback(isPlaying ? 'pause' : 'play');
+      if (!isPlaying) resetHideTimer();
+      else setControlsVisible(true);
+      setTimeout(() => setPlayFeedback(null), 600);
     }
-    setTimeout(() => setPlayFeedback(null), 600);
   };
 
   // 10s Skip Backward
@@ -313,13 +211,17 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       return;
     }
 
-    if (!playerRef.current || !playerRef.current.getCurrentTime) return;
-    const newTime = Math.max(0, currentTime - 10);
-    playerRef.current.seekTo(newTime, true);
-    setCurrentTime(newTime);
-    setSkipFeedback({ side: 'left', text: '-10s' });
-    setTimeout(() => setSkipFeedback(null), 700);
-    handleUserActivity();
+    if (videoId && iframeRef.current && iframeRef.current.contentWindow) {
+      const newTime = Math.max(0, currentTime - 10);
+      iframeRef.current.contentWindow.postMessage(
+        JSON.stringify({ event: 'command', func: 'seekTo', args: [newTime, true] }),
+        '*'
+      );
+      setCurrentTime(newTime);
+      setSkipFeedback({ side: 'left', text: '-10s' });
+      setTimeout(() => setSkipFeedback(null), 700);
+      handleUserActivity();
+    }
   };
 
   // 10s Skip Forward
@@ -334,13 +236,17 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       return;
     }
 
-    if (!playerRef.current || !playerRef.current.getCurrentTime) return;
-    const newTime = Math.min(duration || 999999, currentTime + 10);
-    playerRef.current.seekTo(newTime, true);
-    setCurrentTime(newTime);
-    setSkipFeedback({ side: 'right', text: '+10s' });
-    setTimeout(() => setSkipFeedback(null), 700);
-    handleUserActivity();
+    if (videoId && iframeRef.current && iframeRef.current.contentWindow) {
+      const newTime = Math.min(duration || 999999, currentTime + 10);
+      iframeRef.current.contentWindow.postMessage(
+        JSON.stringify({ event: 'command', func: 'seekTo', args: [newTime, true] }),
+        '*'
+      );
+      setCurrentTime(newTime);
+      setSkipFeedback({ side: 'right', text: '+10s' });
+      setTimeout(() => setSkipFeedback(null), 700);
+      handleUserActivity();
+    }
   };
 
   // TOUCH GESTURE: Left side swipe = Brightness, Right side swipe = Volume
@@ -379,27 +285,28 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         // Volume control (0 to 100)
         const newVol = Math.min(100, Math.max(0, Math.round(touchStartRef.current.volume - deltaY * 0.4)));
         setVolume(newVol);
-        if (newVol === 0) setIsMuted(true);
-        else setIsMuted(false);
+        setIsMuted(newVol === 0);
 
         if (isDirectVideo && html5VideoRef.current) {
           html5VideoRef.current.volume = newVol / 100;
-        } else if (playerRef.current && playerRef.current.setVolume) {
-          playerRef.current.setVolume(newVol);
+        } else if (videoId && iframeRef.current && iframeRef.current.contentWindow) {
+          iframeRef.current.contentWindow.postMessage(
+            JSON.stringify({ event: 'command', func: 'setVolume', args: [newVol] }),
+            '*'
+          );
         }
         setGestureFeedback({ type: 'volume', value: newVol });
       }
     }
   };
 
-  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+  const handleTouchEnd = () => {
     setTimeout(() => setGestureFeedback(null), 900);
     if (isDraggingRef.current) {
       isDraggingRef.current = false;
       return;
     }
 
-    // Touch tap handling (single tap: play/pause, double tap: 10s skip)
     const now = Date.now();
     const tapX = touchStartRef.current.x;
     const timeSinceLast = now - lastTapRef.current.time;
@@ -419,7 +326,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       }
       lastTapRef.current = { time: 0, x: 0 };
     } else {
-      // Single tap: toggle pause/play smoothly!
+      // Single tap: toggle pause/play smoothly
       lastTapRef.current = { time: now, x: tapX };
       togglePlay();
     }
@@ -432,13 +339,13 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       return;
     }
 
-    if (!playerRef.current) return;
-    if (isMuted) {
-      playerRef.current.unMute();
-      setIsMuted(false);
-    } else {
-      playerRef.current.mute();
-      setIsMuted(true);
+    if (videoId && iframeRef.current && iframeRef.current.contentWindow) {
+      const action = isMuted ? 'unMute' : 'mute';
+      iframeRef.current.contentWindow.postMessage(
+        JSON.stringify({ event: 'command', func: action, args: [] }),
+        '*'
+      );
+      setIsMuted(!isMuted);
     }
   };
 
@@ -447,8 +354,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     setCurrentTime(targetTime);
     if (isDirectVideo && html5VideoRef.current) {
       html5VideoRef.current.currentTime = targetTime;
-    } else if (playerRef.current && playerRef.current.seekTo) {
-      playerRef.current.seekTo(targetTime, true);
+    } else if (videoId && iframeRef.current && iframeRef.current.contentWindow) {
+      iframeRef.current.contentWindow.postMessage(
+        JSON.stringify({ event: 'command', func: 'seekTo', args: [targetTime, true] }),
+        '*'
+      );
     }
   };
 
@@ -459,8 +369,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 
     if (isDirectVideo && html5VideoRef.current) {
       html5VideoRef.current.playbackRate = clamped;
-    } else if (playerRef.current && playerRef.current.setPlaybackRate) {
-      playerRef.current.setPlaybackRate(clamped);
+    } else if (videoId && iframeRef.current && iframeRef.current.contentWindow) {
+      iframeRef.current.contentWindow.postMessage(
+        JSON.stringify({ event: 'command', func: 'setPlaybackRate', args: [clamped] }),
+        '*'
+      );
     }
   };
 
@@ -494,15 +407,15 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     return `${mins}:${s < 10 ? '0' + s : s}`;
   };
 
-  // Video container element
+  // Video markup
   const videoPlayerMarkup = (
     <div 
       ref={containerRef}
       onMouseMove={handleUserActivity}
-      className={`relative w-full bg-black flex flex-col select-none overflow-hidden ${
+      className={`relative w-full bg-black flex flex-col select-none overflow-hidden transition-all duration-300 ${
         isFullscreen 
           ? 'fixed inset-0 w-screen h-screen max-w-none rounded-none z-[9999]' 
-          : 'w-full rounded-3xl border border-slate-800 shadow-xl'
+          : 'w-full rounded-3xl border border-slate-800 shadow-2xl'
       }`}
       onContextMenu={(e) => e.preventDefault()}
     >
@@ -510,7 +423,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       <div 
         className={`flex items-center justify-between px-4 py-2.5 z-30 transition-all duration-300 ${
           isFullscreen 
-            ? `absolute top-0 inset-x-0 bg-gradient-to-b from-black/90 via-black/40 to-transparent border-none ${
+            ? `absolute top-0 inset-x-0 bg-gradient-to-b from-black/95 via-black/50 to-transparent border-none ${
                 controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-full pointer-events-none'
               }`
             : 'bg-slate-900 border-b border-slate-800'
@@ -526,9 +439,40 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-mono text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700/50 hidden sm:inline">
-            Protected Player
-          </span>
+          {/* Mode switch for YouTube (Smart Protected vs Native Controls) */}
+          {videoId && (
+            <button
+              onClick={() => setPlayerMode(playerMode === 'smart' ? 'native' : 'smart')}
+              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
+              title={playerMode === 'smart' ? 'Switch to Native YouTube controls' : 'Switch to Protected Smart Controls'}
+            >
+              {playerMode === 'smart' ? (
+                <>
+                  <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                  <span>স্মার্ট প্লেয়ার</span>
+                </>
+              ) : (
+                <>
+                  <Tv className="w-3.5 h-3.5 text-amber-400" />
+                  <span>ইউটিউব মোড</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* External Fallback Link */}
+          {videoId && (
+            <a
+              href={getYouTubeWatchUrl(videoId)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              title="YouTube অ্যাপে দেখুন"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </a>
+          )}
+
           {onClose && !isInline && (
             <button
               onClick={onClose}
@@ -541,22 +485,30 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         </div>
       </div>
 
-      {/* Video Canvas Container (16:9 aspect ratio, 100% width, no mobile cut-off) */}
+      {/* Video Canvas Container (16:9 aspect ratio, 100% width) */}
       <div 
         className="relative w-full aspect-video max-w-full bg-black flex items-center justify-center overflow-hidden"
         style={{ filter: `brightness(${brightness})` }}
       >
         {/* Case 1: YouTube video */}
         {videoId && (
-          <div className="absolute inset-0 w-full h-full pointer-events-none select-none">
-            <div id={uniquePlayerId.current} className="w-full h-full absolute inset-0" />
+          <div className="absolute inset-0 w-full h-full select-none">
+            <iframe
+              ref={iframeRef}
+              id={uniquePlayerId.current}
+              src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=${hasStarted ? 1 : 0}&enablejsapi=1&rel=0&playsinline=1&modestbranding=1&controls=${playerMode === 'native' ? 1 : 0}`}
+              title={title}
+              className="w-full h-full border-0 absolute inset-0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+            />
           </div>
         )}
 
         {/* Case 2: Google Drive Video */}
         {isDriveVideo && (
           <iframe
-            src={getDriveEmbedUrl(url)}
+            src={getGoogleDriveEmbedUrl(url)}
             className="w-full h-full absolute inset-0 border-none"
             title={title}
             allow="autoplay; encrypted-media"
@@ -588,8 +540,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           />
         )}
 
-        {/* Interactive Screen Layer (Single tap: play/pause; Double tap: 10s skip; Swipe: Brightness/Volume) */}
-        {!isDriveVideo && (
+        {/* Smart Player Overlay (Single tap: play/pause; Double tap: 10s skip; Swipe: Brightness/Volume) */}
+        {!isDriveVideo && playerMode === 'smart' && (
           <div 
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
@@ -599,10 +551,25 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           />
         )}
 
-        {/* Smooth Play / Pause Pulse feedback on tap (no center button clutter) */}
+        {/* Initial Big Play Button if Not Started Yet */}
+        {!hasStarted && !isDriveVideo && (
+          <div 
+            onClick={togglePlay}
+            className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px] cursor-pointer group"
+          >
+            <div className="w-16 sm:w-20 h-16 sm:h-20 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center shadow-2xl transition-all transform group-hover:scale-110">
+              <Play className="w-8 sm:w-10 h-8 sm:h-10 fill-white ml-1" />
+            </div>
+            <span className="mt-3 text-xs sm:text-sm font-bold text-white bg-black/70 px-4 py-1.5 rounded-full border border-white/10 shadow-lg">
+              ভিডিও প্লে করতে ক্লিক করুন
+            </span>
+          </div>
+        )}
+
+        {/* Smooth Play / Pause Pulse feedback on tap */}
         {playFeedback && (
           <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-            <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-md text-white flex items-center justify-center shadow-2xl animate-ping duration-300">
+            <div className="w-16 h-16 rounded-full bg-black/70 backdrop-blur-md text-white flex items-center justify-center shadow-2xl animate-ping duration-300">
               {playFeedback === 'play' ? (
                 <Play className="w-8 h-8 fill-white ml-1" />
               ) : (
@@ -619,14 +586,14 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               skipFeedback.side === 'left' ? 'left-0 bg-gradient-to-r from-blue-600/30 to-transparent' : 'right-0 bg-gradient-to-l from-blue-600/30 to-transparent'
             }`}
           >
-            <div className="flex flex-col items-center text-white bg-black/70 px-4 py-3 rounded-2xl backdrop-blur-md shadow-2xl animate-pulse">
+            <div className="flex flex-col items-center text-white bg-black/80 px-4 py-3 rounded-2xl backdrop-blur-md shadow-2xl">
               {skipFeedback.side === 'left' ? <RotateCcw className="w-6 h-6 mb-1 text-blue-400" /> : <RotateCw className="w-6 h-6 mb-1 text-blue-400" />}
               <span className="text-xs font-bold font-mono">{skipFeedback.text}</span>
             </div>
           </div>
         )}
 
-        {/* Gesture HUD Feedback: Brightness (Left Swipe) & Volume (Right Swipe) */}
+        {/* Gesture HUD Feedback: Brightness & Volume */}
         {gestureFeedback && (
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-black/80 backdrop-blur-md text-white shadow-2xl pointer-events-none border border-white/10">
             {gestureFeedback.type === 'brightness' ? (
@@ -648,7 +615,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       {!isDriveVideo && (
         <div 
           className={`z-30 px-3 sm:px-4 py-2 bg-gradient-to-t from-black/95 via-black/80 to-transparent text-white transition-all duration-300 ${
-            controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+            controlsVisible || playerMode === 'native' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
           }`}
         >
           {/* Seek Progress Bar */}
@@ -711,8 +678,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                     setIsMuted(newVol === 0);
                     if (isDirectVideo && html5VideoRef.current) {
                       html5VideoRef.current.volume = newVol / 100;
-                    } else if (playerRef.current && playerRef.current.setVolume) {
-                      playerRef.current.setVolume(newVol);
+                    } else if (videoId && iframeRef.current && iframeRef.current.contentWindow) {
+                      iframeRef.current.contentWindow.postMessage(
+                        JSON.stringify({ event: 'command', func: 'setVolume', args: [newVol] }),
+                        '*'
+                      );
                     }
                   }}
                   className="w-14 sm:w-20 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500 hidden sm:inline-block"
@@ -726,7 +696,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Playback Speed Button (Opens Screenshot 2 Modal) */}
+              {/* Playback Speed Button */}
               <button
                 onClick={() => {
                   window.history.pushState({ modal: 'speed' }, '');
@@ -752,7 +722,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         </div>
       )}
 
-      {/* PLAYBACK SPEED MODAL (MATCHING USER SCREENSHOT 2) */}
+      {/* PLAYBACK SPEED MODAL */}
       {showSpeedMenu && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
           <div className="w-full max-w-sm bg-slate-900 border border-slate-700/80 rounded-3xl p-6 shadow-2xl text-white space-y-5 animate-scaleUp">
@@ -799,7 +769,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               </div>
             </div>
 
-            {/* Minus / Plus fine-tuning buttons (0.05 step) */}
+            {/* Minus / Plus fine-tuning buttons */}
             <div className="flex items-center justify-center gap-3">
               <button
                 onClick={() => handleSetSpeed(playbackSpeed - 0.05)}
@@ -851,12 +821,12 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     </div>
   );
 
-  // If isInline and not isFullscreen, render inline!
+  // If isInline and not isFullscreen, render inline
   if (isInline && !isFullscreen) {
     return videoPlayerMarkup;
   }
 
-  // If standalone modal or fullscreen:
+  // If standalone modal or fullscreen
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center ${isFullscreen ? 'p-0 bg-black' : 'p-0 sm:p-4 bg-black/95 backdrop-blur-md'}`}>
       {videoPlayerMarkup}
