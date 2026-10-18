@@ -294,8 +294,16 @@ export const exportLeaderboardPDF = (
 export const exportStudentSummaryPDF = (
   student: { name: string; email: string; college: string; mobile?: string },
   submissions: ExamSubmission[],
-  exams: Exam[]
+  exams: Exam[],
+  filterType: 'both' | 'live' | 'practice' = 'both'
 ) => {
+  const filterLabel = 
+    filterType === 'live' 
+      ? 'লাইভ পরীক্ষা (Live Exams Only)' 
+      : filterType === 'practice' 
+      ? 'অনুশীলন পরীক্ষা (Practice Exams Only)' 
+      : 'সকল পরীক্ষা (লাইভ + অনুশীলন / Both Exams)';
+
   const rows = submissions.map(sub => {
     const exam = exams.find(e => e.id === sub.examId);
     const examTitle = exam ? exam.title : 'Exam';
@@ -341,7 +349,7 @@ export const exportStudentSummaryPDF = (
       <div style="border-bottom: 2px solid #2563eb; padding-bottom: 12px; margin-bottom: 16px;">
         <h2 style="margin: 0; color: #1e3a8a;">EXAM PORTAL - সামগ্রিক পরীক্ষার সারসংক্ষেপ (Student Performance)</h2>
         <div style="font-size: 14px; font-weight: 700; margin-top: 4px;">শিক্ষার্থী: ${student.name} | কলেজ: ${student.college}</div>
-        <div style="font-size: 12px; color: #64748b; margin-top: 2px;">ইমেইল: ${student.email} | ফোন: ${student.mobile || 'N/A'} | মোট সম্পন্ন পরীক্ষা: ${submissions.length} টি</div>
+        <div style="font-size: 12px; color: #64748b; margin-top: 2px;">ইমেইল: ${student.email} | ফোন: ${student.mobile || 'N/A'} | ফিল্টার: <strong>${filterLabel}</strong> | মোট সম্পন্ন পরীক্ষা: ${submissions.length} টি</div>
       </div>
       <table>
         <thead>
