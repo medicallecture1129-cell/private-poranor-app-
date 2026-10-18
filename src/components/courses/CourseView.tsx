@@ -47,9 +47,15 @@ interface CourseViewProps {
   course: Course;
   students: StudentUser[];
   onBack: () => void;
+  registerBackHandler?: (handler: () => boolean) => void;
 }
 
-export const CourseView: React.FC<CourseViewProps> = ({ course, students, onBack }) => {
+export const CourseView: React.FC<CourseViewProps> = ({ 
+  course, 
+  students, 
+  onBack,
+  registerBackHandler
+}) => {
   const { role } = useAuth();
   const { success: toastSuccess, error: toastError } = useToast();
 
@@ -87,42 +93,80 @@ export const CourseView: React.FC<CourseViewProps> = ({ course, students, onBack
   // Add Material Modal (Video / Note)
   const [showAddResourceModal, setShowAddResourceModal] = useState(false);
   const [resourceType, setResourceType] = useState<'video' | 'pdf'>('video');
+  const [uploadMode, setUploadMode] = useState<'link' | 'file'>('link');
   const [resourceTitle, setResourceTitle] = useState('');
   const [resourceUrl, setResourceUrl] = useState('');
   const [resourceCategory, setResourceCategory] = useState<PdfCategory>('lecture');
   const [resourceInstructor, setResourceInstructor] = useState('Dr Tofael Ahmed');
+  const [selectedFileName, setSelectedFileName] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
 
   // Fullscreen modals
   const [activeVideoPopup, setActiveVideoPopup] = useState<{ title: string; url: string } | null>(null);
   const [activePdfPopup, setActivePdfPopup] = useState<{ title: string; url: string } | null>(null);
 
-  // Hardware Back-Button Support (Steps back 1 level instead of exiting app)
+  // Register 1-step backward navigation handler with App.tsx
   useEffect(() => {
-    const handlePopState = () => {
-      if (activeVideoPopup) {
-        setActiveVideoPopup(null);
-      } else if (activePdfPopup) {
-        setActivePdfPopup(null);
-      } else if (showAddResourceModal) {
-        setShowAddResourceModal(false);
-      } else if (showAddClassModal) {
-        setShowAddClassModal(false);
-      } else if (showAddFolderModal) {
-        setShowAddFolderModal(false);
-      } else if (currentClass) {
-        setCurrentClass(null);
-      } else if (currentFolderId) {
-        // Go to parent folder or root
-        const curr = folders.find(f => f.id === currentFolderId);
-        setCurrentFolderId(curr?.parentId || null);
-      } else {
-        onBack();
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [activeVideoPopup, activePdfPopup, showAddResourceModal, showAddClassModal, showAddFolderModal, currentClass, currentFolderId, folders, onBack]);
+    if (registerBackHandler) {
+      registerBackHandler(() => {
+        if (activeVideoPopup) {
+          setActiveVideoPopup(null);
+          return true;
+        }
+        if (activePdfPopup) {
+          setActivePdfPopup(null);
+          return true;
+        }
+        if (showAddResourceModal) {
+          setShowAddResourceModal(false);
+          return true;
+        }
+        if (showAddClassModal) {
+          setShowAddClassModal(false);
+          return true;
+        }
+        if (showAddFolderModal) {
+          setShowAddFolderModal(false);
+          return true;
+        }
+        if (renameTargetFolder) {
+          setRenameTargetFolder(null);
+          return true;
+        }
+        if (renameTargetClass) {
+          setRenameTargetClass(null);
+          return true;
+        }
+        if (currentClass) {
+          setCurrentClass(null);
+          return true;
+        }
+        if (currentFolderId) {
+          const curr = folders.find(f => f.id === currentFolderId);
+          setCurrentFolderId(curr?.parentId || null);
+          return true;
+        }
+        if (activeTab !== 'content') {
+          setActiveTab('content');
+          return true;
+        }
+        return false;
+      });
+    }
+  }, [
+    registerBackHandler,
+    activeVideoPopup,
+    activePdfPopup,
+    showAddResourceModal,
+    showAddClassModal,
+    showAddFolderModal,
+    renameTargetFolder,
+    renameTargetClass,
+    currentClass,
+    currentFolderId,
+    folders,
+    activeTab
+  ]);
 
   // Real-time Firestore Subscriptions
   useEffect(() => {
@@ -286,15 +330,41 @@ export const CourseView: React.FC<CourseViewProps> = ({ course, students, onBack
     }
   };
 
-  // Create Resource under Current Class (Name is optional)
+  // Handle file selection from local device (Video or PDF)
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSelectedFileName(file.name);
+    // If title is blank, auto-populate with file name without extension
+    if (!resourceTitle.trim()) {
+      const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+      setResourceTitle(nameWithoutExt);
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setResourceUrl(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Create Resource under Current Class (Name is completely optional, URL or file supported)
   const handleCreateResource = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentClass) return;
 
-    const url = resourceUrl.trim();
-    if (!url) {
-      toastError('Please provide a valid URL');
+    let finalUrl = resourceUrl.trim();
+    if (!finalUrl) {
+      toastError(resourceType === 'video' ? 'ভিডিও লিঙ্ক প্রদান করুন অথবা ফাইল সিলেক্ট করুন' : 'পিডিএফ লিঙ্ক প্রদান করুন অথবা ফাইল সিলেক্ট করুন');
       return;
+    }
+
+    // Auto-normalize web links: prepend https:// if missing
+    if (!finalUrl.startsWith('data:') && !finalUrl.startsWith('blob:') && !finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+      finalUrl = 'https://' + finalUrl;
     }
 
     // Auto-generate title if omitted
@@ -310,24 +380,28 @@ export const CourseView: React.FC<CourseViewProps> = ({ course, students, onBack
       }
     }
 
-    setShowAddResourceModal(false);
-    setResourceTitle('');
-    setResourceUrl('');
-
+    setIsUploading(true);
     try {
       await createResource(
         course.id, 
         finalTitle, 
         resourceType, 
-        url, 
+        finalUrl, 
         currentFolderId, 
         currentClass.id,
         resourceType === 'pdf' ? resourceCategory : undefined,
         resourceInstructor.trim() || undefined
       );
-      toastSuccess(`${resourceType === 'video' ? 'Class Video' : 'Class PDF'} added successfully.`);
+      toastSuccess(`${resourceType === 'video' ? 'ভিডিও লেকচার' : 'ক্লাস শিট'} সফলভাবে যুক্ত হয়েছে।`);
+      setShowAddResourceModal(false);
+      setResourceTitle('');
+      setResourceUrl('');
+      setSelectedFileName('');
+      setUploadMode('link');
     } catch (err: unknown) {
-      toastError(err instanceof Error ? err.message : 'Failed to add material');
+      toastError(err instanceof Error ? err.message : 'ফাইল আপলোড করতে সমস্যা হয়েছে');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -482,30 +556,54 @@ export const CourseView: React.FC<CourseViewProps> = ({ course, students, onBack
                     <ProtectedVideoPlayer
                       title={activeVideoResource.title}
                       url={activeVideoResource.url}
+                      isInline={true}
                     />
 
-                    {/* Multiple Videos Selector if more than 1 video */}
-                    {classVideos.length > 1 && (
-                      <div className="p-3 bg-slate-900 border-t border-slate-800 flex items-center gap-2 overflow-x-auto">
+                    {/* Videos Selector & Admin Controls */}
+                    <div className="p-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-2 overflow-x-auto">
+                      <div className="flex items-center gap-2 min-w-0">
                         <span className="text-[11px] font-bold text-slate-400 shrink-0 uppercase tracking-wider pl-1">
-                          Videos:
+                          Videos ({classVideos.length}):
                         </span>
                         {classVideos.map((vid, idx) => (
-                          <button
-                            key={vid.id}
-                            onClick={() => setActiveVideoId(vid.id)}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer ${
-                              (activeVideoId || classVideos[0].id) === vid.id
-                                ? 'bg-blue-600 text-white shadow-xs'
-                                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                            }`}
-                          >
-                            <Play className="w-3 h-3 fill-current" />
-                            <span>Part {idx + 1}: {vid.title}</span>
-                          </button>
+                          <div key={vid.id} className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => setActiveVideoId(vid.id)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer ${
+                                (activeVideoId || classVideos[0].id) === vid.id
+                                  ? 'bg-blue-600 text-white shadow-xs'
+                                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                              }`}
+                            >
+                              <Play className="w-3 h-3 fill-current" />
+                              <span>Part {idx + 1}: {vid.title}</span>
+                            </button>
+                            {role === 'admin' && (
+                              <button
+                                onClick={(e) => handleDeleteResource(vid, e)}
+                                className="p-1 text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                                title="Delete Video"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
                         ))}
                       </div>
-                    )}
+
+                      {role === 'admin' && (
+                        <button
+                          onClick={() => {
+                            setResourceType('video');
+                            setShowAddResourceModal(true);
+                          }}
+                          className="px-2.5 py-1.5 rounded-xl bg-blue-600/80 hover:bg-blue-600 text-white text-xs font-bold shrink-0 flex items-center gap-1 cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add Video</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div className="p-12 text-center text-slate-400 space-y-3 bg-slate-950">
@@ -1163,33 +1261,94 @@ export const CourseView: React.FC<CourseViewProps> = ({ course, students, onBack
                 />
               </div>
 
+              {/* Upload Source: Link or Device File */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                  {resourceType === 'video' ? 'YouTube Video URL / Link' : 'Google Drive / PDF Link'}
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
+                  আপলোড মাধ্যম (Upload Source)
                 </label>
-                <input
-                  type="url"
-                  required
-                  value={resourceUrl}
-                  onChange={(e) => setResourceUrl(e.target.value)}
-                  placeholder={resourceType === 'video' ? 'https://www.youtube.com/watch?v=...' : 'https://drive.google.com/file/d/...'}
-                  className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setUploadMode('link')}
+                    className={`py-1.5 rounded-xl text-xs font-semibold border flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                      uploadMode === 'link'
+                        ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-600 text-blue-600 dark:text-blue-400 font-bold'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    <span>🔗 লিঙ্ক পেস্ট করুন</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUploadMode('file')}
+                    className={`py-1.5 rounded-xl text-xs font-semibold border flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                      uploadMode === 'file'
+                        ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-600 text-blue-600 dark:text-blue-400 font-bold'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    <span>📁 ফাইল সিলেক্ট করুন</span>
+                  </button>
+                </div>
+
+                {uploadMode === 'link' ? (
+                  <div>
+                    <input
+                      type="text"
+                      required
+                      value={resourceUrl}
+                      onChange={(e) => setResourceUrl(e.target.value)}
+                      placeholder={
+                        resourceType === 'video'
+                          ? 'YouTube URL, Google Drive বা MP4 লিংক পেস্ট করুন'
+                          : 'Google Drive বা অনলাইন PDF লিংক পেস্ট করুন'
+                      }
+                      className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                      YouTube (youtu.be), Google Drive অথবা যেকোনো ডিরেক্ট ভিডিও/পিডিএফ সাপোর্ট করে।
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-4 bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                      <input
+                        type="file"
+                        accept={resourceType === 'video' ? 'video/*,.mp4,.webm,.mov' : '.pdf,application/pdf'}
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
+                      <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                        {selectedFileName ? selectedFileName : (resourceType === 'video' ? 'ডিভাইস থেকে ভিডিও ফাইল সিলেক্ট করুন' : 'ডিভাইস থেকে পিডিএফ ফাইল সিলেক্ট করুন')}
+                      </span>
+                      <span className="text-[10px] text-slate-500 mt-0.5">
+                        {resourceType === 'video' ? 'MP4, WebM, MOV সাপোর্টেড' : 'PDF ফাইল সাপোর্টেড'}
+                      </span>
+                    </label>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddResourceModal(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-semibold cursor-pointer"
+                  disabled={isUploading}
+                  onClick={() => {
+                    setShowAddResourceModal(false);
+                    setSelectedFileName('');
+                    setResourceUrl('');
+                  }}
+                  className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-semibold cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer shadow-xs"
+                  disabled={isUploading}
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5"
                 >
-                  আপলোড করুন
+                  {isUploading && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  <span>{isUploading ? 'যুক্ত হচ্ছে...' : 'আপলোড করুন'}</span>
                 </button>
               </div>
             </form>

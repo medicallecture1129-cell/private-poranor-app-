@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider, useToast } from './context/ToastContext';
@@ -24,6 +24,9 @@ const MainApp: React.FC = () => {
   const [activeTab, setActiveTab] = useState<NavTab>('courses');
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
 
+  // Active view 1-step backward handler ref
+  const courseBackHandlerRef = useRef<(() => boolean) | null>(null);
+
   // Real-time Firestore state
   const [courses, setCourses] = useState<Course[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
@@ -41,11 +44,24 @@ const MainApp: React.FC = () => {
   // Hardware back button / popstate handler for 1-step backward navigation
   useEffect(() => {
     const handlePopState = (e: PopStateEvent) => {
-      // If inside a selected course, exit course to course list
+      // 1. If inside CourseView and CourseView can step back 1 level (e.g. out of class, out of folder, or close modal):
+      if (selectedCourse && courseBackHandlerRef.current) {
+        const handled = courseBackHandlerRef.current();
+        if (handled) {
+          return;
+        }
+      }
+
+      // 2. If at root of selectedCourse, exit course to course list
       if (selectedCourse) {
         setSelectedCourse(null);
-      } else if (activeTab !== 'courses') {
+        return;
+      }
+
+      // 3. If in another tab, go back to courses tab
+      if (activeTab !== 'courses') {
         setActiveTab('courses');
+        return;
       }
     };
 
@@ -133,6 +149,9 @@ const MainApp: React.FC = () => {
             <CourseView
               course={selectedCourse}
               students={students}
+              registerBackHandler={(fn) => {
+                courseBackHandlerRef.current = fn;
+              }}
               onBack={() => {
                 if (window.history.length > 1) {
                   window.history.back();
