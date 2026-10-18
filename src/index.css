@@ -263,3 +263,54 @@ input[type="range"] {
 .dark ::-webkit-scrollbar-thumb:hover {
   background: var(--theme-primary);
 }
+
+/* =========================================================================
+   TELEGRAM-STYLE ANIMATED AURORA MESH (Dark & Light)
+   ========================================================================= */
+@keyframes telegram-aurora-float-1 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(50px, -35px) scale(1.12);
+  }
+  66% {
+    transform: translate(-35px, 25px) scale(0.92);
+  }
+}
+
+@keyframes telegram-aurora-float-2 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  40% {
+    transform: translate(-60px, 40px) scale(1.18);
+  }
+  80% {
+    transform: translate(40px, -25px) scale(0.88);
+  }
+}
+
+@keyframes telegram-aurora-float-3 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(30px, 45px) scale(1.1);
+  }
+}
+
+.telegram-aurora-orb-1 {
+  animation: telegram-aurora-float-1 16s ease-in-out infinite;
+  will-change: transform;
+}
+
+.telegram-aurora-orb-2 {
+  animation: telegram-aurora-float-2 22s ease-in-out infinite;
+  will-change: transform;
+}
+
+.telegram-aurora-orb-3 {
+  animation: telegram-aurora-float-3 18s ease-in-out infinite;
+  will-change: transform;
+}

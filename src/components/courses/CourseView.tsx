@@ -581,50 +581,108 @@ export const CourseView: React.FC<CourseViewProps> = ({
                       isInline={true}
                     />
 
-                    {/* Videos Selector & Admin Controls */}
-                    <div className="p-3 bg-slate-100 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 overflow-x-auto">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 shrink-0 uppercase tracking-wider pl-1">
-                          Videos ({classVideos.length}):
-                        </span>
-                        {classVideos.map((vid, idx) => (
-                          <div key={vid.id} className="flex items-center gap-1 shrink-0">
-                            <button
-                              onClick={() => setActiveVideoId(vid.id)}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer ${
-                                (activeVideoId || classVideos[0].id) === vid.id
-                                  ? 'bg-blue-600 text-white shadow-xs'
-                                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
-                              }`}
-                            >
-                              <Play className="w-3 h-3 fill-current" />
-                              <span>Part {idx + 1}: {vid.title}</span>
-                            </button>
-                            {role === 'admin' && (
-                              <button
-                                onClick={(e) => handleDeleteResource(vid, e)}
-                                className="p-1 text-slate-400 hover:text-red-500 rounded hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                                title="Delete Video"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            )}
-                          </div>
-                        ))}
+                    {/* CLASS VIDEO LECTURES LIST (VERTICAL STACK - NO HORIZONTAL SCROLL) */}
+                    <div className="p-4 sm:p-5 bg-white/95 dark:bg-slate-900/90 border-t border-slate-200 dark:border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between pb-1">
+                        <div className="flex items-center gap-2">
+                          <Video className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                          <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white uppercase tracking-wider">
+                            ভিডিও লেকচার তালিকা ({classVideos.length} টি পার্ট)
+                          </h4>
+                        </div>
+                        {role === 'admin' && (
+                          <button
+                            onClick={() => {
+                              setResourceType('video');
+                              setShowAddResourceModal(true);
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Add Video</span>
+                          </button>
+                        )}
                       </div>
 
-                      {role === 'admin' && (
-                        <button
-                          onClick={() => {
-                            setResourceType('video');
-                            setShowAddResourceModal(true);
-                          }}
-                          className="px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shrink-0 flex items-center gap-1 cursor-pointer shadow-xs"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Add Video</span>
-                        </button>
-                      )}
+                      {/* Vertically Listed Videos */}
+                      <div className="space-y-2">
+                        {classVideos.map((vid, idx) => {
+                          const isCurrent = (activeVideoId || classVideos[0].id) === vid.id;
+                          return (
+                            <div
+                              key={vid.id}
+                              onClick={() => setActiveVideoId(vid.id)}
+                              className={`group relative p-3 sm:p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                                isCurrent
+                                  ? 'bg-blue-50/90 dark:bg-blue-950/50 border-blue-500 shadow-sm ring-1 ring-blue-500/30'
+                                  : 'bg-slate-50/80 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div 
+                                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 shadow-xs ${
+                                    isCurrent
+                                      ? 'text-white'
+                                      : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                                  }`}
+                                  style={isCurrent ? { backgroundColor: 'var(--theme-primary)' } : undefined}
+                                >
+                                  <Play className={`w-4 h-4 ${isCurrent ? 'fill-current' : ''}`} />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span 
+                                      className="text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-md font-mono"
+                                      style={isCurrent ? { backgroundColor: 'var(--theme-primary-light)', color: 'var(--theme-primary)' } : { backgroundColor: 'rgba(148, 163, 184, 0.15)', color: '#64748b' }}
+                                    >
+                                      Part {idx + 1}
+                                    </span>
+                                    {isCurrent && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        <span>এখন চলছে</span>
+                                      </span>
+                                    )}
+                                  </div>
+                                  <h5 className="font-semibold text-xs sm:text-sm text-slate-900 dark:text-white truncate mt-0.5">
+                                    {vid.title}
+                                  </h5>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveVideoId(vid.id);
+                                  }}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                    isCurrent
+                                      ? 'text-white shadow-xs'
+                                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                                  }`}
+                                  style={isCurrent ? { backgroundColor: 'var(--theme-primary)' } : undefined}
+                                >
+                                  {isCurrent ? 'চলমান' : 'প্লে করুন'}
+                                </button>
+                                {role === 'admin' && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteResource(vid, e);
+                                    }}
+                                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/60 transition-colors cursor-pointer"
+                                    title="Delete Video"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 ) : (

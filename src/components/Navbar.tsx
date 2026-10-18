@@ -204,6 +204,7 @@ export const Navbar: React.FC = () => {
                             key={t.id}
                             onClick={() => {
                               setColorTheme(t.id);
+                              setShowThemePicker(false);
                             }}
                             className={`p-2 rounded-2xl border text-[11px] font-semibold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
                               isSelected
