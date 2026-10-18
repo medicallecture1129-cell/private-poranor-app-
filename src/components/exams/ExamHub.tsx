@@ -23,7 +23,9 @@ import {
   Edit,
   Power,
   ShieldCheck,
-  CheckCircle
+  CheckCircle,
+  X,
+  Zap
 } from 'lucide-react';
 
 interface ExamHubProps {
@@ -45,6 +47,66 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
   const [activeExamRunning, setActiveExamRunning] = useState<{ exam: Exam; isLive: boolean } | null>(null);
   const [practiceResultData, setPracticeResultData] = useState<{ exam: Exam; submission: ExamSubmission } | null>(null);
+
+  // Re-live Exam Modal State (Requirement 3: Re-live from Practice section)
+  const [reLiveTargetExam, setReLiveTargetExam] = useState<Exam | null>(null);
+  const [reLiveStartTime, setReLiveStartTime] = useState('');
+  const [reLiveEndTime, setReLiveEndTime] = useState('');
+  const [reLivePublishTime, setReLivePublishTime] = useState('');
+  const [isReLiving, setIsReLiving] = useState(false);
+
+  const formatForDateTimeInput = (ms: number) => {
+    const d = new Date(ms);
+    const pad = (n: number) => (n < 10 ? '0' + n : n);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const handleOpenReLiveModal = (exam: Exam, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const now = Date.now();
+    const durationMs = (exam.durationMinutes || 30) * 60 * 1000;
+    setReLiveStartTime(formatForDateTimeInput(now));
+    setReLiveEndTime(formatForDateTimeInput(now + Math.max(durationMs * 2, 4 * 60 * 60 * 1000)));
+    setReLivePublishTime(formatForDateTimeInput(now + Math.max(durationMs * 2, 4 * 60 * 60 * 1000) + 60 * 60 * 1000));
+    setReLiveTargetExam(exam);
+  };
+
+  const handleConfirmReLive = async () => {
+    if (!reLiveTargetExam) return;
+    const startMs = new Date(reLiveStartTime).getTime();
+    const endMs = new Date(reLiveEndTime).getTime();
+    const pubMs = new Date(reLivePublishTime).getTime();
+
+    if (isNaN(startMs) || isNaN(endMs) || isNaN(pubMs)) {
+      toastError('অনুগ্রহ করে সঠিক তারিখ ও সময় নির্বাচন করুন');
+      return;
+    }
+    if (endMs <= startMs) {
+      toastError('সমাপ্তির সময় অবশ্যই শুরুর সময়ের পরে হতে হবে');
+      return;
+    }
+    if (pubMs < endMs) {
+      toastError('ফলাফল প্রকাশের সময় অবশ্যই সমাপ্তির সময়ের সমান বা পরে হতে হবে');
+      return;
+    }
+
+    setIsReLiving(true);
+    try {
+      await updateExam(reLiveTargetExam.id, {
+        startTime: startMs,
+        endTime: endMs,
+        resultPublishTime: pubMs,
+        isActive: true
+      });
+      toastSuccess(`"${reLiveTargetExam.title}" সফলভাবে আবার লাইভ করা হয়েছে!`);
+      setReLiveTargetExam(null);
+      setActiveSegment('live');
+    } catch (err: unknown) {
+      toastError(err instanceof Error ? err.message : 'Failed to re-live exam');
+    } finally {
+      setIsReLiving(false);
+    }
+  };
 
   const currentTime = Date.now();
 
@@ -323,31 +385,45 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
                 {/* Bottom Actions based on Role */}
                 <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800">
                   {role === 'admin' ? (
-                    /* ADMIN CONTROLS: Toggle ON/OFF, Edit details & questions (Admin CANNOT take exams) */
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={(e) => handleToggleExamActive(exam, e)}
-                        className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
-                          isExamActive
-                            ? 'bg-amber-100 hover:bg-amber-200 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                            : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                        }`}
-                        title={isExamActive ? 'Pause exam' : 'Resume exam'}
-                      >
-                        <Power className="w-3.5 h-3.5" />
-                        <span>{isExamActive ? 'Pause Exam' : 'Make Active'}</span>
-                      </button>
+                    /* ADMIN CONTROLS: Toggle ON/OFF, Edit details & questions, Re-live practice exam */
+                    <div className="space-y-2">
+                      {activeSegment === 'practice' && (
+                        <button
+                          type="button"
+                          onClick={(e) => handleOpenReLiveModal(exam, e)}
+                          className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer ring-1 ring-white/10"
+                          title="Make this exam live again"
+                        >
+                          <Radio className="w-3.5 h-3.5 animate-pulse" />
+                          <span>আপনি কি এই এক্সামটি আবার লাইভ করতে চান?</span>
+                        </button>
+                      )}
 
-                      <button
-                        type="button"
-                        onClick={() => setEditingExam(exam)}
-                        className="py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                        title="Edit schedule and questions"
-                      >
-                        <Edit className="w-3.5 h-3.5" />
-                        <span>Manage / Edit</span>
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => handleToggleExamActive(exam, e)}
+                          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+                            isExamActive
+                              ? 'bg-amber-100 hover:bg-amber-200 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                              : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                          }`}
+                          title={isExamActive ? 'Pause exam' : 'Resume exam'}
+                        >
+                          <Power className="w-3.5 h-3.5" />
+                          <span>{isExamActive ? 'Pause Exam' : 'Make Active'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setEditingExam(exam)}
+                          className="py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                          title="Edit schedule and questions"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                          <span>Manage / Edit</span>
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     /* STUDENT CONTROLS: Start Live Exam or Practice */
@@ -440,6 +516,115 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
             setActiveExamRunning({ exam: reExam, isLive: false });
           }}
         />
+      )}
+
+      {/* RE-LIVE EXAM MODAL (Requirement 3) */}
+      {reLiveTargetExam && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-lg bg-[#111420] border border-white/[0.1] rounded-3xl shadow-2xl overflow-hidden my-auto text-white">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-white/[0.08] bg-[#161a29] flex items-center justify-between">
+              <div className="flex items-center gap-2.5 text-rose-400">
+                <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400">
+                  <Radio className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-white">
+                    আপনি কি এই এক্সামটি আবার লাইভ করতে চান?
+                  </h3>
+                  <p className="text-xs text-slate-400 truncate max-w-xs">
+                    {reLiveTargetExam.title}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setReLiveTargetExam(null)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4">
+              {/* Leaderboard Notice Banner */}
+              <div className="p-3.5 rounded-2xl bg-rose-950/30 border border-rose-500/30 text-xs text-rose-200 leading-relaxed space-y-1">
+                <div className="font-bold text-rose-300 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-rose-400" />
+                  <span>লিডারবোর্ড তথ্য (Merged Leaderboard)</span>
+                </div>
+                <p className="text-slate-300 text-[11px]">
+                  প্রথমবার লাইভ এক্সাম থেকে যে লিডারবোর্ড তৈরি হয়েছিল এবং পুনরায় লাইভ করার পর যারা এক্সাম দেবে—তাদের সবার ফলাফল একই সিঙ্গেল লিডারবোর্ডে যুক্ত (Merge) হয়ে থাকবে।
+                </p>
+              </div>
+
+              {/* Schedule Inputs */}
+              <div className="space-y-3 pt-1">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    ১. নতুন শুরুর সময় (Live Start Time)
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={reLiveStartTime}
+                    onChange={(e) => setReLiveStartTime(e.target.value)}
+                    className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-white/[0.1] bg-[#181d2c] text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    ২. নতুন সমাপ্তির সময় (Live End Time)
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={reLiveEndTime}
+                    onChange={(e) => setReLiveEndTime(e.target.value)}
+                    className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-white/[0.1] bg-[#181d2c] text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    ৩. ফলাফল প্রকাশের সময় (Result Publish Time)
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={reLivePublishTime}
+                    onChange={(e) => setReLivePublishTime(e.target.value)}
+                    className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-white/[0.1] bg-[#181d2c] text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-3 flex items-center justify-end gap-3 border-t border-white/[0.08]">
+                <button
+                  type="button"
+                  onClick={() => setReLiveTargetExam(null)}
+                  className="px-4 py-2 text-xs font-semibold rounded-xl border border-white/[0.1] text-slate-300 hover:bg-white/[0.05] transition-colors cursor-pointer"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="button"
+                  disabled={isReLiving}
+                  onClick={handleConfirmReLive}
+                  className="px-5 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-500 text-white shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {isReLiving ? (
+                    <span>লাইভ করা হচ্ছে...</span>
+                  ) : (
+                    <>
+                      <Radio className="w-3.5 h-3.5 animate-pulse" />
+                      <span>হ্যাঁ, এখনই লাইভ করুন</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

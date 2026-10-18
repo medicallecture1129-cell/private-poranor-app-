@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Course, Exam, ExamSubmission, LeaderboardRow, StudentUser } from '../../types';
 import { exportLeaderboardPDF, exportAnswerScriptPDF, exportStudentSummaryPDF } from '../../utils/pdfExport';
-import { EditExamModal } from '../exams/EditExamModal';
+import { getSynchronizedScore } from '../../utils/scoreSync';
 import { StudentProfileModal } from '../StudentProfileModal';
-import { updateExam, deleteExam } from '../../services/db';
 import { useToast } from '../../context/ToastContext';
 import { 
   Trophy, 
@@ -23,18 +22,14 @@ import {
   ChevronRight, 
   X,
   Radio,
-  Edit,
-  Power,
-  Trash2,
-  AlertCircle,
   Filter,
   Sparkles,
-  Zap,
   Check,
   UserCircle,
   ChevronDown,
   BookOpen,
-  Users
+  Users,
+  Award
 } from 'lucide-react';
 
 interface ResultsViewProps {
@@ -67,22 +62,6 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   // Selected Student for Profile View Modal
   const [inspectStudentProfile, setInspectStudentProfile] = useState<(Partial<StudentUser> & { name: string; college?: string; email?: string; mobile?: string }) | null>(null);
 
-  // Admin Exam Management state
-  const [editingExamData, setEditingExamData] = useState<Exam | null>(null);
-  const [showReLiveModal, setShowReLiveModal] = useState(false);
-  const [isUpdatingLive, setIsUpdatingLive] = useState(false);
-
-  // Re-live time inputs
-  const formatForInput = (ms: number) => {
-    const d = new Date(ms);
-    const pad = (n: number) => (n < 10 ? '0' + n : n);
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
-
-  const [reLiveStart, setReLiveStart] = useState('');
-  const [reLiveEnd, setReLiveEnd] = useState('');
-  const [reLiveResultPub, setReLiveResultPub] = useState('');
-
   // SEGMENT 2: STUDENT SUMMARY REPORT (Student view state)
   const [studentHistoryFilter, setStudentHistoryFilter] = useState<'both' | 'live' | 'practice'>('both');
 
@@ -104,15 +83,48 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   // Check if student is allowed to view results of this exam yet
   const isResultPublished = selectedExam ? (currentTime >= selectedExam.resultPublishTime || role === 'admin') : false;
 
+  // Requirement 4: Global Marks Synchronization
   // Filter ONLY Live Exam Submissions for Official Leaderboard (Strictly students only - no admins)
-  const liveSubmissions = selectedExam ? submissions.filter(s => {
+  const rawLiveSubmissions = selectedExam ? submissions.filter(s => {
     if (s.examId !== selectedExam.id || !s.isLive) return false;
     if (s.studentId?.startsWith('admin_') || s.studentEmail?.toLowerCase().includes('admin@')) return false;
     return true;
   }) : [];
 
+  // Synchronize scores dynamically using selectedExam.totalMarks
+  const synchronizedLiveSubs = rawLiveSubmissions.map(sub => {
+    const sync = getSynchronizedScore(sub, selectedExam);
+    return {
+      ...sub,
+      marksObtained: sync.marksObtained,
+      totalMarks: sync.totalMarks,
+      percentage: sync.percentage
+    };
+  });
+
+  // Requirement 3: Unified Merged Leaderboard
+  // All live submissions across the initial live session and any re-live sessions merge into ONE single leaderboard.
+  // If a student took part in multiple sessions, merge to their best score (highest marks, lowest duration).
+  const mergedStudentMap = new Map<string, typeof synchronizedLiveSubs[0]>();
+  for (const sub of synchronizedLiveSubs) {
+    const key = (sub.studentEmail || sub.studentId).toLowerCase().trim();
+    const existing = mergedStudentMap.get(key);
+    if (!existing) {
+      mergedStudentMap.set(key, sub);
+    } else {
+      if (
+        sub.marksObtained > existing.marksObtained ||
+        (sub.marksObtained === existing.marksObtained && sub.durationSeconds < existing.durationSeconds)
+      ) {
+        mergedStudentMap.set(key, sub);
+      }
+    }
+  }
+
+  const mergedLiveSubmissions = Array.from(mergedStudentMap.values());
+
   // Sort by marks desc, then duration asc
-  const sortedLiveSubmissions = [...liveSubmissions].sort((a, b) => {
+  const sortedLiveSubmissions = [...mergedLiveSubmissions].sort((a, b) => {
     if (b.marksObtained !== a.marksObtained) {
       return b.marksObtained - a.marksObtained;
     }
@@ -168,83 +180,6 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
       (s.college && s.college.toLowerCase().includes(q))
     );
   });
-
-  // Open Re-Live Modal with smart presets
-  const handleOpenReLiveModal = () => {
-    if (!selectedExam) return;
-    const now = Date.now();
-    setReLiveStart(formatForInput(now));
-    setReLiveEnd(formatForInput(now + 4 * 60 * 60 * 1000));
-    setReLiveResultPub(formatForInput(now + 5 * 60 * 60 * 1000));
-    setShowReLiveModal(true);
-  };
-
-  const handleApplyPreset = (hours: number) => {
-    const now = Date.now();
-    setReLiveStart(formatForInput(now));
-    setReLiveEnd(formatForInput(now + hours * 60 * 60 * 1000));
-    setReLiveResultPub(formatForInput(now + (hours + 1) * 60 * 60 * 1000));
-  };
-
-  const handleSaveReLive = async () => {
-    if (!selectedExam) return;
-    const startMs = new Date(reLiveStart).getTime();
-    const endMs = new Date(reLiveEnd).getTime();
-    const pubMs = new Date(reLiveResultPub).getTime();
-
-    if (isNaN(startMs) || isNaN(endMs) || isNaN(pubMs)) {
-      toastError('Please select valid date and time');
-      return;
-    }
-    if (endMs <= startMs) {
-      toastError('Exam end time must be after start time');
-      return;
-    }
-    if (pubMs < endMs) {
-      toastError('Result publish time must be on or after exam end time');
-      return;
-    }
-
-    setIsUpdatingLive(true);
-    try {
-      await updateExam(selectedExam.id, {
-        startTime: startMs,
-        endTime: endMs,
-        resultPublishTime: pubMs,
-        isActive: true
-      });
-      toastSuccess(`"${selectedExam.title}" is now live again!`);
-      setShowReLiveModal(false);
-    } catch (err: unknown) {
-      toastError(err instanceof Error ? err.message : 'Failed to make exam live again');
-    } finally {
-      setIsUpdatingLive(false);
-    }
-  };
-
-  const handleToggleExamStatus = async () => {
-    if (!selectedExam) return;
-    const newStatus = selectedExam.isActive === false ? true : false;
-    try {
-      await updateExam(selectedExam.id, { isActive: newStatus });
-      toastSuccess(`Exam is now ${newStatus ? 'Active (ON)' : 'Inactive (OFF)'}`);
-    } catch (err: unknown) {
-      toastError(err instanceof Error ? err.message : 'Failed to update exam status');
-    }
-  };
-
-  const handleDeleteCurrentExam = async () => {
-    if (!selectedExam) return;
-    if (window.confirm(`Are you sure you want to permanently delete "${selectedExam.title}"?`)) {
-      try {
-        await deleteExam(selectedExam.id);
-        setSelectedExamId('');
-        toastSuccess('Exam deleted successfully');
-      } catch (err: unknown) {
-        toastError(err instanceof Error ? err.message : 'Failed to delete exam');
-      }
-    }
-  };
 
   // Student's own past submissions (for Student view)
   const studentPastSubmissions = submissions
@@ -392,128 +327,78 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
           ) : (
             /* Selected Exam View */
             <div className="space-y-6">
-              {/* ADMIN SPECIAL CONTROLS & EXAM EDITING BAR */}
-              {role === 'admin' && (
-                <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-md border border-blue-700/40 space-y-4">
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-500/30 text-blue-200 border border-blue-400/30">
-                          {selectedCourse?.name || selectedExam.courseName}
-                        </span>
-                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1 ${
-                          selectedExam.isActive === false
-                            ? 'bg-amber-500/30 text-amber-300 border border-amber-400/30'
-                            : currentTime < selectedExam.startTime
-                            ? 'bg-sky-500/30 text-sky-300 border border-sky-400/30'
-                            : currentTime <= selectedExam.endTime
-                            ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-400/30 animate-pulse'
-                            : 'bg-slate-500/30 text-slate-300 border border-slate-400/30'
-                        }`}>
-                          <Radio className="w-3 h-3" />
-                          <span>
-                            {selectedExam.isActive === false
-                              ? 'Exam Paused'
-                              : currentTime < selectedExam.startTime
-                              ? 'Scheduled'
-                              : currentTime <= selectedExam.endTime
-                              ? 'LIVE NOW'
-                              : 'Live Completed'}
-                          </span>
-                        </span>
-                      </div>
-                      <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                        <span>{selectedExam.title}</span>
-                      </h3>
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-blue-200/90 font-medium pt-1">
-                        <span>Duration: {selectedExam.durationMinutes} mins</span>
-                        <span>•</span>
-                        <span>Total Marks: {selectedExam.totalMarks}</span>
-                        <span>•</span>
-                        <span>Pass Mark: {selectedExam.passMark}</span>
-                        <span>•</span>
-                        <span>Negative Mark: {(selectedExam.negativeMarkPercentage || 0) * 100}%</span>
-                        <span>•</span>
-                        <span>Total Questions: {selectedExam.questions?.length || selectedExam.totalQuestions}</span>
-                      </div>
-                    </div>
-
-                    {/* Admin Action Buttons */}
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      {/* 1. Re-make Live Button */}
-                      <button
-                        onClick={handleOpenReLiveModal}
-                        className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-                        title="Reschedule and Make Live Again"
-                      >
-                        <Zap className="w-4 h-4" />
-                        <span>Make Live Again</span>
-                      </button>
-
-                      {/* 2. Edit Exam Details & Questions */}
-                      <button
-                        onClick={() => setEditingExamData(selectedExam)}
-                        className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
-                        title="Edit Exam Details & Questions"
-                      >
-                        <Edit className="w-4 h-4" />
-                        <span>Edit Exam</span>
-                      </button>
-
-                      {/* 3. Toggle Active ON/OFF */}
-                      <button
-                        onClick={handleToggleExamStatus}
-                        className={`px-3 py-2 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
-                          selectedExam.isActive === false
-                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                            : 'bg-amber-600/80 hover:bg-amber-600 text-white'
-                        }`}
-                        title="Toggle Exam Status"
-                      >
-                        <Power className="w-4 h-4" />
-                        <span>{selectedExam.isActive === false ? 'Turn ON' : 'Turn OFF'}</span>
-                      </button>
-
-                      {/* 4. Delete Exam */}
-                      <button
-                        onClick={handleDeleteCurrentExam}
-                        className="p-2 rounded-xl bg-red-950/60 hover:bg-red-900 border border-red-700/50 text-red-300 hover:text-white transition-all cursor-pointer"
-                        title="Delete Exam"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+              {/* EXAM SUMMARY CARD (Pure, Clean & Informative - No Admin Controls) */}
+              <div className="bg-[#10141f] text-white rounded-3xl p-5 sm:p-6 shadow-xl border border-white/[0.08] space-y-4 relative overflow-hidden">
+                <div className="card-glow-line" />
+                
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-white/[0.08] text-rose-300 border border-white/[0.1]">
+                      {selectedCourse?.name || selectedExam.courseName}
+                    </span>
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Exam Summary & Official Leaderboard</span>
+                    </span>
                   </div>
 
-                  {/* Schedule Timestamps View */}
-                  <div className="pt-2 border-t border-white/10 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-blue-200/80">
-                    <div>
-                      <span className="text-white/60">Live Start:</span>{' '}
-                      <span className="font-semibold text-white">
-                        {new Date(selectedExam.startTime).toLocaleString('en-US', {
-                          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                        })}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-white/60">Live End:</span>{' '}
-                      <span className="font-semibold text-white">
-                        {new Date(selectedExam.endTime).toLocaleString('en-US', {
-                          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                        })}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-white/60">Result Publish:</span>{' '}
-                      <span className="font-semibold text-white">
-                        {new Date(selectedExam.resultPublishTime).toLocaleString('en-US', {
-                          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                        })}
-                      </span>
-                    </div>
+                  <div className="text-xs text-slate-400 flex items-center gap-1.5 font-medium">
+                    <Users className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Total Participants: <strong className="text-white font-mono">{leaderboardRows.length}</strong></span>
                   </div>
                 </div>
-              )}
+
+                <div>
+                  <h3 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+                    {selectedExam.title}
+                  </h3>
+                </div>
+
+                {/* Clean Summary Metric Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-white/[0.08]">
+                  <div className="bg-[#161a29] p-3.5 rounded-2xl border border-white/[0.06]">
+                    <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
+                      <Award className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Total Marks</span>
+                    </span>
+                    <p className="text-lg font-bold font-mono text-white mt-1">
+                      {selectedExam.totalMarks}
+                    </p>
+                  </div>
+
+                  <div className="bg-[#161a29] p-3.5 rounded-2xl border border-white/[0.06]">
+                    <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-sky-400" />
+                      <span>Exam Duration</span>
+                    </span>
+                    <p className="text-lg font-bold font-mono text-white mt-1">
+                      {selectedExam.durationMinutes} min
+                    </p>
+                  </div>
+
+                  <div className="bg-[#161a29] p-3.5 rounded-2xl border border-white/[0.06]">
+                    <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Completed / Ended</span>
+                    </span>
+                    <p className="text-xs font-semibold text-slate-200 mt-1.5 truncate">
+                      {new Date(selectedExam.endTime).toLocaleString([], {
+                        month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                      })}
+                    </p>
+                  </div>
+
+                  <div className="bg-[#161a29] p-3.5 rounded-2xl border border-white/[0.06]">
+                    <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
+                      <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Questions / Pass</span>
+                    </span>
+                    <p className="text-xs font-semibold text-slate-200 mt-1.5">
+                      {selectedExam.questions?.length || selectedExam.totalQuestions} Qs • Pass: {selectedExam.passMark}
+                    </p>
+                  </div>
+                </div>
+              </div>
 
               {/* Student View: Check if result published or locked */}
               {!isResultPublished ? (
@@ -938,9 +823,14 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
                                         <div className="flex items-center gap-3">
                                           <div className="text-right">
-                                            <span className="font-bold text-blue-600 dark:text-blue-400">
-                                              {sub.marksObtained}/{sub.totalMarks} ({sub.percentage.toFixed(1)}%)
-                                            </span>
+                                            {(() => {
+                                              const syncd = getSynchronizedScore(sub, ex);
+                                              return (
+                                                <span className="font-bold text-rose-500">
+                                                  {syncd.marksObtained}/{syncd.totalMarks} ({syncd.percentage.toFixed(1)}%)
+                                                </span>
+                                              );
+                                            })()}
                                             <span className="text-[10px] text-slate-400 block font-mono">
                                               {mins}m {secs}s
                                             </span>
@@ -1083,9 +973,14 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                           <div className="flex items-center gap-4">
                             <div className="text-right">
                               <span className="text-xs text-slate-500">Score:</span>
-                              <div className="font-bold text-sm text-blue-600 dark:text-blue-400">
-                                {sub.marksObtained}/{sub.totalMarks} ({sub.percentage.toFixed(1)}%)
-                              </div>
+                              {(() => {
+                                const syncd = getSynchronizedScore(sub, exam);
+                                return (
+                                  <div className="font-bold text-sm text-rose-500 font-mono">
+                                    {syncd.marksObtained}/{syncd.totalMarks} ({syncd.percentage.toFixed(1)}%)
+                                  </div>
+                                );
+                              })()}
                               <span className="text-[10px] text-slate-400 font-mono">
                                 Time: {mins}m {secs}s
                               </span>
@@ -1114,145 +1009,6 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
       )}
 
       {/* ========================================================= */}
-      {/* RE-MAKE LIVE MODAL (ADMIN) */}
-      {/* ========================================================= */}
-      {showReLiveModal && selectedExam && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-auto">
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-rose-50 dark:bg-rose-950/40 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
-                <Zap className="w-5 h-5" />
-                <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                  Make Exam Live Again
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowReLiveModal(false)}
-                className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6 space-y-4">
-              <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
-                <strong>Why this option?</strong> If any student missed the exam during the scheduled window or you want to host it again, enter new start and end times to make it live again. Submissions will automatically merge into the <strong>main official leaderboard</strong>.
-              </div>
-
-              <div>
-                <div className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-                  Quick Presets:
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPreset(2)}
-                    className="py-1.5 px-2 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-blue-50 dark:hover:bg-blue-950 text-slate-700 dark:text-slate-300 transition-colors"
-                  >
-                    2 Hours from Now
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPreset(4)}
-                    className="py-1.5 px-2 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-blue-50 dark:hover:bg-blue-950 text-slate-700 dark:text-slate-300 transition-colors"
-                  >
-                    4 Hours from Now
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPreset(24)}
-                    className="py-1.5 px-2 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-blue-50 dark:hover:bg-blue-950 text-slate-700 dark:text-slate-300 transition-colors"
-                  >
-                    24 Hours Live
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    1. Live Start Time
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={reLiveStart}
-                    onChange={(e) => setReLiveStart(e.target.value)}
-                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    2. Live End Time
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={reLiveEnd}
-                    onChange={(e) => setReLiveEnd(e.target.value)}
-                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    3. Result Publish Date & Time
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={reLiveResultPub}
-                    onChange={(e) => setReLiveResultPub(e.target.value)}
-                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setShowReLiveModal(false)}
-                  className="px-4 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={isUpdatingLive}
-                  onClick={handleSaveReLive}
-                  className="px-5 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-xs transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  {isUpdatingLive ? (
-                    <span>Saving...</span>
-                  ) : (
-                    <>
-                      <Zap className="w-3.5 h-3.5" />
-                      <span>Save & Make Live</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================= */}
-      {/* EDIT EXAM FULL DETAILS & QUESTIONS MODAL (ADMIN) */}
-      {/* ========================================================= */}
-      {editingExamData && (
-        <EditExamModal
-          exam={editingExamData}
-          courses={courses}
-          onClose={() => setEditingExamData(null)}
-          onExamUpdated={(updated) => {
-            setEditingExamData(null);
-            toastSuccess(`"${updated.title}" updated successfully`);
-          }}
-        />
-      )}
-
-      {/* ========================================================= */}
       {/* STUDENT PROFILE MODAL */}
       {/* ========================================================= */}
       {inspectStudentProfile && (
@@ -1276,19 +1032,32 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 <h3 className="font-bold text-base text-slate-900 dark:text-white">
                   Answer Script Analysis • {inspectSubmission.submission.studentName}
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {inspectSubmission.exam.title} • Score: {inspectSubmission.submission.marksObtained}/{inspectSubmission.exam.totalMarks} ({inspectSubmission.submission.percentage.toFixed(1)}%)
-                </p>
+                {(() => {
+                  const syncd = getSynchronizedScore(inspectSubmission.submission, inspectSubmission.exam);
+                  return (
+                    <p className="text-xs text-slate-400">
+                      {inspectSubmission.exam.title} • Score: <strong className="text-rose-400 font-mono">{syncd.marksObtained}/{syncd.totalMarks}</strong> ({syncd.percentage.toFixed(1)}%)
+                    </p>
+                  );
+                })()}
               </div>
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => exportAnswerScriptPDF(
-                    inspectSubmission.exam,
-                    inspectSubmission.submission,
-                    inspectSubmission.submission.studentName,
-                    inspectSubmission.submission.studentCollege
-                  )}
+                  onClick={() => {
+                    const syncd = getSynchronizedScore(inspectSubmission.submission, inspectSubmission.exam);
+                    exportAnswerScriptPDF(
+                      inspectSubmission.exam,
+                      {
+                        ...inspectSubmission.submission,
+                        marksObtained: syncd.marksObtained,
+                        totalMarks: syncd.totalMarks,
+                        percentage: syncd.percentage
+                      },
+                      inspectSubmission.submission.studentName,
+                      inspectSubmission.submission.studentCollege
+                    );
+                  }}
                   className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer text-slate-700 dark:text-slate-300"
                 >
                   <Download className="w-3.5 h-3.5" />

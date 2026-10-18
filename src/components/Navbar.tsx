@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useTheme, AVAILABLE_THEMES } from '../context/ThemeContext';
+import { useTheme } from '../context/ThemeContext';
 import { subscribePortalSettings, DEFAULT_PORTAL_SETTINGS } from '../services/db';
 import { PortalSettings } from '../types';
 import { 
-  Moon, 
-  Sun, 
   LogOut, 
   GraduationCap, 
   UserCircle, 
@@ -13,21 +11,18 @@ import {
   CheckCircle2, 
   X,
   Cloud,
-  Bell,
-  Palette,
-  Sparkles
+  Bell
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const { user, role, logout } = useAuth();
-  const { theme, toggleTheme, colorTheme, setColorTheme, activeThemeOption } = useTheme();
+  const { isDarkMode } = useTheme();
 
   const [settings, setSettings] = useState<PortalSettings>(DEFAULT_PORTAL_SETTINGS);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [showThemePicker, setShowThemePicker] = useState(false);
 
   // Subscribe to real-time Portal Settings from Firestore
   useEffect(() => {
@@ -88,15 +83,14 @@ export const Navbar: React.FC = () => {
     const handlePopState = () => {
       if (showProfileModal) setShowProfileModal(false);
       if (showInstallGuide) setShowInstallGuide(false);
-      if (showThemePicker) setShowThemePicker(false);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [showProfileModal, showInstallGuide, showThemePicker]);
+  }, [showProfileModal, showInstallGuide]);
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full border-b backdrop-blur-md transition-colors bg-white/95 dark:bg-[#080b14]/95 border-slate-200 dark:border-slate-800/80">
+      <header className="sticky top-0 z-40 w-full border-b backdrop-blur-md transition-colors bg-[#0a0c12]/95 border-white/[0.08]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           {/* Left: Logo & App Name */}
           <div className="flex items-center gap-3">
@@ -108,15 +102,15 @@ export const Navbar: React.FC = () => {
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
-                <span className="font-bold text-lg sm:text-xl tracking-tight text-slate-900 dark:text-white">
+                <span className="font-bold text-lg sm:text-xl tracking-tight text-white">
                   {settings.portalName || 'Exam Portal'}
                 </span>
-                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800" title="All data 100% saved in Cloud Firestore">
+                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-950/60 text-emerald-400 border border-emerald-800" title="All data 100% saved in Cloud Firestore">
                   <Cloud className="w-2.5 h-2.5" />
                   <span>Cloud Sync</span>
                 </span>
               </div>
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate max-w-[200px] sm:max-w-xs">
+              <span className="text-xs font-medium text-slate-400 truncate max-w-[200px] sm:max-w-xs">
                 {role === 'admin' ? 'Teacher / Admin Workspace' : role === 'student' ? 'Student Workspace' : (settings.tagline || 'Education & Exam System')}
               </span>
             </div>
@@ -136,120 +130,11 @@ export const Navbar: React.FC = () => {
                 <span className="sm:hidden">Install</span>
               </button>
             ) : (
-              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 text-[11px] font-semibold border border-emerald-200 dark:border-emerald-800">
+              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-950/60 text-emerald-400 text-[11px] font-semibold border border-emerald-800">
                 <CheckCircle2 className="w-3 h-3" />
                 <span>Installed</span>
               </span>
             )}
-
-            {/* Dynamic Palette & Theme Controller */}
-            <div className="relative">
-              <button
-                onClick={() => setShowThemePicker(!showThemePicker)}
-                aria-label="Change Theme Palette"
-                className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all cursor-pointer flex items-center gap-1.5"
-                title="Change Theme Palette & Color"
-              >
-                <Palette 
-                  className="w-4 h-4 transition-colors" 
-                  style={{ color: 'var(--theme-primary)' }}
-                />
-                <span 
-                  className="w-2.5 h-2.5 rounded-full ring-2 ring-white dark:ring-slate-900 shadow-xs"
-                  style={{ backgroundColor: activeThemeOption.colorHex }}
-                />
-              </button>
-
-              {/* Theme Picker Popover */}
-              {showThemePicker && (
-                <>
-                  <div 
-                    className="fixed inset-0 z-40" 
-                    onClick={() => setShowThemePicker(false)} 
-                  />
-                  <div className="absolute right-0 mt-2 w-72 p-4 bg-white/98 dark:bg-slate-900/98 backdrop-blur-xl border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 space-y-3.5">
-                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
-                      <div className="flex items-center gap-2">
-                        <Sparkles 
-                          className="w-4 h-4" 
-                          style={{ color: 'var(--theme-primary)' }}
-                        />
-                        <span className="font-bold text-xs text-slate-900 dark:text-white">Theme & Palette</span>
-                      </div>
-                      <span className="text-[10px] text-slate-400 font-mono">9 Accents</span>
-                    </div>
-
-                    {/* Dark / Light Mode Switcher */}
-                    <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl">
-                      <button
-                        onClick={() => toggleTheme()}
-                        className={`py-1.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                          theme === 'light'
-                            ? 'bg-white text-slate-900 shadow-xs'
-                            : 'text-slate-500 hover:text-slate-900'
-                        }`}
-                      >
-                        <Sun className="w-3.5 h-3.5 text-amber-500" />
-                        <span>Light</span>
-                      </button>
-                      <button
-                        onClick={() => toggleTheme()}
-                        className={`py-1.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                          theme === 'dark'
-                            ? 'bg-slate-900 text-white shadow-xs'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        <Moon 
-                          className="w-3.5 h-3.5" 
-                          style={{ color: 'var(--theme-primary)' }}
-                        />
-                        <span>Dark</span>
-                      </button>
-                    </div>
-
-                    {/* Color Swatches Grid */}
-                    <div className="grid grid-cols-3 gap-2 pt-1">
-                      {AVAILABLE_THEMES.map((t) => {
-                        const isSelected = colorTheme === t.id;
-                        return (
-                          <button
-                            key={t.id}
-                            onClick={() => {
-                              setColorTheme(t.id);
-                              setShowThemePicker(false);
-                            }}
-                            className={`p-2 rounded-2xl border text-[11px] font-semibold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
-                              isSelected
-                                ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-950/60 shadow-xs ring-2 ring-blue-500/20'
-                                : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60'
-                            }`}
-                          >
-                            <span 
-                              className="w-4 h-4 rounded-full shadow-inner ring-2 ring-white dark:ring-slate-900" 
-                              style={{ backgroundColor: t.colorHex }}
-                            />
-                            <span className="truncate max-w-full text-[10px] text-slate-700 dark:text-slate-300">
-                              {t.name}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Quick Dark/Light Toggle */}
-            <button
-              onClick={toggleTheme}
-              aria-label="Toggle theme mode"
-              className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors cursor-pointer"
-              title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            >
-              {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
-            </button>
 
             {user && (
               <div className="flex items-center gap-2 pl-2 sm:pl-3 border-l border-slate-200 dark:border-slate-800">
@@ -400,38 +285,13 @@ export const Navbar: React.FC = () => {
                 )}
               </div>
 
-              {/* Theme Customization Section */}
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                    Theme & Color Palette
-                  </span>
-                  <button
-                    onClick={toggleTheme}
-                    className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
-                  >
-                    {theme === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-slate-600" />}
-                    <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
-                  </button>
-                </div>
-
-                {/* Color themes (9 options) */}
-                <div className="grid grid-cols-3 gap-2">
-                  {AVAILABLE_THEMES.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => setColorTheme(t.id)}
-                      className={`p-2 rounded-xl border text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
-                        colorTheme === t.id
-                          ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 shadow-xs'
-                          : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
-                      }`}
-                    >
-                      <span className={`w-3.5 h-3.5 rounded-full ${t.bgClass} shrink-0`} />
-                      <span className="truncate">{t.name}</span>
-                    </button>
-                  ))}
-                </div>
+              {/* Pro Dark Mode status */}
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                <span className="font-medium">Interface Mode</span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800/80 text-rose-300 font-semibold text-[11px] border border-rose-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                  Pro Dark Mode
+                </span>
               </div>
 
               {/* Actions */}

@@ -5,6 +5,7 @@ import {
   addDoc, 
   updateDoc, 
   deleteDoc, 
+  getDoc,
   getDocs,
   onSnapshot, 
   query, 
@@ -546,6 +547,50 @@ export const updateExam = async (examId: string, updates: Partial<Exam>): Promis
     cleanUpdates.totalQuestions = cleanUpdates.questions.length;
   }
   await updateDoc(doc(db, 'exams', examId), cleanUpdates);
+
+  // Global Exam Marks Synchronization:
+  // If totalMarks, negativeMarkPercentage, or questions changed, synchronize all existing submissions in Firestore
+  if (
+    cleanUpdates.totalMarks !== undefined || 
+    cleanUpdates.negativeMarkPercentage !== undefined || 
+    cleanUpdates.questions !== undefined
+  ) {
+    try {
+      const examDocSnap = await getDoc(doc(db, 'exams', examId));
+      if (examDocSnap.exists()) {
+        const fullExam = { id: examDocSnap.id, ...examDocSnap.data() } as Exam;
+        const qSub = query(collection(db, 'submissions'), where('examId', '==', examId));
+        const subSnap = await getDocs(qSub);
+        
+        if (!subSnap.empty) {
+          const batch = writeBatch(db);
+          const totalQ = (fullExam.questions && fullExam.questions.length > 0)
+            ? fullExam.questions.length
+            : (fullExam.totalQuestions || 1);
+          const markPerQ = fullExam.totalMarks / totalQ;
+          const penalty = markPerQ * (fullExam.negativeMarkPercentage || 0);
+
+          subSnap.forEach((sDoc) => {
+            const subData = sDoc.data() as ExamSubmission;
+            const correctCount = subData.correctCount || 0;
+            const wrongCount = subData.wrongCount || 0;
+            const calculatedMarks = Math.max(0, Math.round(((correctCount * markPerQ) - (wrongCount * penalty)) * 100) / 100);
+            const calculatedPercentage = fullExam.totalMarks > 0 ? Math.round((calculatedMarks / fullExam.totalMarks) * 1000) / 10 : 0;
+
+            batch.update(sDoc.ref, {
+              totalMarks: fullExam.totalMarks,
+              marksObtained: calculatedMarks,
+              percentage: calculatedPercentage
+            });
+          });
+
+          await batch.commit();
+        }
+      }
+    } catch (syncErr) {
+      console.warn('Submissions marks batch sync partial warning:', syncErr);
+    }
+  }
 };
 
 // Submissions

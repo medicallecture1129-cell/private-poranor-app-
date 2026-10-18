@@ -299,6 +299,27 @@ export const EditExamModal: React.FC<EditExamModalProps> = ({
                 </div>
               </div>
 
+              {/* Real-time Marks Synchronization Indicator */}
+              <div className="p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/60 text-xs text-blue-900 dark:text-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                  <span className="font-semibold">
+                    প্রতি প্রশ্নে বরাদ্দ: <span className="font-mono font-bold text-rose-600 dark:text-rose-400">
+                      {questions.length > 0 ? (Number(totalMarks) / questions.length).toFixed(2) : '1.00'}
+                    </span> মার্ক
+                  </span>
+                  <span className="text-slate-400">|</span>
+                  <span>
+                    ভুল উত্তরে কর্তন: <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+                      {questions.length > 0 ? ((Number(totalMarks) / questions.length) * Number(negativeMarkPercentage)).toFixed(2) : '0.00'}
+                    </span> মার্ক
+                  </span>
+                </div>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 italic">
+                  ✓ লিডারবোর্ড ও সকল ফলাফলে স্বয়ংক্রিয়ভাবে সিনক্রোনাইজ হবে
+                </span>
+              </div>
+
               {/* Time Configuration & Make Live Again */}
               <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700/60 pb-2.5">

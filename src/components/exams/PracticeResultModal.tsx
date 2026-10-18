@@ -12,6 +12,7 @@ import {
   Download 
 } from 'lucide-react';
 import { exportAnswerScriptPDF } from '../../utils/pdfExport';
+import { getSynchronizedScore } from '../../utils/scoreSync';
 
 interface PracticeResultModalProps {
   exam: Exam;
@@ -28,9 +29,16 @@ export const PracticeResultModal: React.FC<PracticeResultModalProps> = ({
   onClose,
   onRetake
 }) => {
-  // Calculate Predictive Merit Position
-  // If the student had scored this in the live exam, what rank would they achieve?
-  const sortedLiveScores = [...liveSubmissions].sort((a, b) => {
+  // Synchronize current submission's score with current exam marks configuration
+  const currentScore = getSynchronizedScore(submission, exam);
+
+  // Synchronize and sort live scores for predictive ranking
+  const synchronizedLiveScores = liveSubmissions.map(liveSub => ({
+    ...liveSub,
+    ...getSynchronizedScore(liveSub, exam)
+  }));
+
+  const sortedLiveScores = [...synchronizedLiveScores].sort((a, b) => {
     if (b.marksObtained !== a.marksObtained) {
       return b.marksObtained - a.marksObtained;
     }
@@ -40,8 +48,8 @@ export const PracticeResultModal: React.FC<PracticeResultModalProps> = ({
   let predictedRank = 1;
   for (const liveSub of sortedLiveScores) {
     if (
-      liveSub.marksObtained > submission.marksObtained ||
-      (liveSub.marksObtained === submission.marksObtained && liveSub.durationSeconds < submission.durationSeconds)
+      liveSub.marksObtained > currentScore.marksObtained ||
+      (liveSub.marksObtained === currentScore.marksObtained && liveSub.durationSeconds < submission.durationSeconds)
     ) {
       predictedRank++;
     }
@@ -73,7 +81,17 @@ export const PracticeResultModal: React.FC<PracticeResultModalProps> = ({
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => exportAnswerScriptPDF(exam, submission, submission.studentName, submission.studentCollege)}
+              onClick={() => exportAnswerScriptPDF(
+                exam, 
+                { 
+                  ...submission, 
+                  marksObtained: currentScore.marksObtained, 
+                  totalMarks: currentScore.totalMarks, 
+                  percentage: currentScore.percentage 
+                }, 
+                submission.studentName, 
+                submission.studentCollege
+              )}
               className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer text-slate-700 dark:text-slate-300"
               title="Download Answer Sheet PDF"
             >
@@ -111,12 +129,12 @@ export const PracticeResultModal: React.FC<PracticeResultModalProps> = ({
 
             <div className="text-right sm:border-l sm:border-slate-200 dark:sm:border-slate-800 sm:pl-6 shrink-0">
               <span className="text-xs text-slate-500 dark:text-slate-400">Your Score</span>
-              <div className="text-2xl font-black text-blue-600 dark:text-blue-400">
-                {submission.marksObtained}
-                <span className="text-sm font-semibold text-slate-400">/{submission.totalMarks}</span>
+              <div className="text-2xl font-black text-rose-500 font-mono">
+                {currentScore.marksObtained}
+                <span className="text-sm font-semibold text-slate-400">/{currentScore.totalMarks}</span>
               </div>
-              <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                {submission.percentage.toFixed(1)}%
+              <span className="text-xs font-semibold text-slate-300">
+                {currentScore.percentage.toFixed(1)}%
               </span>
             </div>
           </div>
