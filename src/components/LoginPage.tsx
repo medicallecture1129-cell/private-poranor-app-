@@ -126,8 +126,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ courses }) => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 bg-slate-50 dark:bg-black transition-colors">
-      <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-6 sm:p-8">
+    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 bg-transparent transition-colors">
+      <div className="w-full max-w-md bg-white dark:bg-[#121622] border border-slate-200/90 dark:border-white/[0.08] rounded-3xl shadow-lg dark:shadow-2xl p-6 sm:p-8">
         {/* Portal Header */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-600 text-white shadow-lg mb-3">

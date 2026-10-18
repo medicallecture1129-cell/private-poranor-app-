@@ -327,73 +327,73 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
           ) : (
             /* Selected Exam View */
             <div className="space-y-6">
-              {/* EXAM SUMMARY CARD (Pure, Clean & Informative - No Admin Controls) */}
-              <div className="bg-[#10141f] text-white rounded-3xl p-5 sm:p-6 shadow-xl border border-white/[0.08] space-y-4 relative overflow-hidden">
+              {/* EXAM SUMMARY CARD (Pure, Clean & Informative - Responsive to Light & Dark) */}
+              <div className="bg-white dark:bg-[#10141f] text-slate-900 dark:text-white rounded-3xl p-5 sm:p-6 shadow-sm dark:shadow-xl border border-slate-200/80 dark:border-white/[0.08] space-y-4 relative overflow-hidden">
                 <div className="card-glow-line" />
                 
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-white/[0.08] text-rose-300 border border-white/[0.1]">
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-50 dark:bg-white/[0.08] text-blue-700 dark:text-rose-300 border border-blue-200 dark:border-white/[0.1]">
                       {selectedCourse?.name || selectedExam.courseName}
                     </span>
-                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 flex items-center gap-1.5">
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>Exam Summary & Official Leaderboard</span>
                     </span>
                   </div>
 
-                  <div className="text-xs text-slate-400 flex items-center gap-1.5 font-medium">
-                    <Users className="w-3.5 h-3.5 text-rose-400" />
-                    <span>Total Participants: <strong className="text-white font-mono">{leaderboardRows.length}</strong></span>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 font-medium">
+                    <Users className="w-3.5 h-3.5 text-blue-600 dark:text-rose-400" />
+                    <span>Total Participants: <strong className="text-slate-900 dark:text-white font-mono">{leaderboardRows.length}</strong></span>
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+                  <h3 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
                     {selectedExam.title}
                   </h3>
                 </div>
 
                 {/* Clean Summary Metric Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-white/[0.08]">
-                  <div className="bg-[#161a29] p-3.5 rounded-2xl border border-white/[0.06]">
-                    <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
-                      <Award className="w-3.5 h-3.5 text-rose-400" />
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-100 dark:border-white/[0.08]">
+                  <div className="bg-slate-50 dark:bg-[#161a29] p-3.5 rounded-2xl border border-slate-200/80 dark:border-white/[0.06]">
+                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <Award className="w-3.5 h-3.5 text-blue-600 dark:text-rose-400" />
                       <span>Total Marks</span>
                     </span>
-                    <p className="text-lg font-bold font-mono text-white mt-1">
+                    <p className="text-lg font-bold font-mono text-slate-900 dark:text-white mt-1">
                       {selectedExam.totalMarks}
                     </p>
                   </div>
 
-                  <div className="bg-[#161a29] p-3.5 rounded-2xl border border-white/[0.06]">
-                    <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-sky-400" />
+                  <div className="bg-slate-50 dark:bg-[#161a29] p-3.5 rounded-2xl border border-slate-200/80 dark:border-white/[0.06]">
+                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
                       <span>Exam Duration</span>
                     </span>
-                    <p className="text-lg font-bold font-mono text-white mt-1">
+                    <p className="text-lg font-bold font-mono text-slate-900 dark:text-white mt-1">
                       {selectedExam.durationMinutes} min
                     </p>
                   </div>
 
-                  <div className="bg-[#161a29] p-3.5 rounded-2xl border border-white/[0.06]">
-                    <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
-                      <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                  <div className="bg-slate-50 dark:bg-[#161a29] p-3.5 rounded-2xl border border-slate-200/80 dark:border-white/[0.06]">
+                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                       <span>Completed / Ended</span>
                     </span>
-                    <p className="text-xs font-semibold text-slate-200 mt-1.5 truncate">
+                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 mt-1.5 truncate">
                       {new Date(selectedExam.endTime).toLocaleString([], {
                         month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
                       })}
                     </p>
                   </div>
 
-                  <div className="bg-[#161a29] p-3.5 rounded-2xl border border-white/[0.06]">
-                    <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
-                      <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
+                  <div className="bg-slate-50 dark:bg-[#161a29] p-3.5 rounded-2xl border border-slate-200/80 dark:border-white/[0.06]">
+                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                       <span>Questions / Pass</span>
                     </span>
-                    <p className="text-xs font-semibold text-slate-200 mt-1.5">
+                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 mt-1.5">
                       {selectedExam.questions?.length || selectedExam.totalQuestions} Qs • Pass: {selectedExam.passMark}
                     </p>
                   </div>

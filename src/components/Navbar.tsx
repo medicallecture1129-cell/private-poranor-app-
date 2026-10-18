@@ -11,12 +11,15 @@ import {
   CheckCircle2, 
   X,
   Cloud,
-  Bell
+  Bell,
+  Sun,
+  Moon,
+  Monitor
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const { user, role, logout } = useAuth();
-  const { isDarkMode } = useTheme();
+  const { theme, preference, isDarkMode, setThemePreference, toggleTheme } = useTheme();
 
   const [settings, setSettings] = useState<PortalSettings>(DEFAULT_PORTAL_SETTINGS);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -90,7 +93,7 @@ export const Navbar: React.FC = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full border-b backdrop-blur-md transition-colors bg-[#0a0c12]/95 border-white/[0.08]">
+      <header className="sticky top-0 z-40 w-full border-b backdrop-blur-md transition-colors bg-white/95 dark:bg-[#0e1117]/95 border-slate-200/80 dark:border-white/[0.08]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           {/* Left: Logo & App Name */}
           <div className="flex items-center gap-3">
@@ -102,15 +105,15 @@ export const Navbar: React.FC = () => {
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
-                <span className="font-bold text-lg sm:text-xl tracking-tight text-white">
+                <span className="font-bold text-lg sm:text-xl tracking-tight text-slate-900 dark:text-white">
                   {settings.portalName || 'Exam Portal'}
                 </span>
-                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-950/60 text-emerald-400 border border-emerald-800" title="All data 100% saved in Cloud Firestore">
+                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800" title="All data 100% saved in Cloud Firestore">
                   <Cloud className="w-2.5 h-2.5" />
                   <span>Cloud Sync</span>
                 </span>
               </div>
-              <span className="text-xs font-medium text-slate-400 truncate max-w-[200px] sm:max-w-xs">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate max-w-[200px] sm:max-w-xs">
                 {role === 'admin' ? 'Teacher / Admin Workspace' : role === 'student' ? 'Student Workspace' : (settings.tagline || 'Education & Exam System')}
               </span>
             </div>
@@ -118,6 +121,25 @@ export const Navbar: React.FC = () => {
 
           {/* Right: Controls, Install PWA, & Profile */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Gemini App Style Dark / Light Theme Switcher */}
+            <button
+              onClick={toggleTheme}
+              aria-label={isDarkMode ? "Switch to Light mode" : "Switch to Dark mode"}
+              title={isDarkMode ? "Switch to Light mode (Gemini)" : "Switch to Dark mode (Gemini)"}
+              className="relative p-2 rounded-xl border border-slate-200/80 dark:border-white/10 bg-slate-100/90 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 transition-all cursor-pointer flex items-center gap-1.5 shadow-xs group"
+            >
+              {isDarkMode ? (
+                <>
+                  <Sun className="w-4 h-4 text-amber-400 group-hover:rotate-45 transition-transform duration-300" />
+                  <span className="hidden sm:inline text-xs font-semibold">Light</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-4 h-4 text-blue-600 group-hover:-rotate-12 transition-transform duration-300" />
+                  <span className="hidden sm:inline text-xs font-semibold">Dark</span>
+                </>
+              )}
+            </button>
             {/* Install PWA Button */}
             {!isInstalled ? (
               <button
@@ -285,13 +307,57 @@ export const Navbar: React.FC = () => {
                 )}
               </div>
 
-              {/* Pro Dark Mode status */}
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                <span className="font-medium">Interface Mode</span>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800/80 text-rose-300 font-semibold text-[11px] border border-rose-500/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
-                  Pro Dark Mode
-                </span>
+              {/* Gemini Appearance Selector (Light, Dark, System) */}
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Appearance / থিম মোড
+                  </span>
+                  <span className="text-[11px] font-semibold text-blue-600 dark:text-sky-400 capitalize">
+                    {preference === 'system' ? `System (${theme})` : `${preference} mode`}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setThemePreference('light')}
+                    className={`py-2 px-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      preference === 'light'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700 font-bold shadow-xs'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <Sun className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Light</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setThemePreference('dark')}
+                    className={`py-2 px-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      preference === 'dark'
+                        ? 'border-sky-500 bg-sky-950/60 text-sky-300 font-bold shadow-xs'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <Moon className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Dark</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setThemePreference('system')}
+                    className={`py-2 px-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      preference === 'system'
+                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-bold shadow-xs'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <Monitor className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400" />
+                    <span>System</span>
+                  </button>
+                </div>
               </div>
 
               {/* Actions */}

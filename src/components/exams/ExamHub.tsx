@@ -520,26 +520,26 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
 
       {/* RE-LIVE EXAM MODAL (Requirement 3) */}
       {reLiveTargetExam && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-lg bg-[#111420] border border-white/[0.1] rounded-3xl shadow-2xl overflow-hidden my-auto text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 dark:bg-black/85 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-lg bg-white dark:bg-[#111420] border border-slate-200/90 dark:border-white/[0.1] rounded-3xl shadow-2xl overflow-hidden my-auto text-slate-900 dark:text-white">
             {/* Header */}
-            <div className="px-6 py-4 border-b border-white/[0.08] bg-[#161a29] flex items-center justify-between">
-              <div className="flex items-center gap-2.5 text-rose-400">
-                <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400">
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-white/[0.08] bg-slate-50 dark:bg-[#161a29] flex items-center justify-between">
+              <div className="flex items-center gap-2.5 text-rose-600 dark:text-rose-400">
+                <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-600 dark:text-rose-400">
                   <Radio className="w-5 h-5 animate-pulse" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-white">
+                  <h3 className="font-bold text-base text-slate-900 dark:text-white">
                     আপনি কি এই এক্সামটি আবার লাইভ করতে চান?
                   </h3>
-                  <p className="text-xs text-slate-400 truncate max-w-xs">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-xs">
                     {reLiveTargetExam.title}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setReLiveTargetExam(null)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg cursor-pointer"
+                className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -548,12 +548,12 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
             {/* Modal Body */}
             <div className="p-6 space-y-4">
               {/* Leaderboard Notice Banner */}
-              <div className="p-3.5 rounded-2xl bg-rose-950/30 border border-rose-500/30 text-xs text-rose-200 leading-relaxed space-y-1">
-                <div className="font-bold text-rose-300 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-rose-400" />
+              <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-500/30 text-xs text-rose-800 dark:text-rose-200 leading-relaxed space-y-1">
+                <div className="font-bold text-rose-700 dark:text-rose-300 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                   <span>লিডারবোর্ড তথ্য (Merged Leaderboard)</span>
                 </div>
-                <p className="text-slate-300 text-[11px]">
+                <p className="text-slate-600 dark:text-slate-300 text-[11px]">
                   প্রথমবার লাইভ এক্সাম থেকে যে লিডারবোর্ড তৈরি হয়েছিল এবং পুনরায় লাইভ করার পর যারা এক্সাম দেবে—তাদের সবার ফলাফল একই সিঙ্গেল লিডারবোর্ডে যুক্ত (Merge) হয়ে থাকবে।
                 </p>
               </div>
@@ -561,48 +561,48 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
               {/* Schedule Inputs */}
               <div className="space-y-3 pt-1">
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     ১. নতুন শুরুর সময় (Live Start Time)
                   </label>
                   <input
                     type="datetime-local"
                     value={reLiveStartTime}
                     onChange={(e) => setReLiveStartTime(e.target.value)}
-                    className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-white/[0.1] bg-[#181d2c] text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 dark:border-white/[0.1] bg-slate-50/60 dark:bg-[#181d2c] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     ২. নতুন সমাপ্তির সময় (Live End Time)
                   </label>
                   <input
                     type="datetime-local"
                     value={reLiveEndTime}
                     onChange={(e) => setReLiveEndTime(e.target.value)}
-                    className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-white/[0.1] bg-[#181d2c] text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 dark:border-white/[0.1] bg-slate-50/60 dark:bg-[#181d2c] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     ৩. ফলাফল প্রকাশের সময় (Result Publish Time)
                   </label>
                   <input
                     type="datetime-local"
                     value={reLivePublishTime}
                     onChange={(e) => setReLivePublishTime(e.target.value)}
-                    className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-white/[0.1] bg-[#181d2c] text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 dark:border-white/[0.1] bg-slate-50/60 dark:bg-[#181d2c] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
                   />
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-white/[0.08]">
+              <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-200 dark:border-white/[0.08]">
                 <button
                   type="button"
                   onClick={() => setReLiveTargetExam(null)}
-                  className="px-4 py-2 text-xs font-semibold rounded-xl border border-white/[0.1] text-slate-300 hover:bg-white/[0.05] transition-colors cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-white/[0.1] text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.05] transition-colors cursor-pointer"
                 >
                   বাতিল
                 </button>
