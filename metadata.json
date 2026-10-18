@@ -1,0 +1,6 @@
+{
+  "name": "Exam Portal",
+  "description": "Online Education & Examination Platform with Cloud Sync, Courses, Live & Practice Exams, and Real-time Leaderboards.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
