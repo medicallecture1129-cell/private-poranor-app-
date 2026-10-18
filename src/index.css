@@ -4,12 +4,27 @@
 
 /* Root fallback variables; dynamically replaced at runtime by ThemeContext */
 :root {
+  --theme-base-color: #2563EB;
+  --theme-bg-main: #090e18;
+  --theme-bg-main-rgb: 9, 14, 24;
+  --theme-bg-card: #132035;
+  --theme-bg-card-hover: #182842;
+  --theme-bg-card-rgb: 19, 32, 53;
+  --theme-bg-surface: #0c1422;
+  --theme-bg-surface-elevated: #111b2e;
+  --theme-border: rgba(37, 99, 235, 0.18);
+  --theme-border-card: rgba(37, 99, 235, 0.26);
+  --theme-border-strong: rgba(37, 99, 235, 0.45);
   --theme-primary: #2563eb;
-  --theme-primary-rgb: 37, 99, 235;
   --theme-primary-hover: #1d4ed8;
-  --theme-primary-glow: rgba(37, 99, 235, 0.25);
-  --theme-primary-light: rgba(37, 99, 235, 0.10);
-  --theme-primary-border: rgba(37, 99, 235, 0.25);
+  --theme-primary-rgb: 37, 99, 235;
+  --theme-primary-text: #ffffff;
+  --theme-primary-light: rgba(37, 99, 235, 0.18);
+  --theme-primary-border: rgba(37, 99, 235, 0.42);
+  --theme-primary-glow: rgba(37, 99, 235, 0.35);
+  --theme-text-title: #f8fafc;
+  --theme-text-body: #e2e8f0;
+  --theme-text-muted: #94a3b8;
 }
 
 @layer base {
@@ -20,19 +35,18 @@
                 box-shadow 0.2s ease;
   }
 
-  /* Elegant Light Mode - Crisp clean off-white (#f8fafc) */
+  /* Solid Pitch-Dark Mode (Default & Master Layout matching reference screenshot) */
+  html.dark,
+  body.dark,
+  .dark body,
   html,
   body {
-    height: 100%;
+    min-height: 100%;
     margin: 0;
     padding: 0;
-    background-color: #f8fafc;
-    background-image: 
-      radial-gradient(ellipse 85% 55% at 50% -8%, rgba(var(--theme-primary-rgb), 0.08) 0%, transparent 65%),
-      radial-gradient(circle at 100% 100%, rgba(var(--theme-primary-rgb), 0.05) 0%, transparent 50%),
-      linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
-    background-attachment: fixed;
-    color: #1e293b;
+    background-color: var(--theme-bg-main) !important;
+    background-image: none !important;
+    color: var(--theme-text-body) !important;
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -40,18 +54,13 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Refined Dark Mode - Atmospheric dark background with vivid Palette Accent Glow */
-  html.dark,
-  body.dark,
-  .dark body {
-    background-color: #0b0e17 !important;
-    background-image: 
-      radial-gradient(ellipse 90% 55% at 50% -6%, rgba(var(--theme-primary-rgb), 0.26) 0%, transparent 65%),
-      radial-gradient(circle at 100% 100%, rgba(var(--theme-primary-rgb), 0.15) 0%, transparent 55%),
-      radial-gradient(circle at 0% 50%, rgba(var(--theme-primary-rgb), 0.12) 0%, transparent 50%),
-      linear-gradient(180deg, #090c14 0%, #0b0f19 100%) !important;
-    background-attachment: fixed;
-    color: #f1f5f9 !important;
+  /* Light mode option */
+  html.light,
+  body.light,
+  .light body {
+    background-color: var(--theme-bg-main) !important;
+    background-image: none !important;
+    color: var(--theme-text-body) !important;
   }
 
   #root {
@@ -62,22 +71,64 @@
   }
 }
 
-/* Primary Color Utility Overrides */
-.bg-theme-primary {
-  background-color: var(--theme-primary) !important;
+/* =========================================================
+   Automated Theme Utility Classes (Hierarchical System)
+   ========================================================= */
+
+/* 1. Background utilities */
+.bg-theme-main {
+  background-color: var(--theme-bg-main) !important;
 }
 
-.text-theme-primary {
-  color: var(--theme-primary) !important;
+.bg-theme-card {
+  background-color: var(--theme-bg-card) !important;
+  border-color: var(--theme-border-card) !important;
+}
+
+.bg-theme-card-hover:hover {
+  background-color: var(--theme-bg-card-hover) !important;
+}
+
+.bg-theme-surface {
+  background-color: var(--theme-bg-surface) !important;
+  border-color: var(--theme-border) !important;
+}
+
+/* 2. Border utilities */
+.border-theme-border {
+  border-color: var(--theme-border) !important;
+}
+
+.border-theme-card {
+  border-color: var(--theme-border-card) !important;
 }
 
 .border-theme-primary {
   border-color: var(--theme-primary) !important;
 }
 
+/* 3. Text utilities */
+.text-theme-primary {
+  color: var(--theme-primary) !important;
+}
+
+.text-theme-title {
+  color: var(--theme-text-title) !important;
+}
+
+.text-theme-body {
+  color: var(--theme-text-body) !important;
+}
+
+.text-theme-muted {
+  color: var(--theme-text-muted) !important;
+}
+
+/* 4. Button & Capsule utilities */
 .btn-theme-primary {
   background-color: var(--theme-primary) !important;
-  color: #ffffff !important;
+  color: var(--theme-primary-text) !important;
+  box-shadow: 0 4px 14px -2px var(--theme-primary-glow);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -86,36 +137,26 @@
   box-shadow: 0 6px 20px -2px var(--theme-primary-glow) !important;
 }
 
-/* Dynamic Badge and Pill Utilities */
+/* 5. Pill badges */
 .badge-theme {
   background-color: var(--theme-primary-light) !important;
   color: var(--theme-primary) !important;
   border: 1px solid var(--theme-primary-border) !important;
 }
 
-/* Custom Interactive Cards: Distinct contrast & colorful top rim in Dark Mode */
+/* 6. Foreground Interactive Cards ("No Live Exams Found", Exam Cards, Course Cards) */
 .card-theme-interactive {
+  background-color: var(--theme-bg-card) !important;
+  border: 1px solid var(--theme-border-card) !important;
+  box-shadow: 0 6px 20px -4px rgba(0, 0, 0, 0.45);
   transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
-  background-color: #ffffff;
-  border-color: #e2e8f0;
 }
 
 .card-theme-interactive:hover {
   transform: translateY(-2px);
-  border-color: rgba(var(--theme-primary-rgb), 0.5);
-  box-shadow: 0 10px 24px -4px var(--theme-primary-glow), 0 0 0 1px var(--theme-primary-border);
-}
-
-.dark .card-theme-interactive {
-  background-color: rgba(16, 20, 31, 0.95) !important;
-  border-color: rgba(var(--theme-primary-rgb), 0.22) !important;
-  box-shadow: 0 4px 20px -2px rgba(var(--theme-primary-rgb), 0.08);
-}
-
-.dark .card-theme-interactive:hover {
-  transform: translateY(-2px);
-  border-color: rgba(var(--theme-primary-rgb), 0.65) !important;
+  background-color: var(--theme-bg-card-hover) !important;
+  border-color: var(--theme-primary-border) !important;
   box-shadow: 0 12px 30px -4px var(--theme-primary-glow), 0 0 0 1px var(--theme-primary-border) !important;
 }
 
@@ -126,13 +167,9 @@
   right: 0;
   height: 2px;
   background: linear-gradient(90deg, transparent, var(--theme-primary), transparent);
-  opacity: 0.2;
+  opacity: 0.45;
   transition: opacity 0.3s ease;
   pointer-events: none;
-}
-
-.dark .card-glow-line {
-  opacity: 0.45;
 }
 
 .group:hover .card-glow-line,
@@ -140,40 +177,45 @@
   opacity: 1 !important;
 }
 
-.theme-folder-icon {
-  background-color: var(--theme-primary-light);
-  color: var(--theme-primary);
-  border: 1px solid var(--theme-primary-border);
-  transition: all 0.25s ease;
+/* Header & Navigation Surfaces */
+header.sticky,
+nav.fixed {
+  background-color: var(--theme-bg-surface) !important;
+  border-color: var(--theme-border) !important;
 }
 
-.group:hover .theme-folder-icon {
-  transform: scale(1.08);
-  box-shadow: 0 4px 14px -2px var(--theme-primary-glow);
+/* =========================================================
+   Global Tailwind Dark Mode Overrides (Guarantees all pages adapt)
+   ========================================================= */
+
+.dark .dark\:bg-\[\#121622\],
+.dark .dark\:bg-\[\#121622\]\/95,
+.dark .dark\:bg-\[\#121622\]\/90,
+.dark .dark\:bg-slate-900,
+.dark .dark\:bg-slate-900\/90,
+.dark .dark\:bg-slate-900\/95,
+.dark .dark\:bg-slate-900\/80,
+.dark .dark\:bg-slate-900\/60,
+.dark .dark\:bg-slate-800,
+.dark .dark\:bg-slate-800\/80,
+.dark .dark\:bg-slate-800\/60 {
+  background-color: var(--theme-bg-card) !important;
+  border-color: var(--theme-border-card) !important;
 }
 
-/* Atmospheric Ambient Orbs for smooth background glow */
-@keyframes auroraPulse {
-  0%, 100% {
-    transform: translate(0, 0) scale(1);
-    opacity: 0.18;
-  }
-  50% {
-    transform: translate(12px, -12px) scale(1.06);
-    opacity: 0.28;
-  }
+.dark .dark\:bg-\[\#0e1117\],
+.dark .dark\:bg-\[\#0e1117\]\/95,
+.dark .dark\:bg-slate-950 {
+  background-color: var(--theme-bg-surface) !important;
+  border-color: var(--theme-border) !important;
 }
 
-.telegram-aurora-orb-1 {
-  animation: auroraPulse 14s ease-in-out infinite alternate;
-}
-
-.telegram-aurora-orb-2 {
-  animation: auroraPulse 18s ease-in-out infinite alternate-reverse;
-}
-
-.telegram-aurora-orb-3 {
-  animation: auroraPulse 16s ease-in-out infinite alternate;
+.dark .dark\:border-white\/\[0\.08\],
+.dark .dark\:border-white\/\[0\.06\],
+.dark .dark\:border-white\/10,
+.dark .dark\:border-slate-800,
+.dark .dark\:border-slate-700 {
+  border-color: var(--theme-border) !important;
 }
 
 /* Sleek Scrollbars */
@@ -183,28 +225,14 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: var(--theme-bg-main);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--theme-border-strong);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-.dark ::-webkit-scrollbar-track {
-  background: #090c12;
-}
-
-.dark ::-webkit-scrollbar-thumb {
-  background: #1c2233;
-  border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: #2a334a;
+  background: var(--theme-primary);
 }

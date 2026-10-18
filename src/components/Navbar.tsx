@@ -9,14 +9,16 @@ import {
   UserCircle, 
   Download, 
   CheckCircle2, 
-  X,
-  Cloud,
-  Bell,
-  Sun,
-  Moon,
-  Monitor,
-  Palette,
-  Check
+  X, 
+  Cloud, 
+  Bell, 
+  Sun, 
+  Moon, 
+  Monitor, 
+  Palette, 
+  Check,
+  Sparkles,
+  Pipette
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -25,8 +27,11 @@ export const Navbar: React.FC = () => {
     theme, 
     preference, 
     isDarkMode, 
+    baseColor,
+    computedTheme,
     accentPalette, 
     palettes, 
+    setBaseColor,
     setAccentPaletteId, 
     setThemePreference, 
     toggleTheme 
@@ -38,6 +43,12 @@ export const Navbar: React.FC = () => {
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showPaletteModal, setShowPaletteModal] = useState(false);
+  const [customHexInput, setCustomHexInput] = useState(baseColor);
+
+  // Sync custom hex input with current base color
+  useEffect(() => {
+    setCustomHexInput(baseColor);
+  }, [baseColor]);
 
   // Subscribe to real-time Portal Settings from Firestore
   useEffect(() => {
@@ -98,47 +109,56 @@ export const Navbar: React.FC = () => {
     const handlePopState = () => {
       if (showProfileModal) setShowProfileModal(false);
       if (showInstallGuide) setShowInstallGuide(false);
+      if (showPaletteModal) setShowPaletteModal(false);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [showProfileModal, showInstallGuide]);
+  }, [showProfileModal, showInstallGuide, showPaletteModal]);
+
+  const handleCustomHexChange = (val: string) => {
+    setCustomHexInput(val);
+    if (/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(val)) {
+      setBaseColor(val);
+    }
+  };
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full border-b backdrop-blur-md transition-colors bg-white/95 dark:bg-[#0e1117]/95 border-slate-200/80 dark:border-white/[0.08]">
+      <header className="sticky top-0 z-40 w-full border-b backdrop-blur-md transition-colors bg-theme-surface border-theme-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          {/* Left: Logo & App Name */}
+          {/* Left: Element 1 of 3 (App Logo capsule + Title) */}
           <div className="flex items-center gap-3">
             <div 
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm ring-1 ring-white/10"
-              style={{ backgroundColor: 'var(--theme-primary)' }}
+              className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shadow-sm ring-2 ring-white/20 transition-all hover:scale-105"
+              style={{ backgroundColor: 'var(--theme-primary)', boxShadow: '0 4px 14px -2px var(--theme-primary-glow)' }}
+              title="Exam Portal Logo"
             >
-              <GraduationCap className="w-6 h-6" />
+              <GraduationCap className="w-6 h-6 stroke-[2.2]" />
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
-                <span className="font-bold text-lg sm:text-xl tracking-tight text-slate-900 dark:text-white">
+                <span className="font-extrabold text-lg sm:text-xl tracking-tight text-theme-title">
                   {settings.portalName || 'Exam Portal'}
                 </span>
-                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800" title="All data 100% saved in Cloud Firestore">
+                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30" title="All data 100% saved in Cloud Firestore">
                   <Cloud className="w-2.5 h-2.5" />
                   <span>Cloud Sync</span>
                 </span>
               </div>
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate max-w-[200px] sm:max-w-xs">
+              <span className="text-xs font-medium text-slate-400 truncate max-w-[200px] sm:max-w-xs">
                 {role === 'admin' ? 'Teacher / Admin Workspace' : role === 'student' ? 'Student Workspace' : (settings.tagline || 'Education & Exam System')}
               </span>
             </div>
           </div>
 
-          {/* Right: Controls, Install PWA, & Profile */}
+          {/* Right: Controls, Install PWA, & Header Capsules */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Gemini App Style Dark / Light Theme Switcher */}
+            {/* Dark / Light Theme Mode Switcher */}
             <button
               onClick={toggleTheme}
               aria-label={isDarkMode ? "Switch to Light mode" : "Switch to Dark mode"}
               title={isDarkMode ? "Switch to Light mode" : "Switch to Dark mode"}
-              className="relative p-2 rounded-xl border border-slate-200/80 dark:border-white/10 bg-slate-100/90 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 transition-all cursor-pointer flex items-center gap-1.5 shadow-xs group"
+              className="p-2 rounded-xl border border-theme-border bg-theme-card hover:bg-theme-card-hover text-slate-200 transition-all cursor-pointer flex items-center gap-1.5 shadow-xs group"
             >
               {isDarkMode ? (
                 <>
@@ -147,26 +167,31 @@ export const Navbar: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <Moon className="w-4 h-4 text-blue-600 group-hover:-rotate-12 transition-transform duration-300" />
+                  <Moon className="w-4 h-4 text-blue-400 group-hover:-rotate-12 transition-transform duration-300" />
                   <span className="hidden sm:inline text-xs font-semibold">Dark</span>
                 </>
               )}
             </button>
 
-            {/* Accent Color Palette Selector Button */}
+            {/* Element 2 of 3: Color Palette Button Capsule (Highlighted in User Prompt) */}
             <button
               onClick={() => setShowPaletteModal(true)}
               aria-label="Theme Color Palette"
-              title={`Theme Color: ${accentPalette.name} (${accentPalette.nameBn})`}
-              className="relative p-2 rounded-xl border border-slate-200/80 dark:border-white/10 bg-slate-100/90 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 transition-all cursor-pointer flex items-center gap-1.5 shadow-xs group"
+              title={`Theme Color: ${accentPalette.name} (${accentPalette.nameBn}) - Click to change color tone`}
+              className="relative px-3 py-1.5 rounded-xl border border-theme-border bg-theme-card hover:bg-theme-card-hover text-slate-100 transition-all cursor-pointer flex items-center gap-2 shadow-xs group"
+              style={{
+                boxShadow: '0 2px 8px -2px var(--theme-primary-glow)',
+                borderColor: 'var(--theme-primary-border)'
+              }}
             >
               <span
-                className="w-3.5 h-3.5 rounded-full ring-2 ring-white/40 shadow-xs shrink-0"
-                style={{ backgroundColor: accentPalette.hex }}
+                className="w-4 h-4 rounded-full ring-2 ring-white/50 shadow-xs shrink-0 transition-transform group-hover:scale-110"
+                style={{ backgroundColor: 'var(--theme-primary)' }}
               />
-              <Palette className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 group-hover:rotate-12 transition-transform" />
-              <span className="hidden sm:inline text-xs font-semibold">Color</span>
+              <Palette className="w-3.5 h-3.5 text-slate-300 group-hover:rotate-12 transition-transform" />
+              <span className="hidden sm:inline text-xs font-bold text-theme-title">Palette</span>
             </button>
+
             {/* Install PWA Button */}
             {!isInstalled ? (
               <button
@@ -186,27 +211,27 @@ export const Navbar: React.FC = () => {
             )}
 
             {user && (
-              <div className="flex items-center gap-2 pl-2 sm:pl-3 border-l border-slate-200 dark:border-slate-800">
-                {/* Clickable Profile Card */}
+              <div className="flex items-center gap-2 pl-2 sm:pl-3 border-l border-theme-border">
+                {/* Element 3 of 3: Profile Icon Capsule (Highlighted in User Prompt) */}
                 <button
                   onClick={() => {
                     window.history.pushState({ modal: 'profile' }, '');
                     setShowProfileModal(true);
                   }}
-                  className="flex items-center gap-2.5 p-1 -m-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors cursor-pointer text-left"
+                  className="flex items-center gap-2.5 p-1 -m-1 rounded-xl hover:bg-theme-card transition-colors cursor-pointer text-left group"
                   title="View Profile & Settings"
                 >
                   <div className="hidden sm:flex flex-col text-right">
-                    <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-tight">
+                    <span className="text-sm font-semibold text-theme-title leading-tight">
                       {user.name}
                     </span>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400 capitalize">
+                    <span className="text-[11px] text-slate-400 capitalize">
                       {user.role === 'admin' ? 'Admin' : 'Student'} {user.college ? `• ${user.college}` : ''}
                     </span>
                   </div>
                   <div 
-                    className="w-8 h-8 rounded-full text-white flex items-center justify-center font-bold text-xs ring-2 ring-white/20 shadow-xs"
-                    style={{ backgroundColor: 'var(--theme-primary)' }}
+                    className="w-8 h-8 rounded-full text-white flex items-center justify-center font-bold text-xs ring-2 ring-white/30 shadow-xs transition-transform group-hover:scale-105"
+                    style={{ backgroundColor: 'var(--theme-primary)', boxShadow: '0 2px 10px -2px var(--theme-primary-glow)' }}
                   >
                     {user.name ? user.name.slice(0, 1).toUpperCase() : <UserCircle className="w-5 h-5" />}
                   </div>
@@ -214,7 +239,7 @@ export const Navbar: React.FC = () => {
 
                 <button
                   onClick={logout}
-                  className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors cursor-pointer ml-1"
+                  className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-950/30 rounded-lg transition-colors cursor-pointer ml-1"
                   title="Log Out"
                 >
                   <LogOut className="w-4 h-4" />
@@ -226,9 +251,9 @@ export const Navbar: React.FC = () => {
 
         {/* Real-Time Announcement Banner */}
         {settings.showAnnouncement && settings.announcementText && (
-          <div className="bg-blue-600/10 dark:bg-blue-950/40 border-t border-blue-200 dark:border-blue-900/50 py-1.5 px-4 text-center">
-            <div className="max-w-7xl mx-auto flex items-center justify-center gap-2 text-xs text-blue-700 dark:text-blue-300 font-medium">
-              <Bell className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+          <div className="bg-theme-card/70 border-t border-theme-border py-1.5 px-4 text-center">
+            <div className="max-w-7xl mx-auto flex items-center justify-center gap-2 text-xs font-medium text-theme-title">
+              <Bell className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--theme-primary)' }} />
               <span>{settings.announcementText}</span>
             </div>
           </div>
@@ -237,50 +262,49 @@ export const Navbar: React.FC = () => {
 
       {/* Install PWA Instructions Modal */}
       {showInstallGuide && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-theme-card border border-theme-card rounded-3xl p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div 
-                  className="w-8 h-8 rounded-lg text-white flex items-center justify-center shadow-xs"
+                  className="w-8 h-8 rounded-xl text-white flex items-center justify-center shadow-xs"
                   style={{ backgroundColor: 'var(--theme-primary)' }}
                 >
                   <Download className="w-4 h-4" />
                 </div>
-                <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                <h3 className="font-bold text-theme-title text-base">
                   Install Exam Portal
                 </h3>
               </div>
               <button
                 onClick={() => setShowInstallGuide(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+                className="p-1 text-slate-400 hover:text-white cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+            <div className="space-y-3 text-xs sm:text-sm text-slate-300">
               <p>Install this app on your device for fast, full-screen offline access:</p>
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-2 text-xs">
+              <div className="p-3 rounded-2xl bg-theme-surface border border-theme-border space-y-2 text-xs">
                 <div>
-                  <strong className="text-slate-900 dark:text-white">Android (Chrome):</strong>
-                  <p className="text-slate-500 dark:text-slate-400">Tap the 3 dots menu &gt; select "Install app" or "Add to Home screen".</p>
+                  <strong className="text-theme-title">Android (Chrome):</strong>
+                  <p className="text-slate-400">Tap the 3 dots menu &gt; select "Install app" or "Add to Home screen".</p>
                 </div>
                 <div>
-                  <strong className="text-slate-900 dark:text-white">iPhone / iPad (Safari):</strong>
-                  <p className="text-slate-500 dark:text-slate-400">Tap the Share icon &gt; scroll down &gt; select "Add to Home Screen".</p>
+                  <strong className="text-theme-title">iPhone / iPad (Safari):</strong>
+                  <p className="text-slate-400">Tap the Share icon &gt; scroll down &gt; select "Add to Home Screen".</p>
                 </div>
                 <div>
-                  <strong className="text-slate-900 dark:text-white">Desktop (Chrome/Edge):</strong>
-                  <p className="text-slate-500 dark:text-slate-400">Click the install icon in the address bar.</p>
+                  <strong className="text-theme-title">Desktop (Chrome/Edge):</strong>
+                  <p className="text-slate-400">Click the install icon in the address bar.</p>
                 </div>
               </div>
             </div>
 
             <button
               onClick={() => setShowInstallGuide(false)}
-              className="w-full py-2.5 rounded-xl text-white font-semibold text-xs sm:text-sm transition-colors cursor-pointer shadow-xs"
-              style={{ backgroundColor: 'var(--theme-primary)' }}
+              className="w-full py-2.5 rounded-xl btn-theme-primary font-semibold text-xs sm:text-sm cursor-pointer shadow-xs"
             >
               Got it
             </button>
@@ -291,12 +315,12 @@ export const Navbar: React.FC = () => {
       {/* User Profile & Theme Settings Modal */}
       {showProfileModal && user && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
+          <div className="w-full max-w-md bg-theme-card border border-theme-card rounded-3xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
             {/* Header */}
             <div 
               className="relative p-6 text-white text-center"
               style={{ 
-                background: `linear-gradient(135deg, var(--theme-primary) 0%, #1e1b4b 100%)` 
+                background: `linear-gradient(135deg, var(--theme-primary) 0%, var(--theme-bg-surface) 100%)` 
               }}
             >
               <button
@@ -313,7 +337,7 @@ export const Navbar: React.FC = () => {
               <h3 className="text-xl font-bold tracking-tight">
                 {user.name}
               </h3>
-              <p className="text-xs text-blue-200 mt-1">
+              <p className="text-xs text-slate-200 mt-1">
                 {user.college || 'Institution N/A'} • <span className="capitalize">{user.role === 'admin' ? 'Administrator' : 'Student'}</span>
               </p>
             </div>
@@ -321,72 +345,51 @@ export const Navbar: React.FC = () => {
             {/* Modal Body */}
             <div className="p-6 space-y-5 text-xs sm:text-sm">
               <div className="space-y-2.5">
-                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-1">
+                <div className="p-3 rounded-2xl bg-theme-surface border border-theme-border space-y-1">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Email Address</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">{user.email || 'N/A'}</span>
+                  <span className="font-semibold text-theme-title">{user.email || 'N/A'}</span>
                 </div>
 
                 {user.mobile && (
-                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-1">
+                  <div className="p-3 rounded-2xl bg-theme-surface border border-theme-border space-y-1">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Phone Number</span>
-                    <span className="font-semibold text-slate-900 dark:text-white">{user.mobile}</span>
+                    <span className="font-semibold text-theme-title">{user.mobile}</span>
                   </div>
                 )}
               </div>
 
-              {/* Theme Color Palette Selector (10 Curated Palettes) */}
-              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
+              {/* Quick Color Palette Trigger */}
+              <div className="pt-3 border-t border-theme-border space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Palette className="w-3.5 h-3.5" style={{ color: accentPalette.hex }} />
-                    <span>Theme Color / কালার প্যালেট</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-theme-title flex items-center gap-1.5">
+                    <Palette className="w-3.5 h-3.5" style={{ color: 'var(--theme-primary)' }} />
+                    <span>Global Theme Color</span>
                   </span>
-                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                    {accentPalette.nameBn}
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowProfileModal(false);
+                      setShowPaletteModal(true);
+                    }}
+                    className="text-xs font-bold px-2 py-0.5 rounded-lg btn-theme-primary cursor-pointer"
+                  >
+                    Change Color
+                  </button>
                 </div>
-
-                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
-                  {palettes.map((p) => {
-                    const isSelected = p.id === accentPalette.id;
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => setAccentPaletteId(p.id)}
-                        className={`p-2 rounded-xl border text-left flex items-center gap-2 transition-all cursor-pointer ${
-                          isSelected
-                            ? 'border-slate-400 dark:border-white/30 bg-slate-100/90 dark:bg-white/[0.08] shadow-xs'
-                            : 'border-slate-200 dark:border-white/[0.06] hover:bg-slate-50 dark:hover:bg-white/[0.04]'
-                        }`}
-                      >
-                        <span
-                          className="w-4 h-4 rounded-full ring-2 ring-white/50 shrink-0 shadow-xs flex items-center justify-center"
-                          style={{ backgroundColor: p.hex }}
-                        >
-                          {isSelected && <Check className="w-2.5 h-2.5 text-white stroke-[3]" />}
-                        </span>
-                        <div className="min-w-0 flex-1 truncate">
-                          <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
-                            {p.nameBn}
-                          </p>
-                          <p className="text-[10px] text-slate-400 font-mono truncate">
-                            {p.hex}
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-theme-surface border border-theme-border">
+                  <span className="w-4 h-4 rounded-full ring-2 ring-white/50" style={{ backgroundColor: 'var(--theme-primary)' }} />
+                  <span className="text-xs font-semibold text-theme-title">{accentPalette.nameBn}</span>
+                  <span className="text-[11px] text-slate-400 font-mono ml-auto">{baseColor}</span>
                 </div>
               </div>
 
-              {/* Gemini Appearance Selector (Light, Dark, System) */}
-              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
+              {/* Appearance Mode (Dark, Light, System) */}
+              <div className="pt-3 border-t border-theme-border space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  <span className="text-xs font-bold uppercase tracking-wider text-theme-title">
                     Appearance / থিম মোড
                   </span>
-                  <span className="text-[11px] font-semibold text-blue-600 dark:text-sky-400 capitalize">
+                  <span className="text-[11px] font-semibold text-theme-primary capitalize">
                     {preference === 'system' ? `System (${theme})` : `${preference} mode`}
                   </span>
                 </div>
@@ -397,8 +400,8 @@ export const Navbar: React.FC = () => {
                     onClick={() => setThemePreference('light')}
                     className={`py-2 px-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       preference === 'light'
-                        ? 'border-blue-500 bg-blue-50 text-blue-700 font-bold shadow-xs'
-                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                        ? 'border-theme-primary bg-theme-primary/10 text-theme-title font-bold shadow-xs'
+                        : 'border-theme-border text-slate-400 hover:bg-theme-surface'
                     }`}
                   >
                     <Sun className="w-3.5 h-3.5 text-amber-500" />
@@ -410,8 +413,8 @@ export const Navbar: React.FC = () => {
                     onClick={() => setThemePreference('dark')}
                     className={`py-2 px-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       preference === 'dark'
-                        ? 'border-sky-500 bg-sky-950/60 text-sky-300 font-bold shadow-xs'
-                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                        ? 'border-theme-primary bg-theme-primary/20 text-theme-title font-bold shadow-xs'
+                        : 'border-theme-border text-slate-400 hover:bg-theme-surface'
                     }`}
                   >
                     <Moon className="w-3.5 h-3.5 text-sky-400" />
@@ -423,11 +426,11 @@ export const Navbar: React.FC = () => {
                     onClick={() => setThemePreference('system')}
                     className={`py-2 px-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       preference === 'system'
-                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-bold shadow-xs'
-                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                        ? 'border-theme-primary bg-theme-primary/10 text-theme-title font-bold shadow-xs'
+                        : 'border-theme-border text-slate-400 hover:bg-theme-surface'
                     }`}
                   >
-                    <Monitor className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400" />
+                    <Monitor className="w-3.5 h-3.5 text-purple-400" />
                     <span>System</span>
                   </button>
                 </div>
@@ -440,7 +443,7 @@ export const Navbar: React.FC = () => {
                     setShowProfileModal(false);
                     logout();
                   }}
-                  className="px-4 py-2 rounded-xl bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-red-950/40 hover:bg-red-900/60 text-red-400 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <LogOut className="w-4 h-4" />
                   <span>Log Out</span>
@@ -448,7 +451,7 @@ export const Navbar: React.FC = () => {
 
                 <button
                   onClick={() => setShowProfileModal(false)}
-                  className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-black text-white dark:bg-slate-800 dark:hover:bg-slate-700 font-bold text-xs transition-colors cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-theme-surface hover:bg-theme-surface-elevated text-slate-200 border border-theme-border font-bold text-xs transition-colors cursor-pointer"
                 >
                   Close
                 </button>
@@ -458,94 +461,199 @@ export const Navbar: React.FC = () => {
         </div>
       )}
 
-      {/* Standalone Theme Color Palette Selector Modal */}
+      {/* Standalone Automated Theme Color Palette Selector Modal */}
       {showPaletteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-white dark:bg-[#121622] border border-slate-200 dark:border-white/[0.08] rounded-3xl p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/[0.06]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-lg bg-theme-card border border-theme-card rounded-3xl p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-theme-border shrink-0">
               <div className="flex items-center gap-2.5">
                 <div 
-                  className="w-8 h-8 rounded-xl text-white flex items-center justify-center shadow-xs"
-                  style={{ backgroundColor: accentPalette.hex }}
+                  className="w-9 h-9 rounded-xl text-white flex items-center justify-center shadow-xs"
+                  style={{ backgroundColor: 'var(--theme-primary)' }}
                 >
-                  <Palette className="w-4 h-4" />
+                  <Palette className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 dark:text-white text-base">
-                    কালার প্যালেট নির্বাচন করুন
+                  <h3 className="font-extrabold text-theme-title text-base">
+                    গ্লোবাল ডার্ক থিম ও কালার ইঞ্জিন
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    সিলেক্ট করা কালার অনুযায়ী পুরো অ্যাপের প্রধান বাটন ও লোগো পরিবর্তিত হবে
+                  <p className="text-xs text-slate-400">
+                    শুধু ১টি কালার সিলেক্ট করুন — পুরো অ্যাপ স্বয়ংক্রিয়ভাবে ছবির মতো রূপ নেবে
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setShowPaletteModal(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg cursor-pointer"
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* List of 10 Curated Palettes */}
-            <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
-              {palettes.map((p, idx) => {
-                const isSelected = p.id === accentPalette.id;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => {
-                      setAccentPaletteId(p.id);
-                    }}
-                    className={`w-full p-3 rounded-2xl border text-left flex items-center justify-between gap-3 transition-all cursor-pointer ${
-                      isSelected
-                        ? 'border-transparent shadow-sm ring-2 ring-offset-2 dark:ring-offset-[#121622]'
-                        : 'border-slate-200 dark:border-white/[0.06] hover:bg-slate-50 dark:hover:bg-white/[0.04]'
-                    }`}
-                    style={isSelected ? { borderColor: p.hex, backgroundColor: `${p.hex}18` } : undefined}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span
-                        className="w-6 h-6 rounded-full ring-2 ring-white/60 shadow-sm shrink-0 flex items-center justify-center"
-                        style={{ backgroundColor: p.hex }}
-                      >
-                        {isSelected && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
-                      </span>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white truncate">
-                            {idx + 1}. {p.nameBn}
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-mono">
-                            {p.hex}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                          {p.name}
-                        </p>
-                      </div>
-                    </div>
+            <div className="overflow-y-auto space-y-4 pr-1 flex-1">
+              {/* Dynamic Live Color Hierarchy Preview Card */}
+              <div 
+                className="p-3.5 rounded-2xl border border-theme-border transition-all"
+                style={{ backgroundColor: computedTheme.bgMain }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-theme-primary" />
+                    <span>অটোমেটিক ক্যালকুলেশন প্রিভিউ</span>
+                  </span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/10 text-white">
+                    {baseColor.toUpperCase()}
+                  </span>
+                </div>
 
-                    {isSelected && (
-                      <span 
-                        className="text-xs font-bold px-2 py-0.5 rounded-full text-white shrink-0"
-                        style={{ backgroundColor: p.hex }}
+                <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
+                  {/* Layer 1: Pitch-Dark Solid Background */}
+                  <div 
+                    className="p-2.5 rounded-xl border border-white/10 flex flex-col items-center justify-center gap-1"
+                    style={{ backgroundColor: computedTheme.bgMain }}
+                  >
+                    <span className="font-bold text-white text-[10px]">১. মেইন ব্যাকগ্রাউন্ড</span>
+                    <span className="text-[9px] text-slate-400">Solid Pitch-Dark</span>
+                    <span className="text-[9px] font-mono text-slate-500">{computedTheme.bgMain}</span>
+                  </div>
+
+                  {/* Layer 2: Foreground Card */}
+                  <div 
+                    className="p-2.5 rounded-xl border border-white/20 flex flex-col items-center justify-center gap-1 shadow-sm"
+                    style={{ backgroundColor: computedTheme.bgCard, borderColor: computedTheme.borderCard }}
+                  >
+                    <span className="font-bold text-white text-[10px]">২. ফোরগ্রাউন্ড কার্ড</span>
+                    <span className="text-[9px] text-slate-300">Message Box / Card</span>
+                    <span className="text-[9px] font-mono text-slate-400">{computedTheme.bgCard}</span>
+                  </div>
+
+                  {/* Layer 3: Button & Logo Capsule */}
+                  <div 
+                    className="p-2.5 rounded-xl flex flex-col items-center justify-center gap-1 shadow-sm text-white"
+                    style={{ backgroundColor: computedTheme.primary }}
+                  >
+                    <span className="font-bold text-[10px]">৩. বাটন ও লোগো</span>
+                    <span className="text-[9px] text-white/90">Vibrant Capsule</span>
+                    <span className="text-[9px] font-mono text-white/80">{computedTheme.primary}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Custom Color Input: User can choose or type ANY color */}
+              <div className="p-3.5 rounded-2xl bg-theme-surface border border-theme-border space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-theme-title flex items-center gap-1.5">
+                    <Pipette className="w-3.5 h-3.5 text-theme-primary" />
+                    <span>কাস্টম কালার পিকার (Choose Any Custom Color)</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">যেকোনো কালার কোড দিন</span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="relative flex items-center justify-center">
+                    <input
+                      type="color"
+                      value={baseColor}
+                      onChange={(e) => setBaseColor(e.target.value)}
+                      className="w-10 h-10 rounded-xl cursor-pointer border-0 p-0 bg-transparent"
+                      title="Click to open system color picker"
+                    />
+                  </div>
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={customHexInput}
+                      onChange={(e) => handleCustomHexChange(e.target.value)}
+                      placeholder="#2563EB"
+                      maxLength={7}
+                      className="w-full pl-3 pr-8 py-2 rounded-xl text-xs font-mono font-bold bg-theme-card border border-theme-border text-theme-title focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)] uppercase"
+                    />
+                    <div 
+                      className="w-4 h-4 rounded-full absolute right-3 top-1/2 -translate-y-1/2 ring-1 ring-white/30"
+                      style={{ backgroundColor: baseColor }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 11 Curated Reference Presets from user's image */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                    ছবির ১১টি রেফারেন্স থিম প্যালেট (Preset Themes)
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    {palettes.length} টি ভ্যারিয়েন্ট
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {palettes.map((p, idx) => {
+                    const isSelected = p.hex.toLowerCase() === baseColor.toLowerCase();
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          setAccentPaletteId(p.id);
+                        }}
+                        className={`p-3 rounded-2xl border text-left flex items-center justify-between gap-2.5 transition-all cursor-pointer ${
+                          isSelected
+                            ? 'ring-2 ring-white/60 shadow-md'
+                            : 'border-theme-border bg-theme-surface hover:bg-theme-card'
+                        }`}
+                        style={{
+                          borderColor: isSelected ? p.hex : undefined,
+                          backgroundColor: isSelected ? `${p.hex}22` : undefined
+                        }}
                       >
-                        Active
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {/* Dual Color Swatch showing accent + card tone */}
+                          <div className="relative w-7 h-7 rounded-full shrink-0 overflow-hidden ring-2 ring-white/40 shadow-xs flex items-center justify-center">
+                            <div 
+                              className="w-full h-full"
+                              style={{ backgroundColor: p.hex }}
+                            />
+                            {isSelected && (
+                              <Check className="w-3.5 h-3.5 text-white stroke-[3.5] absolute" />
+                            )}
+                          </div>
+                          
+                          <div className="min-w-0">
+                            <p className="font-bold text-xs text-theme-title truncate leading-tight">
+                              {idx + 1}. {p.nameBn}
+                            </p>
+                            <p className="text-[10px] text-slate-400 font-mono truncate">
+                              {p.hex}
+                            </p>
+                          </div>
+                        </div>
+
+                        {isSelected && (
+                          <span 
+                            className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white shrink-0"
+                            style={{ backgroundColor: p.hex }}
+                          >
+                            Active
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-100 dark:border-white/[0.06] flex justify-end">
+            {/* Modal Footer */}
+            <div className="pt-3 border-t border-theme-border flex items-center justify-between shrink-0">
+              <span className="text-xs text-slate-400">
+                নির্বাচিত: <strong className="text-theme-title">{accentPalette.nameBn}</strong>
+              </span>
               <button
                 type="button"
                 onClick={() => setShowPaletteModal(false)}
-                className="px-5 py-2 rounded-xl text-white font-bold text-xs shadow-xs cursor-pointer"
-                style={{ backgroundColor: accentPalette.hex }}
+                className="px-6 py-2.5 rounded-xl btn-theme-primary font-bold text-xs shadow-md cursor-pointer"
               >
                 সম্পন্ন (Done)
               </button>

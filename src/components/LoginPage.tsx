@@ -127,25 +127,25 @@ export const LoginPage: React.FC<LoginPageProps> = ({ courses }) => {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 bg-transparent transition-colors">
-      <div className="w-full max-w-md bg-white dark:bg-[#121622] border border-slate-200/90 dark:border-white/[0.08] rounded-3xl shadow-lg dark:shadow-2xl p-6 sm:p-8">
+      <div className="w-full max-w-md bg-theme-card border border-theme-card rounded-3xl shadow-2xl p-6 sm:p-8">
         {/* Portal Header */}
         <div className="text-center mb-6">
           <div 
-            className="inline-flex items-center justify-center w-14 h-14 rounded-2xl text-white shadow-lg mb-3"
-            style={{ backgroundColor: 'var(--theme-primary)' }}
+            className="inline-flex items-center justify-center w-14 h-14 rounded-2xl text-white shadow-lg mb-3 ring-2 ring-white/20"
+            style={{ backgroundColor: 'var(--theme-primary)', boxShadow: '0 4px 16px -2px var(--theme-primary-glow)' }}
           >
             <GraduationCap className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+          <h1 className="text-2xl font-bold tracking-tight text-theme-title">
             Exam Portal
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-slate-400 mt-1">
             Sign in to access your courses, live exams, and results
           </p>
         </div>
 
         {/* Tab Selection */}
-        <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mb-6">
+        <div className="grid grid-cols-2 p-1 bg-theme-surface border border-theme-border rounded-xl mb-6">
           <button
             type="button"
             onClick={() => {
@@ -154,8 +154,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ courses }) => {
             }}
             className={`py-2.5 text-sm font-semibold rounded-lg transition-all cursor-pointer ${
               activeTab === 'teacher'
-                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'btn-theme-primary shadow-sm'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
             Teacher Login
@@ -168,8 +168,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ courses }) => {
             }}
             className={`py-2.5 text-sm font-semibold rounded-lg transition-all cursor-pointer ${
               activeTab === 'student'
-                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'btn-theme-primary shadow-sm'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
             Student Login

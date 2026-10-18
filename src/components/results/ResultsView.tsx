@@ -212,13 +212,13 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
         </div>
 
         {/* Tab switch: 1. Exam Leaderboard, 2. Student Summary Report */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-[#121622] rounded-xl self-start sm:self-auto border border-slate-200 dark:border-white/[0.08] shadow-xs">
+        <div className="flex items-center gap-1.5 p-1 bg-theme-surface rounded-xl self-start sm:self-auto border border-theme-border shadow-xs">
           <button
             onClick={() => setActiveSubTab('leaderboard')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeSubTab === 'leaderboard'
                 ? 'btn-theme-primary shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
             <Trophy className="w-4 h-4 text-amber-400" />
@@ -229,7 +229,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeSubTab === 'student_history'
                 ? 'btn-theme-primary shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
             <FileText className="w-4 h-4" />
@@ -244,7 +244,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
       {activeSubTab === 'leaderboard' && (
         <div className="space-y-6">
           {/* Step 1 & Step 2 Selectors: Default has no exam or course selected */}
-          <div className="bg-white dark:bg-[#121622] border border-slate-200 dark:border-white/[0.08] rounded-3xl p-5 shadow-xs grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
+          <div className="bg-theme-card border border-theme-card rounded-3xl p-5 shadow-xs grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                 Step 1: Select Course (কোর্স নির্বাচন করুন)

@@ -129,18 +129,7 @@ const MainApp: React.FC = () => {
   // If not logged in, display Login Page
   if (!user) {
     return (
-      <div className="min-h-screen text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-all duration-300 overflow-x-hidden relative">
-        {/* Telegram-style Animated Atmospheric Background Mesh */}
-        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-          <div 
-            className="telegram-aurora-orb-1 absolute -top-[10%] left-1/2 -translate-x-1/2 w-[750px] sm:w-[1000px] h-[500px] sm:h-[650px] rounded-full blur-[110px] sm:blur-[140px] opacity-35 dark:opacity-55 transition-all duration-700"
-            style={{ backgroundColor: 'var(--theme-primary)' }}
-          />
-          <div 
-            className="telegram-aurora-orb-2 absolute top-[40%] -left-[10%] w-[550px] sm:w-[700px] h-[400px] sm:h-[500px] rounded-full blur-[100px] sm:blur-[130px] opacity-25 dark:opacity-40 transition-all duration-700"
-            style={{ backgroundColor: 'var(--theme-primary)' }}
-          />
-        </div>
+      <div className="min-h-screen bg-theme-main text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-all duration-300 overflow-x-hidden relative">
         <div className="relative z-10 flex flex-col flex-1">
           <Navbar />
           <main className="flex-1">
@@ -152,23 +141,7 @@ const MainApp: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-all duration-300 overflow-x-hidden relative">
-      {/* Telegram-style Animated Atmospheric Background Mesh */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div 
-          className="telegram-aurora-orb-1 absolute -top-[12%] left-1/2 -translate-x-1/2 w-[750px] sm:w-[1050px] h-[500px] sm:h-[650px] rounded-full blur-[110px] sm:blur-[140px] opacity-35 dark:opacity-55 transition-all duration-700"
-          style={{ backgroundColor: 'var(--theme-primary)' }}
-        />
-        <div 
-          className="telegram-aurora-orb-2 absolute top-[45%] -left-[15%] w-[550px] sm:w-[750px] h-[450px] sm:h-[550px] rounded-full blur-[100px] sm:blur-[130px] opacity-25 dark:opacity-40 transition-all duration-700"
-          style={{ backgroundColor: 'var(--theme-primary)' }}
-        />
-        <div 
-          className="telegram-aurora-orb-3 absolute -bottom-[15%] right-[-10%] w-[600px] sm:w-[800px] h-[450px] sm:h-[550px] rounded-full blur-[120px] sm:blur-[150px] opacity-30 dark:opacity-45 transition-all duration-700"
-          style={{ backgroundColor: 'var(--theme-primary)' }}
-        />
-      </div>
-
+    <div className="min-h-screen bg-theme-main text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-all duration-300 overflow-x-hidden relative">
       <div className="relative z-10 flex flex-col flex-1">
         <Navbar />
 

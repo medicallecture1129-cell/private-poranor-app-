@@ -93,12 +93,17 @@ export const CourseList: React.FC<CourseListProps> = ({ courses, students, onSel
 
       {/* Courses Grid */}
       {visibleCourses.length === 0 ? (
-        <div className="bg-white dark:bg-[#121622] border border-slate-200 dark:border-white/[0.08] rounded-2xl p-12 text-center text-slate-400">
-          <BookOpen className="w-12 h-12 mx-auto mb-3 text-slate-300 dark:text-slate-700" />
-          <h4 className="font-semibold text-slate-700 dark:text-slate-300 text-base">
+        <div className="bg-theme-card border border-theme-card rounded-3xl p-12 text-center text-slate-400 shadow-md">
+          <div 
+            className="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center ring-1 ring-white/10"
+            style={{ backgroundColor: 'var(--theme-primary-light)' }}
+          >
+            <BookOpen className="w-8 h-8 text-theme-primary" />
+          </div>
+          <h4 className="font-bold text-theme-title text-base">
             No courses found
           </h4>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+          <p className="text-xs sm:text-sm text-slate-400 mt-1.5 max-w-md mx-auto">
             {role === 'admin'
               ? 'Click "Add Course" above to create your first coaching course.'
               : 'You have not been assigned to any course yet. Contact your teacher.'}
@@ -160,14 +165,14 @@ export const CourseList: React.FC<CourseListProps> = ({ courses, students, onSel
 
       {/* CREATE COURSE MODAL */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-2xl space-y-4">
-            <h3 className="font-bold text-base text-slate-900 dark:text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-theme-card rounded-3xl border border-theme-card p-6 shadow-2xl space-y-4">
+            <h3 className="font-bold text-base text-theme-title">
               Create New Course
             </h3>
             <form onSubmit={handleCreateCourse} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
                   Course Name
                 </label>
                 <input
@@ -177,12 +182,12 @@ export const CourseList: React.FC<CourseListProps> = ({ courses, students, onSel
                   value={courseName}
                   onChange={(e) => setCourseName(e.target.value)}
                   placeholder="e.g. HSC Physics 1st Paper"
-                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-theme-border bg-theme-surface text-theme-title placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
                   HSC / SSC Batch
                 </label>
                 <input
@@ -191,7 +196,7 @@ export const CourseList: React.FC<CourseListProps> = ({ courses, students, onSel
                   value={batchName}
                   onChange={(e) => setBatchName(e.target.value)}
                   placeholder="e.g. HSC 2025 or SSC 2026"
-                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-theme-border bg-theme-surface text-theme-title placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]"
                 />
               </div>
 
@@ -199,7 +204,7 @@ export const CourseList: React.FC<CourseListProps> = ({ courses, students, onSel
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-medium cursor-pointer"
+                  className="px-4 py-2 rounded-xl border border-theme-border text-slate-300 text-xs font-medium cursor-pointer hover:bg-theme-surface"
                 >
                   Cancel
                 </button>

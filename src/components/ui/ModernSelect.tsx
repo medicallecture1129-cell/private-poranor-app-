@@ -77,26 +77,26 @@ export const ModernSelect: React.FC<ModernSelectProps> = ({
         }}
         className={`w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border text-left flex items-center justify-between gap-2 transition-all cursor-pointer select-none ${
           disabled
-            ? 'opacity-40 cursor-not-allowed border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/50 text-slate-400'
+            ? 'opacity-40 cursor-not-allowed border-theme-border bg-theme-surface text-slate-500'
             : isOpen
-            ? 'border-theme-primary bg-white dark:bg-[#141824] text-slate-900 dark:text-white ring-2 ring-[var(--theme-primary-glow)] shadow-sm'
-            : 'border-slate-300 dark:border-white/[0.1] bg-white dark:bg-[#121622] hover:border-slate-400 dark:hover:border-white/[0.2] text-slate-900 dark:text-white shadow-2xs'
+            ? 'border-theme-primary bg-theme-surface text-theme-title ring-2 ring-[var(--theme-primary-glow)] shadow-sm'
+            : 'border-theme-border bg-theme-surface hover:border-theme-border-strong text-theme-title shadow-2xs'
         }`}
       >
         <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
           {selectedOption ? (
             <>
-              <span className="font-semibold text-slate-900 dark:text-white truncate">
+              <span className="font-semibold text-theme-title truncate">
                 {selectedOption.label}
               </span>
               {selectedOption.badge && (
-                <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-slate-100 dark:bg-white/[0.08] text-slate-600 dark:text-slate-300 font-medium shrink-0">
+                <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-theme-card text-slate-300 font-medium shrink-0">
                   {selectedOption.badge}
                 </span>
               )}
             </>
           ) : (
-            <span className="text-slate-400 dark:text-slate-500 truncate">
+            <span className="text-slate-400 truncate">
               {placeholder}
             </span>
           )}
@@ -111,9 +111,9 @@ export const ModernSelect: React.FC<ModernSelectProps> = ({
 
       {/* Floating Menu */}
       {isOpen && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white dark:bg-[#131724] border border-slate-200 dark:border-white/[0.12] rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-98 duration-150">
+        <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-theme-card border border-theme-border rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-98 duration-150">
           {searchable && (
-            <div className="p-2 border-b border-slate-100 dark:border-white/[0.08] bg-slate-50/60 dark:bg-[#161a29]">
+            <div className="p-2 border-b border-theme-border bg-theme-surface">
               <div className="relative">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                 <input
@@ -122,7 +122,7 @@ export const ModernSelect: React.FC<ModernSelectProps> = ({
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={searchPlaceholder}
-                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-[#10141f] text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-theme-primary"
+                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-theme-border bg-theme-surface text-theme-title placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-theme-primary"
                 />
               </div>
             </div>
