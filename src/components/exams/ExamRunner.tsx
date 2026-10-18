@@ -58,6 +58,10 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
     );
   }
 
+  // Determine if exam is genuinely eligible for Live submission:
+  // Must be marked isLive, not converted to practice, and current time must be strictly before exam.endTime
+  const effectiveIsLive = Boolean(isLive) && !exam.isPractice && (exam.endTime ? Date.now() < exam.endTime : true);
+
   // Persistent Timer: Real-world countdown across reloads/exits
   const sessionKey = `exam_session_${exam.id}_${user?.id || 'anon'}`;
   
@@ -77,9 +81,14 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
 
     const now = Date.now();
     const durationMs = (exam.durationMinutes || 30) * 60 * 1000;
+    // If live, session cannot exceed the live exam's scheduled endTime
+    const targetExpiry = (effectiveIsLive && exam.endTime)
+      ? Math.min(now + durationMs, exam.endTime)
+      : now + durationMs;
+
     const newSession = {
       startedAt: now,
-      expiresAt: now + durationMs,
+      expiresAt: targetExpiry,
       answers: {}
     };
     try {
@@ -109,8 +118,8 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
       const remaining = Math.max(0, Math.floor((session.expiresAt - now) / 1000));
       setSecondsRemaining(remaining);
 
-      if (remaining <= 0) {
-        // Auto-submit immediately when timer reaches 0, even if user left or returned!
+      // Auto-submit immediately when timer reaches 0 or live deadline passes!
+      if (remaining <= 0 || (effectiveIsLive && exam.endTime && now >= exam.endTime)) {
         handleFinalSubmit();
       }
     };
@@ -118,7 +127,7 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
     checkTimer();
     const interval = setInterval(checkTimer, 1000);
     return () => clearInterval(interval);
-  }, [session.expiresAt]);
+  }, [session.expiresAt, effectiveIsLive, exam.endTime]);
 
   const formatTimer = (totalSec: number) => {
     const hrs = Math.floor(totalSec / 3600);
@@ -220,7 +229,7 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
       studentEmail: user.email,
       studentName: user.name,
       studentCollege: user.college || 'N/A',
-      isLive,
+      isLive: effectiveIsLive && (exam.endTime ? now <= exam.endTime : true),
       startTime: session.startedAt,
       submittedAt: now,
       durationSeconds: durationTakenSeconds,
@@ -241,7 +250,7 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
         localStorage.removeItem(sessionKey);
       } catch {}
 
-      if (isLive) {
+      if (submissionData.isLive) {
         setLiveSuccessMsg(true);
       } else {
         onFinished(savedSub);
@@ -295,7 +304,7 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
         <div className="flex items-center gap-3 min-w-0">
           <div className="min-w-0">
             <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-              {isLive ? '🔴 Live Official Exam' : 'Practice Exam'} • {exam.courseName}
+              {effectiveIsLive ? '🔴 Live Official Exam' : 'Practice Exam'} • {exam.courseName}
             </span>
             <h1 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
               {exam.title}

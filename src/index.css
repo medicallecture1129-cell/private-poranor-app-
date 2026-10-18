@@ -22,6 +22,9 @@
   --theme-primary-light: rgba(37, 99, 235, 0.18);
   --theme-primary-border: rgba(37, 99, 235, 0.42);
   --theme-primary-glow: rgba(37, 99, 235, 0.35);
+  --theme-logo: #2563eb;
+  --theme-logo-hover: #1d4ed8;
+  --theme-logo-glow: rgba(37, 99, 235, 0.35);
   --theme-text-title: #f8fafc;
   --theme-text-body: #e2e8f0;
   --theme-text-muted: #94a3b8;

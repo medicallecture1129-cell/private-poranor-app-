@@ -2,49 +2,42 @@ import React, { createContext, useContext, useEffect, useState, useMemo } from '
 import { 
   computeThemeVariables, 
   ComputedTheme, 
-  PRESET_PALETTES, 
-  PresetPalette 
+  CustomColors, 
+  DEFAULT_CUSTOM_COLORS 
 } from '../utils/themeColors';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
-
-export interface AccentPalette extends PresetPalette {
-  hoverHex: string;
-}
-
-export const ACCENT_PALETTES: AccentPalette[] = PRESET_PALETTES.map(p => ({
-  ...p,
-  hoverHex: p.hex
-}));
+export type { CustomColors };
 
 interface ThemeContextType {
   theme: 'light' | 'dark'; // Effective active theme
-  preference: ThemePreference; // User selected preference ('light' | 'dark' | 'system')
+  preference: ThemePreference;
   isDarkMode: boolean;
-  baseColor: string; // The seed color code chosen by user
+  customColors: CustomColors;
   computedTheme: ComputedTheme;
-  accentPalette: AccentPalette; // Backward-compatible alias
-  palettes: AccentPalette[]; // All presets
-  activePresetId: string | null;
-  setBaseColor: (hex: string) => void; // Pick ANY color code
-  setAccentPaletteId: (paletteId: string) => void;
+  setCustomColor: (key: keyof CustomColors, value: string) => void;
+  setAllCustomColors: (colors: CustomColors) => void;
+  resetCustomColors: () => void;
+  // Backwards-compatible aliases
+  baseColor: string;
+  setBaseColor: (hex: string) => void;
   setThemePreference: (pref: ThemePreference) => void;
   toggleTheme: () => void;
 }
 
-const defaultTheme = computeThemeVariables('#2563EB', true);
+const defaultComputed = computeThemeVariables(DEFAULT_CUSTOM_COLORS, true);
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: 'dark',
   preference: 'dark',
   isDarkMode: true,
-  baseColor: '#2563EB',
-  computedTheme: defaultTheme,
-  accentPalette: ACCENT_PALETTES[0],
-  palettes: ACCENT_PALETTES,
-  activePresetId: 'royal_blue',
+  customColors: DEFAULT_CUSTOM_COLORS,
+  computedTheme: defaultComputed,
+  setCustomColor: () => {},
+  setAllCustomColors: () => {},
+  resetCustomColors: () => {},
+  baseColor: DEFAULT_CUSTOM_COLORS.buttonColor,
   setBaseColor: () => {},
-  setAccentPaletteId: () => {},
   setThemePreference: () => {},
   toggleTheme: () => {}
 });
@@ -57,52 +50,39 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return saved;
       }
     } catch {}
-    return 'dark'; // Pitch-Dark default as requested
+    return 'dark';
   });
 
-  const [baseColor, setBaseColorState] = useState<string>(() => {
+  const [customColors, setCustomColorsState] = useState<CustomColors>(() => {
     try {
-      const savedColor = localStorage.getItem('examportal_base_color');
-      if (savedColor && /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(savedColor)) {
-        return savedColor;
+      const saved = localStorage.getItem('examportal_custom_colors');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.bgColor && parsed.fgColor && parsed.buttonColor && parsed.logoColor) {
+          return parsed;
+        }
       }
-      const savedPreset = localStorage.getItem('examportal_accent_palette');
-      const found = PRESET_PALETTES.find(p => p.id === savedPreset);
-      if (found) {
-        return found.hex;
+      // Migrate from old base color if present
+      const oldBase = localStorage.getItem('examportal_base_color');
+      if (oldBase && /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(oldBase)) {
+        return {
+          ...DEFAULT_CUSTOM_COLORS,
+          buttonColor: oldBase,
+          logoColor: oldBase
+        };
       }
     } catch {}
-    return '#2563EB'; // Royal Blue preset
+    return DEFAULT_CUSTOM_COLORS;
   });
 
   const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>('dark');
 
-  // Compute the full theme values based on the single base color
+  // Compute theme variables from the 4 custom color settings
   const computedTheme = useMemo(() => {
-    return computeThemeVariables(baseColor, effectiveTheme === 'dark');
-  }, [baseColor, effectiveTheme]);
+    return computeThemeVariables(customColors, effectiveTheme === 'dark');
+  }, [customColors, effectiveTheme]);
 
-  const activePreset = useMemo(() => {
-    return PRESET_PALETTES.find(p => p.hex.toLowerCase() === baseColor.toLowerCase()) || null;
-  }, [baseColor]);
-
-  const accentPalette: AccentPalette = useMemo(() => {
-    if (activePreset) {
-      return {
-        ...activePreset,
-        hoverHex: computedTheme.primaryHover
-      };
-    }
-    return {
-      id: 'custom',
-      name: 'Custom Tone',
-      nameBn: 'কাস্টম কালার',
-      hex: baseColor,
-      hoverHex: computedTheme.primaryHover
-    };
-  }, [activePreset, baseColor, computedTheme]);
-
-  // Handle system appearance & CSS variable injection
+  // System appearance handler
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
@@ -128,37 +108,31 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       document.body.classList.add('dark');
       document.body.classList.remove('light');
       root.setAttribute('data-theme', 'dark');
-
-      const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-      if (metaThemeColor) {
-        metaThemeColor.setAttribute('content', computedTheme.bgMain);
-      }
     } else {
       root.classList.remove('dark');
       root.classList.add('light');
       document.body.classList.remove('dark');
       document.body.classList.add('light');
       root.setAttribute('data-theme', 'light');
-
-      const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-      if (metaThemeColor) {
-        metaThemeColor.setAttribute('content', computedTheme.bgMain);
-      }
     }
 
-    // Set all calculated theme CSS variables globally
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (metaThemeColor) {
+      metaThemeColor.setAttribute('content', computedTheme.bgMain);
+    }
+
     const applyVars = (el: HTMLElement) => {
-      // 1. Base & Main Background (Pitch-Dark Solid)
-      el.style.setProperty('--theme-base-color', computedTheme.baseHex);
+      // 1. Backgrounds
+      el.style.setProperty('--theme-base-color', computedTheme.primary);
       el.style.setProperty('--theme-bg-main', computedTheme.bgMain);
       el.style.setProperty('--theme-bg-main-rgb', computedTheme.bgMainRgb);
 
-      // 2. Foreground Card & Message Containers ("No Live Exams Found", Modals, Dialogs)
+      // 2. Foreground / Cards
       el.style.setProperty('--theme-bg-card', computedTheme.bgCard);
       el.style.setProperty('--theme-bg-card-hover', computedTheme.bgCardHover);
       el.style.setProperty('--theme-bg-card-rgb', computedTheme.bgCardRgb);
 
-      // 3. Elevated Surface (Navbar Header, Bottom Nav, Filters)
+      // 3. Surface
       el.style.setProperty('--theme-bg-surface', computedTheme.bgSurface);
       el.style.setProperty('--theme-bg-surface-elevated', computedTheme.bgSurfaceElevated);
 
@@ -167,7 +141,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       el.style.setProperty('--theme-border-card', computedTheme.borderCard);
       el.style.setProperty('--theme-border-strong', computedTheme.borderStrong);
 
-      // 5. Primary Buttons, Badges, Header Capsules & Logos
+      // 5. Button
       el.style.setProperty('--theme-primary', computedTheme.primary);
       el.style.setProperty('--theme-primary-hover', computedTheme.primaryHover);
       el.style.setProperty('--theme-primary-rgb', computedTheme.primaryRgb);
@@ -176,7 +150,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       el.style.setProperty('--theme-primary-border', computedTheme.primaryBorder);
       el.style.setProperty('--theme-primary-glow', computedTheme.primaryGlow);
 
-      // 6. Text
+      // 6. Logo
+      el.style.setProperty('--theme-logo', computedTheme.logoColor);
+      el.style.setProperty('--theme-logo-hover', computedTheme.logoHover);
+      el.style.setProperty('--theme-logo-rgb', computedTheme.logoRgb);
+      el.style.setProperty('--theme-logo-glow', computedTheme.logoGlow);
+
+      // 7. Text
       el.style.setProperty('--theme-text-title', computedTheme.textTitle);
       el.style.setProperty('--theme-text-body', computedTheme.textBody);
       el.style.setProperty('--theme-text-muted', computedTheme.textMuted);
@@ -191,23 +171,29 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       localStorage.setItem('examportal_theme_preference', preference);
       localStorage.setItem('examportal_theme', effectiveTheme);
-      localStorage.setItem('examportal_base_color', baseColor);
-      if (activePreset) {
-        localStorage.setItem('examportal_accent_palette', activePreset.id);
-      }
+      localStorage.setItem('examportal_custom_colors', JSON.stringify(customColors));
+      localStorage.setItem('examportal_base_color', customColors.buttonColor);
     } catch {}
-  }, [computedTheme, effectiveTheme, preference, baseColor, activePreset]);
+  }, [computedTheme, effectiveTheme, preference, customColors]);
 
-  const setBaseColor = (hex: string) => {
-    if (!hex) return;
-    setBaseColorState(hex);
+  const setCustomColor = (key: keyof CustomColors, value: string) => {
+    if (!value) return;
+    setCustomColorsState(prev => ({
+      ...prev,
+      [key]: value
+    }));
   };
 
-  const setAccentPaletteId = (paletteId: string) => {
-    const found = PRESET_PALETTES.find(p => p.id === paletteId);
-    if (found) {
-      setBaseColorState(found.hex);
-    }
+  const setAllCustomColors = (colors: CustomColors) => {
+    setCustomColorsState(colors);
+  };
+
+  const resetCustomColors = () => {
+    setCustomColorsState(DEFAULT_CUSTOM_COLORS);
+  };
+
+  const setBaseColor = (hex: string) => {
+    setCustomColor('buttonColor', hex);
   };
 
   const setThemePreference = (pref: ThemePreference) => {
@@ -224,13 +210,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         theme: effectiveTheme,
         preference,
         isDarkMode: effectiveTheme === 'dark',
-        baseColor,
+        customColors,
         computedTheme,
-        accentPalette,
-        palettes: ACCENT_PALETTES,
-        activePresetId: activePreset ? activePreset.id : null,
+        setCustomColor,
+        setAllCustomColors,
+        resetCustomColors,
+        baseColor: customColors.buttonColor,
         setBaseColor,
-        setAccentPaletteId,
         setThemePreference,
         toggleTheme
       }}

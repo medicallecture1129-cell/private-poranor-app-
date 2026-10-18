@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Exam, Course, ExamSubmission } from '../../types';
 import { CreateExamModal } from './CreateExamModal';
@@ -128,7 +128,15 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
     }
   };
 
-  const currentTime = Date.now();
+  // Real-time 1-second ticking timer so exams auto-shift to practice section the exact second endTime passes
+  const [currentTime, setCurrentTime] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // If student: only show exams belonging to courses they are enrolled in (or general courses)
   const studentEnrolledCourseIds = role === 'admin'
@@ -147,11 +155,16 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
     ? exams
     : exams.filter(e => e.courseId === 'general' || studentEnrolledCourseIds.includes(e.courseId));
 
-  // Segmentation Logic (Requirement 2 & 3):
-  // Live Exams: !isPractice && endTime > currentTime
-  // Practice Exams: isPractice === true || endTime <= currentTime
-  const liveExams = availableExams.filter(e => !e.isPractice && e.endTime > currentTime);
-  const practiceExams = availableExams.filter(e => e.isPractice === true || e.endTime <= currentTime);
+  // Segmentation Logic (Requirement 1):
+  // Helper to check if an exam has transitioned to Practice mode:
+  // 1. Manually converted: exam.isPractice === true
+  // 2. Automatically converted: currentTime >= exam.endTime
+  const isExamInPracticeMode = (exam: Exam, now: number) => {
+    return exam.isPractice === true || (exam.endTime > 0 && now >= exam.endTime);
+  };
+
+  const liveExams = availableExams.filter(e => !isExamInPracticeMode(e, currentTime));
+  const practiceExams = availableExams.filter(e => isExamInPracticeMode(e, currentTime));
 
   const currentSegmentExams = activeSegment === 'live' ? liveExams : practiceExams;
 
@@ -312,8 +325,9 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredExams.map((exam) => {
             const hasStarted = currentTime >= exam.startTime;
-            const hasEnded = currentTime > exam.endTime;
-            const isLiveNow = hasStarted && !hasEnded;
+            const hasEnded = currentTime >= exam.endTime;
+            const isPracticeMode = isExamInPracticeMode(exam, currentTime);
+            const isLiveNow = hasStarted && !hasEnded && !isPracticeMode;
             const isExamActive = exam.isActive !== false;
 
             const studentLiveSubmission = submissions.find(

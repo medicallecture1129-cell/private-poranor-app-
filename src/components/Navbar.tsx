@@ -16,9 +16,10 @@ import {
   Moon, 
   Monitor, 
   Palette, 
-  Check,
   Sparkles,
-  Pipette
+  Pipette,
+  RefreshCw,
+  RotateCcw
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -27,12 +28,10 @@ export const Navbar: React.FC = () => {
     theme, 
     preference, 
     isDarkMode, 
-    baseColor,
+    customColors,
     computedTheme,
-    accentPalette, 
-    palettes, 
-    setBaseColor,
-    setAccentPaletteId, 
+    setCustomColor,
+    resetCustomColors,
     setThemePreference, 
     toggleTheme 
   } = useTheme();
@@ -43,12 +42,23 @@ export const Navbar: React.FC = () => {
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showPaletteModal, setShowPaletteModal] = useState(false);
-  const [customHexInput, setCustomHexInput] = useState(baseColor);
 
-  // Sync custom hex input with current base color
+  // App update checking state for PWA
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [updateFeedback, setUpdateFeedback] = useState<string | null>(null);
+
+  // Local state for hex inputs in custom color picker
+  const [bgInput, setBgInput] = useState(customColors.bgColor);
+  const [fgInput, setFgInput] = useState(customColors.fgColor);
+  const [btnInput, setBtnInput] = useState(customColors.buttonColor);
+  const [logoInput, setLogoInput] = useState(customColors.logoColor);
+
   useEffect(() => {
-    setCustomHexInput(baseColor);
-  }, [baseColor]);
+    setBgInput(customColors.bgColor);
+    setFgInput(customColors.fgColor);
+    setBtnInput(customColors.buttonColor);
+    setLogoInput(customColors.logoColor);
+  }, [customColors]);
 
   // Subscribe to real-time Portal Settings from Firestore
   useEffect(() => {
@@ -115,10 +125,45 @@ export const Navbar: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [showProfileModal, showInstallGuide, showPaletteModal]);
 
-  const handleCustomHexChange = (val: string) => {
-    setCustomHexInput(val);
+  const handleHexChange = (key: keyof typeof customColors, val: string) => {
+    if (key === 'bgColor') setBgInput(val);
+    if (key === 'fgColor') setFgInput(val);
+    if (key === 'buttonColor') setBtnInput(val);
+    if (key === 'logoColor') setLogoInput(val);
+
     if (/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(val)) {
-      setBaseColor(val);
+      setCustomColor(key, val);
+    }
+  };
+
+  // Trigger manual app update check for installed PWA / browser
+  const handleCheckUpdate = async () => {
+    setIsCheckingUpdate(true);
+    setUpdateFeedback(null);
+    try {
+      if (window.checkAppUpdate) {
+        const res = await window.checkAppUpdate();
+        setUpdateFeedback(res.message);
+        if (res.hasUpdate) {
+          setTimeout(() => {
+            window.location.reload();
+          }, 1200);
+        }
+      } else if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) {
+          await reg.update();
+          setUpdateFeedback('আপডেট চেক সম্পন্ন হয়েছে। অ্যাপ আপ-টু-ডেট আছে।');
+        } else {
+          setUpdateFeedback('অ্যাপটি আপ-টু-ডেট আছে।');
+        }
+      } else {
+        setUpdateFeedback('অ্যাপটি আপ-টু-ডেট আছে।');
+      }
+    } catch (err) {
+      setUpdateFeedback('আপডেট চেক সম্পন্ন হয়েছে।');
+    } finally {
+      setIsCheckingUpdate(false);
     }
   };
 
@@ -126,11 +171,14 @@ export const Navbar: React.FC = () => {
     <>
       <header className="sticky top-0 z-40 w-full border-b backdrop-blur-md transition-colors bg-theme-surface border-theme-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          {/* Left: Element 1 of 3 (App Logo capsule + Title) */}
+          {/* Left: App Logo capsule + Title */}
           <div className="flex items-center gap-3">
             <div 
               className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shadow-sm ring-2 ring-white/20 transition-all hover:scale-105"
-              style={{ backgroundColor: 'var(--theme-primary)', boxShadow: '0 4px 14px -2px var(--theme-primary-glow)' }}
+              style={{ 
+                backgroundColor: 'var(--theme-logo, var(--theme-primary))', 
+                boxShadow: '0 4px 14px -2px var(--theme-logo-glow, var(--theme-primary-glow))' 
+              }}
               title="Exam Portal Logo"
             >
               <GraduationCap className="w-6 h-6 stroke-[2.2]" />
@@ -173,11 +221,11 @@ export const Navbar: React.FC = () => {
               )}
             </button>
 
-            {/* Element 2 of 3: Color Palette Button Capsule (Highlighted in User Prompt) */}
+            {/* Custom Color Palette Button Capsule */}
             <button
               onClick={() => setShowPaletteModal(true)}
-              aria-label="Theme Color Palette"
-              title={`Theme Color: ${accentPalette.name} (${accentPalette.nameBn}) - Click to change color tone`}
+              aria-label="Custom Color Studio"
+              title="Custom Colors: Background, Foreground, Button, and Logo"
               className="relative px-3 py-1.5 rounded-xl border border-theme-border bg-theme-card hover:bg-theme-card-hover text-slate-100 transition-all cursor-pointer flex items-center gap-2 shadow-xs group"
               style={{
                 boxShadow: '0 2px 8px -2px var(--theme-primary-glow)',
@@ -189,7 +237,7 @@ export const Navbar: React.FC = () => {
                 style={{ backgroundColor: 'var(--theme-primary)' }}
               />
               <Palette className="w-3.5 h-3.5 text-slate-300 group-hover:rotate-12 transition-transform" />
-              <span className="hidden sm:inline text-xs font-bold text-theme-title">Palette</span>
+              <span className="hidden sm:inline text-xs font-bold text-theme-title">Colors</span>
             </button>
 
             {/* Install PWA Button */}
@@ -210,9 +258,9 @@ export const Navbar: React.FC = () => {
               </span>
             )}
 
+            {/* Profile Avatar Capsule (Requirement 2: Logout moved inside Profile Modal) */}
             {user && (
               <div className="flex items-center gap-2 pl-2 sm:pl-3 border-l border-theme-border">
-                {/* Element 3 of 3: Profile Icon Capsule (Highlighted in User Prompt) */}
                 <button
                   onClick={() => {
                     window.history.pushState({ modal: 'profile' }, '');
@@ -235,14 +283,6 @@ export const Navbar: React.FC = () => {
                   >
                     {user.name ? user.name.slice(0, 1).toUpperCase() : <UserCircle className="w-5 h-5" />}
                   </div>
-                </button>
-
-                <button
-                  onClick={logout}
-                  className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-950/30 rounded-lg transition-colors cursor-pointer ml-1"
-                  title="Log Out"
-                >
-                  <LogOut className="w-4 h-4" />
                 </button>
               </div>
             )}
@@ -312,7 +352,7 @@ export const Navbar: React.FC = () => {
         </div>
       )}
 
-      {/* User Profile & Theme Settings Modal */}
+      {/* User Profile & Theme Settings Modal (Contains Log Out per Requirement 2 + App Update per Requirement 4) */}
       {showProfileModal && user && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
           <div className="w-full max-w-md bg-theme-card border border-theme-card rounded-3xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
@@ -343,8 +383,8 @@ export const Navbar: React.FC = () => {
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 space-y-5 text-xs sm:text-sm">
-              <div className="space-y-2.5">
+            <div className="p-6 space-y-4 text-xs sm:text-sm">
+              <div className="space-y-2">
                 <div className="p-3 rounded-2xl bg-theme-surface border border-theme-border space-y-1">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Email Address</span>
                   <span className="font-semibold text-theme-title">{user.email || 'N/A'}</span>
@@ -358,12 +398,39 @@ export const Navbar: React.FC = () => {
                 )}
               </div>
 
-              {/* Quick Color Palette Trigger */}
-              <div className="pt-3 border-t border-theme-border space-y-2.5">
+              {/* Requirement 4: PWA Auto-Update / Version Status & Manual Check */}
+              <div className="pt-2 border-t border-theme-border space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-theme-title flex items-center gap-1.5">
+                    <RefreshCw className={`w-3.5 h-3.5 ${isCheckingUpdate ? 'animate-spin text-theme-primary' : 'text-slate-400'}`} />
+                    <span>App Update / অটো আপডেট</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCheckUpdate}
+                    disabled={isCheckingUpdate}
+                    className="px-2.5 py-1 rounded-lg btn-theme-primary text-[11px] font-bold cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isCheckingUpdate ? 'animate-spin' : ''}`} />
+                    <span>{isCheckingUpdate ? 'চেক হচ্ছে...' : 'Check for Update'}</span>
+                  </button>
+                </div>
+                {updateFeedback && (
+                  <p className="text-[11px] font-semibold text-emerald-400 p-2 rounded-xl bg-emerald-950/30 border border-emerald-800">
+                    {updateFeedback}
+                  </p>
+                )}
+                <p className="text-[10px] text-slate-400">
+                  GitHub এ নতুন কোড আপলোড হলে ইনস্টল করা অ্যাপ ব্যাকগ্রাউন্ডে স্বয়ংক্রিয়ভাবে আপডেট গ্রহণ করবে।
+                </p>
+              </div>
+
+              {/* Quick Custom Color Trigger */}
+              <div className="pt-2 border-t border-theme-border space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-theme-title flex items-center gap-1.5">
                     <Palette className="w-3.5 h-3.5" style={{ color: 'var(--theme-primary)' }} />
-                    <span>Global Theme Color</span>
+                    <span>Custom Colors</span>
                   </span>
                   <button
                     type="button"
@@ -373,18 +440,27 @@ export const Navbar: React.FC = () => {
                     }}
                     className="text-xs font-bold px-2 py-0.5 rounded-lg btn-theme-primary cursor-pointer"
                   >
-                    Change Color
+                    Open Color Studio
                   </button>
                 </div>
-                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-theme-surface border border-theme-border">
-                  <span className="w-4 h-4 rounded-full ring-2 ring-white/50" style={{ backgroundColor: 'var(--theme-primary)' }} />
-                  <span className="text-xs font-semibold text-theme-title">{accentPalette.nameBn}</span>
-                  <span className="text-[11px] text-slate-400 font-mono ml-auto">{baseColor}</span>
+                <div className="grid grid-cols-4 gap-1.5 p-2 rounded-xl bg-theme-surface border border-theme-border text-[10px] text-center font-bold text-slate-300">
+                  <div className="p-1 rounded-lg flex flex-col items-center gap-1" style={{ backgroundColor: customColors.bgColor }}>
+                    <span className="text-[8px] text-slate-300">Background</span>
+                  </div>
+                  <div className="p-1 rounded-lg flex flex-col items-center gap-1 border border-white/20" style={{ backgroundColor: customColors.fgColor }}>
+                    <span className="text-[8px] text-slate-200">Foreground</span>
+                  </div>
+                  <div className="p-1 rounded-lg flex flex-col items-center gap-1 text-white" style={{ backgroundColor: customColors.buttonColor }}>
+                    <span className="text-[8px] text-white">Button</span>
+                  </div>
+                  <div className="p-1 rounded-lg flex flex-col items-center gap-1 text-white" style={{ backgroundColor: customColors.logoColor }}>
+                    <span className="text-[8px] text-white">Logo</span>
+                  </div>
                 </div>
               </div>
 
               {/* Appearance Mode (Dark, Light, System) */}
-              <div className="pt-3 border-t border-theme-border space-y-2.5">
+              <div className="pt-2 border-t border-theme-border space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-theme-title">
                     Appearance / থিম মোড
@@ -436,22 +512,23 @@ export const Navbar: React.FC = () => {
                 </div>
               </div>
 
-              {/* Actions */}
-              <div className="pt-2 flex items-center justify-between gap-3">
+              {/* Requirement 2: Log Out is prominently positioned here inside Profile Modal */}
+              <div className="pt-3 border-t border-theme-border flex items-center justify-between gap-3">
                 <button
                   onClick={() => {
                     setShowProfileModal(false);
                     logout();
                   }}
-                  className="px-4 py-2 rounded-xl bg-red-950/40 hover:bg-red-900/60 text-red-400 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-colors cursor-pointer"
+                  title="Log out of your account"
                 >
                   <LogOut className="w-4 h-4" />
-                  <span>Log Out</span>
+                  <span>Log Out (লগআউট)</span>
                 </button>
 
                 <button
                   onClick={() => setShowProfileModal(false)}
-                  className="px-5 py-2 rounded-xl bg-theme-surface hover:bg-theme-surface-elevated text-slate-200 border border-theme-border font-bold text-xs transition-colors cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-theme-surface hover:bg-theme-surface-elevated text-slate-200 border border-theme-border font-bold text-xs transition-colors cursor-pointer"
                 >
                   Close
                 </button>
@@ -461,25 +538,25 @@ export const Navbar: React.FC = () => {
         </div>
       )}
 
-      {/* Standalone Automated Theme Color Palette Selector Modal */}
+      {/* Requirement 3: Standalone Custom Color Studio Modal (NO PRESET THEMES, 4 CUSTOM COLORS ONLY) */}
       {showPaletteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-lg bg-theme-card border border-theme-card rounded-3xl p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+          <div className="w-full max-w-lg bg-theme-card border border-theme-card rounded-3xl p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col my-auto">
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-theme-border shrink-0">
               <div className="flex items-center gap-2.5">
                 <div 
                   className="w-9 h-9 rounded-xl text-white flex items-center justify-center shadow-xs"
-                  style={{ backgroundColor: 'var(--theme-primary)' }}
+                  style={{ backgroundColor: 'var(--theme-logo, var(--theme-primary))' }}
                 >
                   <Palette className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-extrabold text-theme-title text-base">
-                    গ্লোবাল ডার্ক থিম ও কালার ইঞ্জিন
+                    Custom Color Studio (কাস্টম কালার)
                   </h3>
                   <p className="text-xs text-slate-400">
-                    শুধু ১টি কালার সিলেক্ট করুন — পুরো অ্যাপ স্বয়ংক্রিয়ভাবে ছবির মতো রূপ নেবে
+                    ব্যাকগ্রাউন্ড, ফোরগ্রাউন্ড, বাটন ও লোগোর কাস্টম কালার নির্ধারণ করুন
                   </p>
                 </div>
               </div>
@@ -492,155 +569,177 @@ export const Navbar: React.FC = () => {
             </div>
 
             <div className="overflow-y-auto space-y-4 pr-1 flex-1">
-              {/* Dynamic Live Color Hierarchy Preview Card */}
+              {/* Dynamic Live Preview of the 4 Colors Interacting Together */}
               <div 
-                className="p-3.5 rounded-2xl border border-theme-border transition-all"
-                style={{ backgroundColor: computedTheme.bgMain }}
+                className="p-4 rounded-2xl border border-theme-border transition-all space-y-3"
+                style={{ backgroundColor: customColors.bgColor }}
               >
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-theme-primary" />
-                    <span>অটোমেটিক ক্যালকুলেশন প্রিভিউ</span>
+                    <span>লাইভ প্রিভিউ (Live Preview)</span>
                   </span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/10 text-white">
-                    {baseColor.toUpperCase()}
-                  </span>
+                  <button
+                    type="button"
+                    onClick={resetCustomColors}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200 flex items-center gap-1 cursor-pointer transition-colors"
+                    title="Reset to default colors"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Reset Defaults</span>
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
-                  {/* Layer 1: Pitch-Dark Solid Background */}
-                  <div 
-                    className="p-2.5 rounded-xl border border-white/10 flex flex-col items-center justify-center gap-1"
-                    style={{ backgroundColor: computedTheme.bgMain }}
-                  >
-                    <span className="font-bold text-white text-[10px]">১. মেইন ব্যাকগ্রাউন্ড</span>
-                    <span className="text-[9px] text-slate-400">Solid Pitch-Dark</span>
-                    <span className="text-[9px] font-mono text-slate-500">{computedTheme.bgMain}</span>
+                {/* Simulated App Card on Top of Custom Background */}
+                <div 
+                  className="p-3.5 rounded-2xl border shadow-md space-y-3 transition-all"
+                  style={{ 
+                    backgroundColor: customColors.fgColor, 
+                    borderColor: computedTheme.borderCard 
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    {/* Simulated Logo */}
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-7 h-7 rounded-xl flex items-center justify-center text-white shadow-xs ring-1 ring-white/20"
+                        style={{ backgroundColor: customColors.logoColor }}
+                      >
+                        <GraduationCap className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-bold text-white">
+                        {settings.portalName || 'Exam Portal'}
+                      </span>
+                    </div>
+
+                    {/* Simulated Button */}
+                    <button
+                      type="button"
+                      className="px-3 py-1 rounded-xl text-white font-bold text-xs shadow-xs"
+                      style={{ backgroundColor: customColors.buttonColor }}
+                    >
+                      Sample Button
+                    </button>
                   </div>
 
-                  {/* Layer 2: Foreground Card */}
-                  <div 
-                    className="p-2.5 rounded-xl border border-white/20 flex flex-col items-center justify-center gap-1 shadow-sm"
-                    style={{ backgroundColor: computedTheme.bgCard, borderColor: computedTheme.borderCard }}
-                  >
-                    <span className="font-bold text-white text-[10px]">২. ফোরগ্রাউন্ড কার্ড</span>
-                    <span className="text-[9px] text-slate-300">Message Box / Card</span>
-                    <span className="text-[9px] font-mono text-slate-400">{computedTheme.bgCard}</span>
-                  </div>
-
-                  {/* Layer 3: Button & Logo Capsule */}
-                  <div 
-                    className="p-2.5 rounded-xl flex flex-col items-center justify-center gap-1 shadow-sm text-white"
-                    style={{ backgroundColor: computedTheme.primary }}
-                  >
-                    <span className="font-bold text-[10px]">৩. বাটন ও লোগো</span>
-                    <span className="text-[9px] text-white/90">Vibrant Capsule</span>
-                    <span className="text-[9px] font-mono text-white/80">{computedTheme.primary}</span>
-                  </div>
+                  <p className="text-[11px] text-slate-300 leading-snug">
+                    এখানে কার্ডের ফোরগ্রাউন্ড কালার, পিছনের মেইন ব্যাকগ্রাউন্ড এবং বাটন ও লোগোর কালার রিয়েল-টাইম প্রিভিউ প্রদর্শিত হচ্ছে।
+                  </p>
                 </div>
               </div>
 
-              {/* Custom Color Input: User can choose or type ANY color */}
-              <div className="p-3.5 rounded-2xl bg-theme-surface border border-theme-border space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-theme-title flex items-center gap-1.5">
-                    <Pipette className="w-3.5 h-3.5 text-theme-primary" />
-                    <span>কাস্টম কালার পিকার (Choose Any Custom Color)</span>
-                  </label>
-                  <span className="text-[10px] text-slate-400">যেকোনো কালার কোড দিন</span>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="relative flex items-center justify-center">
+              {/* 4 Dedicated Custom Color Pickers */}
+              <div className="space-y-3">
+                {/* 1. Background Color Picker */}
+                <div className="p-3 rounded-2xl bg-theme-surface border border-theme-border flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-theme-title block">
+                      ১. ব্যাকগ্রাউন্ড কালার (Background Color)
+                    </span>
+                    <span className="text-[11px] text-slate-400 block truncate">
+                      পুরো অ্যাপ ও পেজের মেইন ব্যাকগ্রাউন্ড
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
                     <input
                       type="color"
-                      value={baseColor}
-                      onChange={(e) => setBaseColor(e.target.value)}
-                      className="w-10 h-10 rounded-xl cursor-pointer border-0 p-0 bg-transparent"
-                      title="Click to open system color picker"
+                      value={customColors.bgColor}
+                      onChange={(e) => handleHexChange('bgColor', e.target.value)}
+                      className="w-9 h-9 rounded-xl cursor-pointer border-0 p-0 bg-transparent"
+                      title="Choose Background Color"
                     />
-                  </div>
-                  <div className="relative flex-1">
                     <input
                       type="text"
-                      value={customHexInput}
-                      onChange={(e) => handleCustomHexChange(e.target.value)}
-                      placeholder="#2563EB"
+                      value={bgInput}
+                      onChange={(e) => handleHexChange('bgColor', e.target.value)}
                       maxLength={7}
-                      className="w-full pl-3 pr-8 py-2 rounded-xl text-xs font-mono font-bold bg-theme-card border border-theme-border text-theme-title focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)] uppercase"
-                    />
-                    <div 
-                      className="w-4 h-4 rounded-full absolute right-3 top-1/2 -translate-y-1/2 ring-1 ring-white/30"
-                      style={{ backgroundColor: baseColor }}
+                      className="w-24 px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold bg-theme-card border border-theme-border text-theme-title focus:outline-none uppercase"
                     />
                   </div>
                 </div>
-              </div>
 
-              {/* 11 Curated Reference Presets from user's image */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                    ছবির ১১টি রেফারেন্স থিম প্যালেট (Preset Themes)
-                  </span>
-                  <span className="text-[11px] text-slate-400">
-                    {palettes.length} টি ভ্যারিয়েন্ট
-                  </span>
+                {/* 2. Foreground / Card Color Picker */}
+                <div className="p-3 rounded-2xl bg-theme-surface border border-theme-border flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-theme-title block">
+                      ২. ফোরগ্রাউন্ড / কার্ড কালার (Foreground Color)
+                    </span>
+                    <span className="text-[11px] text-slate-400 block truncate">
+                      এক্সাম কার্ড, কনটেইনার ও মডালের কালার
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <input
+                      type="color"
+                      value={customColors.fgColor}
+                      onChange={(e) => handleHexChange('fgColor', e.target.value)}
+                      className="w-9 h-9 rounded-xl cursor-pointer border-0 p-0 bg-transparent"
+                      title="Choose Foreground / Card Color"
+                    />
+                    <input
+                      type="text"
+                      value={fgInput}
+                      onChange={(e) => handleHexChange('fgColor', e.target.value)}
+                      maxLength={7}
+                      className="w-24 px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold bg-theme-card border border-theme-border text-theme-title focus:outline-none uppercase"
+                    />
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {palettes.map((p, idx) => {
-                    const isSelected = p.hex.toLowerCase() === baseColor.toLowerCase();
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => {
-                          setAccentPaletteId(p.id);
-                        }}
-                        className={`p-3 rounded-2xl border text-left flex items-center justify-between gap-2.5 transition-all cursor-pointer ${
-                          isSelected
-                            ? 'ring-2 ring-white/60 shadow-md'
-                            : 'border-theme-border bg-theme-surface hover:bg-theme-card'
-                        }`}
-                        style={{
-                          borderColor: isSelected ? p.hex : undefined,
-                          backgroundColor: isSelected ? `${p.hex}22` : undefined
-                        }}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {/* Dual Color Swatch showing accent + card tone */}
-                          <div className="relative w-7 h-7 rounded-full shrink-0 overflow-hidden ring-2 ring-white/40 shadow-xs flex items-center justify-center">
-                            <div 
-                              className="w-full h-full"
-                              style={{ backgroundColor: p.hex }}
-                            />
-                            {isSelected && (
-                              <Check className="w-3.5 h-3.5 text-white stroke-[3.5] absolute" />
-                            )}
-                          </div>
-                          
-                          <div className="min-w-0">
-                            <p className="font-bold text-xs text-theme-title truncate leading-tight">
-                              {idx + 1}. {p.nameBn}
-                            </p>
-                            <p className="text-[10px] text-slate-400 font-mono truncate">
-                              {p.hex}
-                            </p>
-                          </div>
-                        </div>
+                {/* 3. Button Color Picker */}
+                <div className="p-3 rounded-2xl bg-theme-surface border border-theme-border flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-theme-title block">
+                      ৩. বাটন কালার (Button Color)
+                    </span>
+                    <span className="text-[11px] text-slate-400 block truncate">
+                      প্রাইমারি অ্যাকশন বাটন ও অ্যাক্টিভ স্টেট
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <input
+                      type="color"
+                      value={customColors.buttonColor}
+                      onChange={(e) => handleHexChange('buttonColor', e.target.value)}
+                      className="w-9 h-9 rounded-xl cursor-pointer border-0 p-0 bg-transparent"
+                      title="Choose Button Color"
+                    />
+                    <input
+                      type="text"
+                      value={btnInput}
+                      onChange={(e) => handleHexChange('buttonColor', e.target.value)}
+                      maxLength={7}
+                      className="w-24 px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold bg-theme-card border border-theme-border text-theme-title focus:outline-none uppercase"
+                    />
+                  </div>
+                </div>
 
-                        {isSelected && (
-                          <span 
-                            className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white shrink-0"
-                            style={{ backgroundColor: p.hex }}
-                          >
-                            Active
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
+                {/* 4. Logo Color Picker */}
+                <div className="p-3 rounded-2xl bg-theme-surface border border-theme-border flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-theme-title block">
+                      ৪. লোগো কালার (Logo Color)
+                    </span>
+                    <span className="text-[11px] text-slate-400 block truncate">
+                      টপ হেডার ও ব্র্যান্ড লোগো ক্যাপসুল কালার
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <input
+                      type="color"
+                      value={customColors.logoColor}
+                      onChange={(e) => handleHexChange('logoColor', e.target.value)}
+                      className="w-9 h-9 rounded-xl cursor-pointer border-0 p-0 bg-transparent"
+                      title="Choose Logo Color"
+                    />
+                    <input
+                      type="text"
+                      value={logoInput}
+                      onChange={(e) => handleHexChange('logoColor', e.target.value)}
+                      maxLength={7}
+                      className="w-24 px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold bg-theme-card border border-theme-border text-theme-title focus:outline-none uppercase"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -648,7 +747,7 @@ export const Navbar: React.FC = () => {
             {/* Modal Footer */}
             <div className="pt-3 border-t border-theme-border flex items-center justify-between shrink-0">
               <span className="text-xs text-slate-400">
-                নির্বাচিত: <strong className="text-theme-title">{accentPalette.nameBn}</strong>
+                পছন্দমতো যেকোনো হেক্স কোড বা কালার পিকার ব্যবহার করতে পারেন
               </span>
               <button
                 type="button"

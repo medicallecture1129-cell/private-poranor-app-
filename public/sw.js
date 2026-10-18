@@ -1,5 +1,5 @@
-// Service Worker for Exam Portal PWA - Auto-Update Enabled
-const CACHE_NAME = 'exam-portal-v3';
+// Service Worker for Exam Portal PWA - Auto-Update Enabled for Installed PWAs
+const CACHE_NAME = 'exam-portal-app-v4';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
@@ -11,7 +11,7 @@ const PRECACHE_URLS = [
 ];
 
 self.addEventListener('install', (event) => {
-  // Pre-cache essential assets
+  // Pre-cache essential shell assets
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(PRECACHE_URLS).catch((err) => {
@@ -19,12 +19,12 @@ self.addEventListener('install', (event) => {
       });
     })
   );
-  // Force active immediately without waiting
+  // Force activate immediately without waiting for existing clients to close
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  // Clear any older caches
+  // Purge any older caches so installed apps do not serve stale code
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
@@ -32,13 +32,13 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
-  // Claim all clients immediately so controllerchange fires in web clients
+  // Take control of all open and installed standalone clients immediately
   self.clients.claim();
 });
 
-// Listen for message from client to skipWaiting
+// Listen for message from client to force activate immediately
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
+  if (event.data && (event.data.type === 'SKIP_WAITING' || event.data.action === 'skipWaiting')) {
     self.skipWaiting();
   }
 });
@@ -64,7 +64,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-First for Navigation requests (ensures new deployed HTML is always picked up when online)
+  // Network-First for Navigation requests (ensures new deployed HTML is always picked up immediately in installed PWAs)
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request, { cache: 'no-cache' })

@@ -1,11 +1,11 @@
 /**
- * Automated Global Color Palette Calculation Engine
+ * Custom Color Management Engine (Zero Presets)
  * 
- * Derives a cohesive, high-contrast dark theme hierarchy from a single base color:
- * 1. Pitch-Dark Solid Main Background (Rich dark tint maintaining the color's vibe)
- * 2. Foreground Cards & Message Containers ("No Live Exams Found", Dialogs, Modals, Popups)
- * 3. Elevated Surfaces (Header / Navbar, Bottom Nav, Filters)
- * 4. Refined Vibrant Buttons, App Logo capsule, Profile badge, and Active tabs
+ * Allows setting:
+ * 1. Background Color (মেইন ব্যাকগ্রাউন্ড কালার)
+ * 2. Foreground Color (ফোরগ্রাউন্ড / কার্ড কালার)
+ * 3. Button Color (বাটন কালার)
+ * 4. Logo Color (লোগো কালার)
  */
 
 export interface ColorHSL {
@@ -27,7 +27,7 @@ export function hexToRgb(hex: string): ColorRGB {
   }
   const num = parseInt(cleanHex, 16);
   if (isNaN(num) || cleanHex.length !== 6) {
-    return { r: 37, g: 99, b: 235 }; // Default Royal Blue fallback
+    return { r: 37, g: 99, b: 235 };
   }
   return {
     r: (num >> 16) & 255,
@@ -101,10 +101,22 @@ export function hslToHex(h: number, s: number, l: number): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
+export interface CustomColors {
+  bgColor: string;     // Background Color (Default: #090e18)
+  fgColor: string;     // Foreground / Card Color (Default: #132035)
+  buttonColor: string; // Button Color (Default: #2563eb)
+  logoColor: string;   // Logo Color (Default: #2563eb)
+}
+
+export const DEFAULT_CUSTOM_COLORS: CustomColors = {
+  bgColor: '#090e18',
+  fgColor: '#132035',
+  buttonColor: '#2563eb',
+  logoColor: '#2563eb'
+};
+
 export interface ComputedTheme {
-  baseHex: string;
   isDark: boolean;
-  hue: number;
   // 1. Backgrounds
   bgMain: string;
   bgMainRgb: string;
@@ -117,7 +129,7 @@ export interface ComputedTheme {
   borderColor: string;
   borderCard: string;
   borderStrong: string;
-  // 3. Primary Buttons, Badges, Header Capsules
+  // 3. Button
   primary: string;
   primaryHover: string;
   primaryRgb: string;
@@ -125,173 +137,91 @@ export interface ComputedTheme {
   primaryLight: string;
   primaryBorder: string;
   primaryGlow: string;
-  // 4. Typography
+  // 4. Logo
+  logoColor: string;
+  logoHover: string;
+  logoRgb: string;
+  logoGlow: string;
+  // 5. Typography
   textTitle: string;
   textBody: string;
   textMuted: string;
 }
 
-export function computeThemeVariables(baseHex: string, isDark: boolean = true): ComputedTheme {
-  const rgb = hexToRgb(baseHex);
-  const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
-  const h = hsl.h;
-  const s = hsl.s;
+export function computeThemeVariables(colors: CustomColors, isDark: boolean = true): ComputedTheme {
+  const bgRgb = hexToRgb(colors.bgColor || DEFAULT_CUSTOM_COLORS.bgColor);
+  const fgRgb = hexToRgb(colors.fgColor || DEFAULT_CUSTOM_COLORS.fgColor);
+  const btnRgb = hexToRgb(colors.buttonColor || DEFAULT_CUSTOM_COLORS.buttonColor);
+  const logoRgb = hexToRgb(colors.logoColor || DEFAULT_CUSTOM_COLORS.logoColor);
 
-  if (isDark) {
-    // DARK THEME (Matches the 11 reference screenshots)
+  const btnHsl = rgbToHsl(btnRgb.r, btnRgb.g, btnRgb.b);
+  const fgHsl = rgbToHsl(fgRgb.r, fgRgb.g, fgRgb.b);
+  const logoHsl = rgbToHsl(logoRgb.r, logoRgb.g, logoRgb.b);
 
-    // 1. Primary Button / Accent: Refined vibrant tone
-    let primaryL = 50;
-    if (h >= 40 && h <= 65) {
-      // Yellow/Amber hues need slight tuning for optimal contrast
-      primaryL = 46;
-    }
-    const primarySat = Math.max(76, s);
-    const primaryHex = hslToHex(h, primarySat, primaryL);
-    const primaryHoverHex = hslToHex(h, primarySat, Math.max(30, primaryL - 6));
-    const primaryRgbObj = hexToRgb(primaryHex);
-    const primaryRgb = `${primaryRgbObj.r}, ${primaryRgbObj.g}, ${primaryRgbObj.b}`;
+  const primaryHex = colors.buttonColor || DEFAULT_CUSTOM_COLORS.buttonColor;
+  const primaryHoverHex = hslToHex(btnHsl.h, btnHsl.s, Math.max(20, Math.min(80, btnHsl.l > 40 ? btnHsl.l - 7 : btnHsl.l + 7)));
+  const primaryRgbStr = `${btnRgb.r}, ${btnRgb.g}, ${btnRgb.b}`;
 
-    // 2. Main Background: Pitch-Dark Solid (Rich dark tint maintaining original color vibe)
-    // S: ~34-45%, L: ~5.2%
-    const bgMainSat = Math.min(48, Math.max(28, Math.round(s * 0.55)));
-    const bgMainL = 5.4;
-    const bgMainHex = hslToHex(h, bgMainSat, Math.round(bgMainL));
-    const bgMainRgbObj = hexToRgb(bgMainHex);
-    const bgMainRgb = `${bgMainRgbObj.r}, ${bgMainRgbObj.g}, ${bgMainRgbObj.b}`;
+  const logoHex = colors.logoColor || DEFAULT_CUSTOM_COLORS.logoColor;
+  const logoHoverHex = hslToHex(logoHsl.h, logoHsl.s, Math.max(20, Math.min(80, logoHsl.l > 40 ? logoHsl.l - 7 : logoHsl.l + 7)));
+  const logoRgbStr = `${logoRgb.r}, ${logoRgb.g}, ${logoRgb.b}`;
 
-    // 3. Foreground Card & Message Containers ("No Live Exams Found", dialogs, cards)
-    // S: ~38-52%, L: ~14.8% -> clearly differentiated from pitch-dark background
-    const bgCardSat = Math.min(54, Math.max(34, Math.round(s * 0.65)));
-    const bgCardL = 14.8;
-    const bgCardHex = hslToHex(h, bgCardSat, Math.round(bgCardL));
-    const bgCardHoverHex = hslToHex(h, bgCardSat, Math.round(bgCardL + 3.5));
-    const bgCardRgbObj = hexToRgb(bgCardHex);
-    const bgCardRgb = `${bgCardRgbObj.r}, ${bgCardRgbObj.g}, ${bgCardRgbObj.b}`;
+  const bgMainHex = colors.bgColor || DEFAULT_CUSTOM_COLORS.bgColor;
+  const bgMainRgbStr = `${bgRgb.r}, ${bgRgb.g}, ${bgRgb.b}`;
 
-    // 4. Elevated Surface (Header Navbar, Bottom Nav, Filter bars)
-    // In between background and card: L: ~9.2%
-    const bgSurfSat = Math.min(46, Math.max(26, Math.round(s * 0.55)));
-    const bgSurfL = 9.2;
-    const bgSurfaceHex = hslToHex(h, bgSurfSat, Math.round(bgSurfL));
-    const bgSurfaceElevated = hslToHex(h, bgSurfSat, Math.round(bgSurfL + 3));
+  const bgCardHex = colors.fgColor || DEFAULT_CUSTOM_COLORS.fgColor;
+  const bgCardHoverHex = hslToHex(fgHsl.h, fgHsl.s, Math.max(10, Math.min(95, fgHsl.l > 50 ? fgHsl.l - 4 : fgHsl.l + 4)));
+  const bgCardRgbStr = `${fgRgb.r}, ${fgRgb.g}, ${fgRgb.b}`;
 
-    // 5. Borders: Harmonious color tint
-    const borderCard = `rgba(${primaryRgb}, 0.26)`;
-    const borderColor = `rgba(${primaryRgb}, 0.18)`;
-    const borderStrong = `rgba(${primaryRgb}, 0.45)`;
+  // Surface: slightly toned between card and bg
+  const bgSurfaceHex = hslToHex(fgHsl.h, Math.round(fgHsl.s * 0.9), Math.max(6, Math.min(94, fgHsl.l > 50 ? fgHsl.l + 3 : fgHsl.l - 3)));
+  const bgSurfaceElevated = bgCardHoverHex;
 
-    // 6. Pill, Badge, and Capsule styling
-    const primaryLight = `rgba(${primaryRgb}, 0.18)`;
-    const primaryBorder = `rgba(${primaryRgb}, 0.42)`;
-    const primaryGlow = `rgba(${primaryRgb}, 0.35)`;
+  // Borders
+  const borderCard = `rgba(${btnRgb.r}, ${btnRgb.g}, ${btnRgb.b}, 0.25)`;
+  const borderColor = `rgba(${btnRgb.r}, ${btnRgb.g}, ${btnRgb.b}, 0.18)`;
+  const borderStrong = `rgba(${btnRgb.r}, ${btnRgb.g}, ${btnRgb.b}, 0.45)`;
 
-    // 7. Text
-    const textTitle = '#f8fafc';
-    const textBody = '#e2e8f0';
-    const textMuted = hslToHex(h, 20, 72);
+  // Button glow & light
+  const primaryLight = `rgba(${btnRgb.r}, ${btnRgb.g}, ${btnRgb.b}, 0.18)`;
+  const primaryBorder = `rgba(${btnRgb.r}, ${btnRgb.g}, ${btnRgb.b}, 0.42)`;
+  const primaryGlow = `rgba(${btnRgb.r}, ${btnRgb.g}, ${btnRgb.b}, 0.35)`;
 
-    return {
-      baseHex,
-      isDark: true,
-      hue: h,
-      bgMain: bgMainHex,
-      bgMainRgb,
-      bgCard: bgCardHex,
-      bgCardHover: bgCardHoverHex,
-      bgCardRgb,
-      bgSurface: bgSurfaceHex,
-      bgSurfaceElevated,
-      borderColor,
-      borderCard,
-      borderStrong,
-      primary: primaryHex,
-      primaryHover: primaryHoverHex,
-      primaryRgb,
-      primaryText: '#ffffff',
-      primaryLight,
-      primaryBorder,
-      primaryGlow,
-      textTitle,
-      textBody,
-      textMuted,
-    };
-  } else {
-    // LIGHT THEME FALLBACK
-    const primaryL = Math.min(46, Math.max(38, hsl.l));
-    const primarySat = Math.max(75, s);
-    const primaryHex = hslToHex(h, primarySat, primaryL);
-    const primaryHoverHex = hslToHex(h, primarySat, Math.max(30, primaryL - 6));
-    const primaryRgbObj = hexToRgb(primaryHex);
-    const primaryRgb = `${primaryRgbObj.r}, ${primaryRgbObj.g}, ${primaryRgbObj.b}`;
+  const logoGlow = `rgba(${logoRgb.r}, ${logoRgb.g}, ${logoRgb.b}, 0.35)`;
 
-    const bgMainHex = hslToHex(h, 25, 97);
-    const bgMainRgbObj = hexToRgb(bgMainHex);
-    const bgMainRgb = `${bgMainRgbObj.r}, ${bgMainRgbObj.g}, ${bgMainRgbObj.b}`;
+  // Text contrast
+  const bgHsl = rgbToHsl(bgRgb.r, bgRgb.g, bgRgb.b);
+  const isBackgroundDark = bgHsl.l < 50;
 
-    const bgCardHex = '#ffffff';
-    const bgCardHoverHex = hslToHex(h, 20, 99);
-    const bgCardRgb = '255, 255, 255';
+  const textTitle = isBackgroundDark ? '#f8fafc' : '#0f172a';
+  const textBody = isBackgroundDark ? '#e2e8f0' : '#334155';
+  const textMuted = isBackgroundDark ? '#94a3b8' : '#64748b';
 
-    const bgSurfaceHex = hslToHex(h, 25, 99);
-    const bgSurfaceElevated = '#ffffff';
-
-    const borderColor = `rgba(${primaryRgb}, 0.15)`;
-    const borderCard = `rgba(${primaryRgb}, 0.18)`;
-    const borderStrong = `rgba(${primaryRgb}, 0.35)`;
-
-    const primaryLight = `rgba(${primaryRgb}, 0.10)`;
-    const primaryBorder = `rgba(${primaryRgb}, 0.28)`;
-    const primaryGlow = `rgba(${primaryRgb}, 0.22)`;
-
-    return {
-      baseHex,
-      isDark: false,
-      hue: h,
-      bgMain: bgMainHex,
-      bgMainRgb,
-      bgCard: bgCardHex,
-      bgCardHover: bgCardHoverHex,
-      bgCardRgb,
-      bgSurface: bgSurfaceHex,
-      bgSurfaceElevated,
-      borderColor,
-      borderCard,
-      borderStrong,
-      primary: primaryHex,
-      primaryHover: primaryHoverHex,
-      primaryRgb,
-      primaryText: '#ffffff',
-      primaryLight,
-      primaryBorder,
-      primaryGlow,
-      textTitle: '#0f172a',
-      textBody: '#334155',
-      textMuted: '#64748b',
-    };
-  }
+  return {
+    isDark,
+    bgMain: bgMainHex,
+    bgMainRgb: bgMainRgbStr,
+    bgCard: bgCardHex,
+    bgCardHover: bgCardHoverHex,
+    bgCardRgb: bgCardRgbStr,
+    bgSurface: bgSurfaceHex,
+    bgSurfaceElevated,
+    borderColor,
+    borderCard,
+    borderStrong,
+    primary: primaryHex,
+    primaryHover: primaryHoverHex,
+    primaryRgb: primaryRgbStr,
+    primaryText: '#ffffff',
+    primaryLight,
+    primaryBorder,
+    primaryGlow,
+    logoColor: logoHex,
+    logoHover: logoHoverHex,
+    logoRgb: logoRgbStr,
+    logoGlow,
+    textTitle,
+    textBody,
+    textMuted
+  };
 }
-
-/**
- * 11 High-Fidelity Presets exactly matching the reference phone screenshot
- */
-export interface PresetPalette {
-  id: string;
-  name: string;
-  nameBn: string;
-  hex: string;
-}
-
-export const PRESET_PALETTES: PresetPalette[] = [
-  { id: 'royal_blue', name: 'Royal Midnight Blue', nameBn: 'রয়েল মিডনাইট ব্লু', hex: '#2563EB' },
-  { id: 'crimson_maroon', name: 'Crimson Maroon', nameBn: 'মারুন / মার্জিত লাল', hex: '#DC2626' },
-  { id: 'forest_emerald', name: 'Forest Emerald', nameBn: 'ফরেস্ট এমারেল্ড সবুজ', hex: '#059669' },
-  { id: 'amethyst_purple', name: 'Amethyst Purple', nameBn: 'ডিপ অ্যামেথিস্ট বেগুনি', hex: '#7C3AED' },
-  { id: 'golden_ochre', name: 'Golden Amber / Ochre', nameBn: 'গোল্ডেন আম্বার / ওয়ার্ম অকার', hex: '#D97706' },
-  { id: 'slate_cyan', name: 'Slate Steel Cyan', nameBn: 'স্লেট স্টিল সায়ান', hex: '#0284C7' },
-  { id: 'peacock_teal', name: 'Deep Peacock Teal', nameBn: 'ডিপ পিকক টিল', hex: '#0D9488' },
-  { id: 'olive_moss', name: 'Olive Moss Green', nameBn: 'অলিভ মস গ্রিন', hex: '#65A30D' },
-  { id: 'sepia_bronze', name: 'Sepia Rust / Bronze', nameBn: 'সেপিয়া রাস্ট / ব্রোঞ্জ', hex: '#B45309' },
-  { id: 'ocean_navy', name: 'Deep Ocean Navy', nameBn: 'ডিপ ওশান নেভি', hex: '#1D4ED8' },
-  { id: 'caramel_mustard', name: 'Caramel Mustard', nameBn: 'ক্যারামেল মাস্টার্ড / গোল্ড', hex: '#CA8A04' },
-];
