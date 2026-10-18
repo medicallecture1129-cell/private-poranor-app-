@@ -123,7 +123,7 @@ export const CourseList: React.FC<CourseListProps> = ({ courses, students, onSel
                     {role === 'admin' && (
                       <button
                         onClick={(e) => handleDeleteCourse(course, e)}
-                        className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                        className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer opacity-90 sm:opacity-0 sm:group-hover:opacity-100"
                         title="Delete Course"
                       >
                         <Trash2 className="w-4 h-4" />

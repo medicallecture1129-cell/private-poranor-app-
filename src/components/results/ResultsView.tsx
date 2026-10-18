@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Course, Exam, ExamSubmission, LeaderboardRow, StudentUser } from '../../types';
 import { exportLeaderboardPDF, exportAnswerScriptPDF, exportStudentSummaryPDF } from '../../utils/pdfExport';
 import { EditExamModal } from '../exams/EditExamModal';
+import { StudentProfileModal } from '../StudentProfileModal';
 import { updateExam, deleteExam } from '../../services/db';
 import { useToast } from '../../context/ToastContext';
 import { 
@@ -29,7 +30,11 @@ import {
   Filter,
   Sparkles,
   Zap,
-  Check
+  Check,
+  UserCircle,
+  ChevronDown,
+  BookOpen,
+  Users
 } from 'lucide-react';
 
 interface ResultsViewProps {
@@ -51,18 +56,16 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   // Mode: 'leaderboard' or 'student_history'
   const [activeSubTab, setActiveSubTab] = useState<'leaderboard' | 'student_history'>('leaderboard');
 
-  // Requirement 1 & Admin 1: Default to empty so no course or exam leaderboard is shown by default
+  // SEGMENT 1: EXAM LEADERBOARD STATE (Default empty so no course or exam is pre-selected)
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
   const [selectedExamId, setSelectedExamId] = useState<string>('');
-
-  // Course Exams filter
-  const courseExams = selectedCourseId ? exams.filter(e => e.courseId === selectedCourseId) : [];
-
-  // Filter/Search by Name and College in Leaderboard
-  const [searchQuery, setSearchQuery] = useState('');
+  const [leaderboardSearch, setLeaderboardSearch] = useState('');
 
   // Selected Submission for Answer Script View Modal
   const [inspectSubmission, setInspectSubmission] = useState<{ submission: ExamSubmission; exam: Exam } | null>(null);
+
+  // Selected Student for Profile View Modal
+  const [inspectStudentProfile, setInspectStudentProfile] = useState<(Partial<StudentUser> & { name: string; college?: string; email?: string; mobile?: string }) | null>(null);
 
   // Admin Exam Management state
   const [editingExamData, setEditingExamData] = useState<Exam | null>(null);
@@ -80,22 +83,28 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   const [reLiveEnd, setReLiveEnd] = useState('');
   const [reLiveResultPub, setReLiveResultPub] = useState('');
 
-  // Requirement 2: Student Summary Report history dropdown filter
-  // Options: 'both' | 'live' | 'practice'
-  const [historyFilter, setHistoryFilter] = useState<'both' | 'live' | 'practice'>('both');
+  // SEGMENT 2: STUDENT SUMMARY REPORT (Student view state)
+  const [studentHistoryFilter, setStudentHistoryFilter] = useState<'both' | 'live' | 'practice'>('both');
 
-  // Student History Search (for Admin search by email or student selection)
-  const [searchedEmail, setSearchedEmail] = useState('');
-  const [targetStudentEmail, setTargetStudentEmail] = useState(user?.role === 'student' ? (user.email || '') : '');
+  // SEGMENT 2: ADMIN STUDENT SUMMARY REPORT STATE
+  const [adminCourseFilter, setAdminCourseFilter] = useState<string>('all');
+  const [adminMemberSearch, setAdminMemberSearch] = useState<string>('');
+  // Map of student email to their selected secondary course filter
+  const [studentSelectedCourseMap, setStudentSelectedCourseMap] = useState<Record<string, string>>({});
+  // Map of student email to their selected exam filter ('both' | 'live' | 'practice')
+  const [studentExamFilterMap, setStudentExamFilterMap] = useState<Record<string, 'both' | 'live' | 'practice'>>({});
+  // Expanded student submissions drawer in admin view
+  const [expandedStudentEmail, setExpandedStudentEmail] = useState<string | null>(null);
 
   const currentTime = Date.now();
+  const courseExams = selectedCourseId ? exams.filter(e => e.courseId === selectedCourseId) : [];
   const selectedCourse = courses.find(c => c.id === selectedCourseId);
   const selectedExam = exams.find(e => e.id === selectedExamId);
 
   // Check if student is allowed to view results of this exam yet
   const isResultPublished = selectedExam ? (currentTime >= selectedExam.resultPublishTime || role === 'admin') : false;
 
-  // Filter ONLY Live Exam Submissions for the Official Leaderboard (Strictly students only - no admins)
+  // Filter ONLY Live Exam Submissions for Official Leaderboard (Strictly students only - no admins)
   const liveSubmissions = selectedExam ? submissions.filter(s => {
     if (s.examId !== selectedExam.id || !s.isLive) return false;
     if (s.studentId?.startsWith('admin_') || s.studentEmail?.toLowerCase().includes('admin@')) return false;
@@ -132,48 +141,38 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     };
   });
 
-  // Filter rows by Name or College
-  const filteredRows = leaderboardRows.filter(r => {
-    const q = searchQuery.toLowerCase().trim();
+  // Filter leaderboard rows by Name or College
+  const filteredLeaderboardRows = leaderboardRows.filter(r => {
+    const q = leaderboardSearch.toLowerCase().trim();
     if (!q) return true;
     return r.studentName.toLowerCase().includes(q) || r.studentCollege.toLowerCase().includes(q);
   });
 
-  // Student Past Exams History (Chronological)
-  const effectiveEmail = role === 'admin' 
-    ? (targetStudentEmail.trim().toLowerCase() || (students[0]?.email?.toLowerCase() || ''))
-    : (user?.email?.toLowerCase() || '');
-
-  const targetStudentProfile = students.find(s => s.email.toLowerCase() === effectiveEmail) || {
-    name: user?.name || 'Student',
-    email: effectiveEmail || '',
-    college: user?.college || 'N/A',
-    mobile: user?.mobile
-  };
-
-  const studentPastSubmissions = submissions
-    .filter(s => s.studentEmail.toLowerCase() === effectiveEmail)
-    .sort((a, b) => b.submittedAt - a.submittedAt);
-
-  // Apply Live / Practice / Both filter
-  const filteredPastSubmissions = studentPastSubmissions.filter(s => {
-    if (historyFilter === 'live') return s.isLive === true;
-    if (historyFilter === 'practice') return s.isLive === false;
-    return true; // 'both'
-  });
-
-  const handleAdminEmailSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchedEmail.trim()) {
-      setTargetStudentEmail(searchedEmail.trim().toLowerCase());
+  // =========================================================
+  // ADMIN SUMMARY REPORT: Filter Members by Course & Search
+  // =========================================================
+  const filteredAdminMembers = students.filter(s => {
+    // 1. Course Filter
+    if (adminCourseFilter !== 'all') {
+      const isEnrolled = (s.enrolledCourses && s.enrolledCourses.includes(adminCourseFilter)) ||
+        courses.find(c => c.id === adminCourseFilter)?.allowedEmails?.some(e => e.toLowerCase() === s.email?.toLowerCase());
+      if (!isEnrolled) return false;
     }
-  };
+
+    // 2. Search Filter (Name, Email, College)
+    const q = adminMemberSearch.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      s.name.toLowerCase().includes(q) ||
+      s.email.toLowerCase().includes(q) ||
+      (s.college && s.college.toLowerCase().includes(q))
+    );
+  });
 
   // Open Re-Live Modal with smart presets
   const handleOpenReLiveModal = () => {
     if (!selectedExam) return;
     const now = Date.now();
-    // Default: starts now, ends in 4 hours, results published 5 hours from now
     setReLiveStart(formatForInput(now));
     setReLiveEnd(formatForInput(now + 4 * 60 * 60 * 1000));
     setReLiveResultPub(formatForInput(now + 5 * 60 * 60 * 1000));
@@ -247,6 +246,17 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     }
   };
 
+  // Student's own past submissions (for Student view)
+  const studentPastSubmissions = submissions
+    .filter(s => s.studentEmail.toLowerCase() === (user?.email?.toLowerCase() || ''))
+    .sort((a, b) => b.submittedAt - a.submittedAt);
+
+  const filteredStudentPastSubs = studentPastSubmissions.filter(s => {
+    if (studentHistoryFilter === 'live') return s.isLive === true;
+    if (studentHistoryFilter === 'practice') return s.isLive === false;
+    return true;
+  });
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 pb-24 space-y-6">
       {/* Top Header */}
@@ -260,7 +270,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             {role === 'admin'
-              ? 'কোর্স ও পরীক্ষা সিলেক্ট করে অফিশিয়াল লিডারবোর্ড দেখুন, পরীক্ষার সময় ও সেটিংস পরিবর্তন করুন অথবা পুনরায় লাইভ করুন।'
+              ? 'কোর্স ও পরীক্ষা সিলেক্ট করে অফিশিয়াল লিডারবোর্ড দেখুন, পরীক্ষার সময় ও সেটিংস পরিবর্তন করুন অথবা শিক্ষার্থীদের কোর্স-ভিত্তিক সারসংক্ষেপ বিশ্লেষণ করুন।'
               : 'কোর্স ও পরীক্ষা সিলেক্ট করে মেধা তালিকা দেখুন অথবা আপনার বিগত পরীক্ষার সামারি রিপোর্ট ও উত্তরপত্র বিশ্লেষণ করুন।'}
           </p>
         </div>
@@ -308,7 +318,6 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 onChange={(e) => {
                   const newCid = e.target.value;
                   setSelectedCourseId(newCid);
-                  // Reset exam selection when course changes so default is blank
                   setSelectedExamId('');
                 }}
                 className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
@@ -353,8 +362,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 <input
                   type="text"
                   disabled={!selectedExam}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={leaderboardSearch}
+                  onChange={(e) => setLeaderboardSearch(e.target.value)}
                   placeholder={selectedExam ? "শিক্ষার্থীর নাম বা কলেজ লিখুন..." : "আগে পরীক্ষা সিলেক্ট করুন..."}
                   className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40"
                 />
@@ -385,7 +394,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             <div className="space-y-6">
               {/* ADMIN SPECIAL CONTROLS & EXAM EDITING BAR */}
               {role === 'admin' && (
-                <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-2xl p-5 sm:p-6 shadow-md border border-blue-700/40 space-y-4">
+                <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-md border border-blue-700/40 space-y-4">
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -532,8 +541,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                   </div>
                 </div>
               ) : (
-                /* Leaderboard Table */
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+                /* Leaderboard Table (No Blur) */
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xs">
                   {/* Table Header */}
                   <div className="p-4 sm:px-6 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/70 dark:bg-slate-900/60">
                     <div>
@@ -546,10 +555,10 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                       </p>
                     </div>
 
-                    {/* PDF Export Button (Available for Admin and Students) */}
+                    {/* PDF Export Button */}
                     <button
-                      onClick={() => exportLeaderboardPDF(selectedExam.title, selectedExam.courseName, filteredRows)}
-                      disabled={filteredRows.length === 0}
+                      onClick={() => exportLeaderboardPDF(selectedExam.title, selectedExam.courseName, filteredLeaderboardRows)}
+                      disabled={filteredLeaderboardRows.length === 0}
                       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs disabled:opacity-40 transition-colors cursor-pointer self-start sm:self-auto"
                     >
                       <Download className="w-3.5 h-3.5" />
@@ -576,14 +585,14 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
-                        {filteredRows.length === 0 ? (
+                        {filteredLeaderboardRows.length === 0 ? (
                           <tr>
                             <td colSpan={role === 'admin' ? 9 : 8} className="py-12 text-center text-slate-400">
                               এই পরীক্ষায় এখনো কোনো সাবমিশন পাওয়া যায়নি।
                             </td>
                           </tr>
                         ) : (
-                          filteredRows.map((row) => {
+                          filteredLeaderboardRows.map((row) => {
                             const isCurrentUser = row.studentEmail?.toLowerCase() === user?.email?.toLowerCase();
                             const canViewScript = role === 'admin' || isCurrentUser;
                             const subRecord = submissions.find(s => s.id === row.submissionId);
@@ -611,7 +620,22 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                   </span>
                                 </td>
                                 <td className="py-3 px-4 font-semibold text-slate-900 dark:text-white">
-                                  {row.studentName} {isCurrentUser && <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold ml-1">(You)</span>}
+                                  <div className="flex items-center gap-2">
+                                    <span>{row.studentName}</span>
+                                    {/* Student Profile Button (Admin gets full info, Student gets public card) */}
+                                    <button
+                                      onClick={() => setInspectStudentProfile({
+                                        name: row.studentName,
+                                        college: row.studentCollege,
+                                        email: row.studentEmail
+                                      })}
+                                      className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-md transition-colors cursor-pointer"
+                                      title="শিক্ষার্থীর প্রোফাইল দেখুন"
+                                    >
+                                      <UserCircle className="w-3.5 h-3.5" />
+                                    </button>
+                                    {isCurrentUser && <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold ml-1">(You)</span>}
+                                  </div>
                                 </td>
                                 <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
                                   {row.studentCollege}
@@ -682,197 +706,410 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
       {/* ========================================================= */}
       {activeSubTab === 'student_history' && (
         <div className="space-y-6">
-          {/* Admin Email Search / Student Selector */}
-          {role === 'admin' && (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
-              <div>
-                <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                  <User className="w-4 h-4 text-blue-600" />
-                  <span>অ্যাডমিন: যেকোনো শিক্ষার্থীর পরীক্ষার সারসংক্ষেপ ও হিস্ট্রি খুঁজুন</span>
-                </h4>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  শিক্ষার্থীর ইমেইল দিয়ে সার্চ করুন অথবা তালিকা থেকে সিলেক্ট করে তার সব লাইভ বা প্র্যাকটিস পরীক্ষার রেজাল্ট ও উত্তরপত্র দেখুন।
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Search by email */}
-                <form onSubmit={handleAdminEmailSearch} className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="email"
-                      value={searchedEmail}
-                      onChange={(e) => setSearchedEmail(e.target.value)}
-                      placeholder="শিক্ষার্থীর ইমেইল লিখুন..."
-                      className="w-full pl-10 pr-4 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+          {role === 'admin' ? (
+            /* ========================================================= */
+            /* ADMIN VIEW: COURSE-WISE ENROLLED MEMBER SUMMARY TABLE */
+            /* ========================================================= */
+            <div className="space-y-6">
+              {/* Top Controls: Course Selector & Search Filter */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                      <Users className="w-5 h-5 text-blue-600" />
+                      <span>শিক্ষার্থীদের কোর্স-ভিত্তিক সারসংক্ষেপ (Student Summary Report)</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      কোর্স নির্বাচন করে মেম্বারদের লাইভ, প্র্যাকটিস বা উভয়ের পরীক্ষার রেজাল্ট দেখুন ও একক বা ব্যাচ PDF ডাউনলোড করুন।
+                    </p>
                   </div>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer shadow-xs transition-colors"
-                  >
-                    সার্চ
-                  </button>
-                </form>
+                </div>
 
-                {/* Quick Select from Registered Students */}
-                <div>
-                  <select
-                    value={targetStudentEmail}
-                    onChange={(e) => setTargetStudentEmail(e.target.value)}
-                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">-- নিবন্ধিত শিক্ষার্থী তালিকা থেকে বেছে নিন --</option>
-                    {students.map(s => (
-                      <option key={s.id} value={s.email}>
-                        {s.name} ({s.college}) - {s.email}
-                      </option>
-                    ))}
-                  </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Course Dropdown */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                      ১. কোর্স সিলেক্ট করুন (Course Filter)
+                    </label>
+                    <select
+                      value={adminCourseFilter}
+                      onChange={(e) => setAdminCourseFilter(e.target.value)}
+                      className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="all">-- সকল কোর্স (All Enrolled Members) --</option>
+                      {courses.map(c => (
+                        <option key={c.id} value={c.id}>{c.name} ({c.batch})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Search by Name, Email, College */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                      ২. নাম, ইমেইল বা কলেজ দিয়ে খুঁজুন (Search Student)
+                    </label>
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={adminMemberSearch}
+                        onChange={(e) => setAdminMemberSearch(e.target.value)}
+                        placeholder="শিক্ষার্থীর নাম, ইমেইল বা কলেজ লিখুন..."
+                        className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* Student Profile Card & Summary Download with Filter */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-black text-lg flex items-center justify-center shrink-0">
-                {targetStudentProfile.name ? targetStudentProfile.name.slice(0, 1).toUpperCase() : 'S'}
-              </div>
-              <div>
-                <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                  {targetStudentProfile.name}
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {targetStudentProfile.college} • {targetStudentProfile.email}
-                </p>
-                {targetStudentProfile.mobile && (
-                  <p className="text-[11px] text-slate-400">
-                    মোবাইল: {targetStudentProfile.mobile}
-                  </p>
+              {/* Members List Table (Course-wise with Exam dropdown and Other Courses dropdown) */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xs">
+                <div className="p-4 sm:px-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-50/70 dark:bg-slate-900/60">
+                  <div className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>এনরোল্ড মেম্বার তালিকা ({filteredAdminMembers.length})</span>
+                    {adminCourseFilter !== 'all' && (
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+                        {courses.find(c => c.id === adminCourseFilter)?.name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {filteredAdminMembers.length === 0 ? (
+                  <div className="p-12 text-center text-slate-400 space-y-2">
+                    <User className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-700" />
+                    <p className="text-sm font-medium">কোনো শিক্ষার্থী পাওয়া যায়নি।</p>
+                    <p className="text-xs text-slate-500">অন্য কোনো কোর্স সিলেক্ট করুন অথবা সার্চ পরিবর্তন করুন।</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                    {filteredAdminMembers.map((member) => {
+                      // Other enrolled courses of this student
+                      const studentEnrolledCourses = courses.filter(c =>
+                        (member.enrolledCourses && member.enrolledCourses.includes(c.id)) ||
+                        (member.email && c.allowedEmails?.some(e => e.toLowerCase() === member.email?.toLowerCase()))
+                      );
+
+                      // Effective course for this member row (default to adminCourseFilter or member's first course or 'all')
+                      const effectiveCourseId = studentSelectedCourseMap[member.email] || (adminCourseFilter !== 'all' ? adminCourseFilter : (studentEnrolledCourses[0]?.id || 'all'));
+                      const effectiveCourse = courses.find(c => c.id === effectiveCourseId);
+
+                      // Selected exam filter for this student
+                      const memberExamFilter = studentExamFilterMap[member.email] || 'both';
+
+                      // Member submissions for the focused course
+                      const memberCourseSubs = submissions.filter(s => {
+                        if (s.studentEmail?.toLowerCase() !== member.email?.toLowerCase()) return false;
+                        if (effectiveCourseId !== 'all' && s.courseId !== effectiveCourseId) return false;
+                        if (memberExamFilter === 'live') return s.isLive === true;
+                        if (memberExamFilter === 'practice') return s.isLive === false;
+                        return true;
+                      }).sort((a, b) => b.submittedAt - a.submittedAt);
+
+                      const isExpanded = expandedStudentEmail === member.email;
+
+                      return (
+                        <div key={member.id} className="p-4 sm:p-5 hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors space-y-3">
+                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                            {/* Member Identity & Profile button */}
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-10 h-10 rounded-2xl bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center shrink-0">
+                                {member.name.slice(0, 1).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-bold text-sm text-slate-900 dark:text-white truncate">
+                                    {member.name}
+                                  </h4>
+                                  {/* Profile Icon: Admin clicks to view student full info */}
+                                  <button
+                                    onClick={() => setInspectStudentProfile(member)}
+                                    className="p-1 rounded-md text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                    title="শিক্ষার্থীর পূর্ণাঙ্গ প্রোফাইল দেখুন"
+                                  >
+                                    <UserCircle className="w-4 h-4 text-blue-500" />
+                                  </button>
+                                </div>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                  {member.college} • <span className="font-mono text-[11px]">{member.email}</span>
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Dropdown 1: Other Courses & Dropdown 2: Exam Type & Download PDF */}
+                            <div className="flex flex-wrap items-center gap-2.5">
+                              {/* Dropdown 1: Enrolled Courses */}
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[11px] font-semibold text-slate-400 hidden sm:inline">কোর্স:</span>
+                                <select
+                                  value={effectiveCourseId}
+                                  onChange={(e) => {
+                                    const newC = e.target.value;
+                                    setStudentSelectedCourseMap(prev => ({ ...prev, [member.email]: newC }));
+                                  }}
+                                  className="px-2.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium max-w-[170px]"
+                                >
+                                  <option value="all">সকল কোর্স</option>
+                                  {studentEnrolledCourses.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {/* Dropdown 2: Exam Filter (Live / Practice / Both) */}
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[11px] font-semibold text-slate-400 hidden sm:inline">পরীক্ষা:</span>
+                                <select
+                                  value={memberExamFilter}
+                                  onChange={(e) => {
+                                    const newF = e.target.value as 'both' | 'live' | 'practice';
+                                    setStudentExamFilterMap(prev => ({ ...prev, [member.email]: newF }));
+                                  }}
+                                  className="px-2.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-semibold"
+                                >
+                                  <option value="both">Both Exam (লাইভ+প্র্যাকটিস)</option>
+                                  <option value="live">Live exam (লাইভ)</option>
+                                  <option value="practice">Practice exam (প্র্যাকটিস)</option>
+                                </select>
+                              </div>
+
+                              {/* PDF Download for this student and filter */}
+                              <button
+                                onClick={() => exportStudentSummaryPDF(
+                                  member, 
+                                  memberCourseSubs, 
+                                  exams, 
+                                  memberExamFilter,
+                                  effectiveCourse?.name
+                                )}
+                                disabled={memberCourseSubs.length === 0}
+                                className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs disabled:opacity-40 transition-colors cursor-pointer"
+                                title="সামারি রিপোর্ট PDF ডাউনলোড করুন"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                <span>PDF</span>
+                              </button>
+
+                              {/* Toggle submissions list */}
+                              <button
+                                onClick={() => setExpandedStudentEmail(isExpanded ? null : member.email)}
+                                className="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                              >
+                                <span>{memberCourseSubs.length} সাবমিশন</span>
+                                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Expanded Submissions Drawer */}
+                          {isExpanded && (
+                            <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800/80 space-y-2">
+                              {memberCourseSubs.length === 0 ? (
+                                <p className="text-xs text-slate-400 italic py-2">
+                                  এই ক্যাটাগরিতে কোনো পরীক্ষার রেকর্ড পাওয়া যায়নি।
+                                </p>
+                              ) : (
+                                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                                  {memberCourseSubs.map(sub => {
+                                    const ex = exams.find(e => e.id === sub.examId);
+                                    const mins = Math.floor(sub.durationSeconds / 60);
+                                    const secs = sub.durationSeconds % 60;
+
+                                    return (
+                                      <div
+                                        key={sub.id}
+                                        className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between gap-3 text-xs"
+                                      >
+                                        <div className="space-y-0.5">
+                                          <div className="flex items-center gap-2">
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                              sub.isLive ? 'bg-rose-100 dark:bg-rose-950 text-rose-600' : 'bg-blue-100 dark:bg-blue-950 text-blue-600'
+                                            }`}>
+                                              {sub.isLive ? 'Live Exam' : 'Practice Exam'}
+                                            </span>
+                                            <span className="text-[11px] text-slate-400">
+                                              {new Date(sub.submittedAt).toLocaleDateString()}
+                                            </span>
+                                          </div>
+                                          <h5 className="font-bold text-slate-900 dark:text-white">
+                                            {ex ? ex.title : 'Exam'}
+                                          </h5>
+                                        </div>
+
+                                        <div className="flex items-center gap-3">
+                                          <div className="text-right">
+                                            <span className="font-bold text-blue-600 dark:text-blue-400">
+                                              {sub.marksObtained}/{sub.totalMarks} ({sub.percentage.toFixed(1)}%)
+                                            </span>
+                                            <span className="text-[10px] text-slate-400 block font-mono">
+                                              {mins}m {secs}s
+                                            </span>
+                                          </div>
+
+                                          {ex && (
+                                            <button
+                                              onClick={() => setInspectSubmission({ submission: sub, exam: ex })}
+                                              className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 cursor-pointer"
+                                              title="উত্তরপত্র দেখুন"
+                                            >
+                                              <Eye className="w-4 h-4" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </div>
+          ) : (
+            /* ========================================================= */
+            /* STUDENT VIEW: OWN PERFORMANCE SUMMARY REPORT */
+            /* ========================================================= */
+            <div className="space-y-6">
+              {/* Student Profile Card & Summary Download with Filter */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-black text-lg flex items-center justify-center shrink-0">
+                    {user?.name ? user.name.slice(0, 1).toUpperCase() : 'S'}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base text-slate-900 dark:text-white">
+                      {user?.name}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {user?.college || 'College N/A'} • {user?.email}
+                    </p>
+                  </div>
+                </div>
 
-            {/* Action controls: Filter Dropdown & PDF Download */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              {/* Dropdown filter box: Live Exam / Practice Exam / Both Exam */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 shrink-0">
-                  ফিল্টার:
-                </span>
-                <select
-                  value={historyFilter}
-                  onChange={(e) => setHistoryFilter(e.target.value as 'both' | 'live' | 'practice')}
-                  className="px-3 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-xs"
-                >
-                  <option value="both">Both Exam (লাইভ + প্র্যাকটিস সব পরীক্ষা)</option>
-                  <option value="live">Live exam (শুধুমাত্র লাইভ পরীক্ষা)</option>
-                  <option value="practice">Practice exam (শুধুমাত্র অনুশীলন পরীক্ষা)</option>
-                </select>
-              </div>
-
-              {/* Download PDF for the selected filter */}
-              <button
-                onClick={() => exportStudentSummaryPDF(targetStudentProfile, filteredPastSubmissions, exams, historyFilter)}
-                disabled={filteredPastSubmissions.length === 0}
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs disabled:opacity-40 transition-colors cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>সামারি রিপোর্ট PDF ডাউনলোড</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Past Submissions List */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
-            <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-50/60 dark:bg-slate-900/40">
-              <div className="font-semibold text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                <span>পরীক্ষার হিস্ট্রি (Exam History)</span>
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
-                  {filteredPastSubmissions.length} টি পরীক্ষা
-                </span>
-                <span className="text-xs text-slate-400 font-normal">
-                  ({historyFilter === 'live' ? 'লাইভ পরীক্ষা' : historyFilter === 'practice' ? 'অনুশীলন পরীক্ষা' : 'সব পরীক্ষা'})
-                </span>
-              </div>
-            </div>
-
-            {filteredPastSubmissions.length === 0 ? (
-              <div className="p-12 text-center text-slate-400 space-y-2">
-                <FileText className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-700" />
-                <p className="text-sm font-medium">
-                  {historyFilter === 'live' 
-                    ? 'এই শিক্ষার্থীর কোনো লাইভ পরীক্ষার রেকর্ড পাওয়া যায়নি।'
-                    : historyFilter === 'practice'
-                    ? 'এই শিক্ষার্থীর কোনো প্র্যাকটিস পরীক্ষার রেকর্ড পাওয়া যায়নি।'
-                    : 'এই শিক্ষার্থীর কোনো পরীক্ষার রেকর্ড পাওয়া যায়নি।'}
-                </p>
-                <p className="text-xs text-slate-500">
-                  ড্রপডাউন থেকে অন্য কোনো ফিল্টার নির্বাচন করে দেখতে পারেন।
-                </p>
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                {filteredPastSubmissions.map((sub) => {
-                  const exam = exams.find(e => e.id === sub.examId);
-                  const examTitle = exam ? exam.title : 'Exam';
-                  const mins = Math.floor(sub.durationSeconds / 60);
-                  const secs = sub.durationSeconds % 60;
-
-                  return (
-                    <div
-                      key={sub.id}
-                      className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+                {/* Filter Dropdown & PDF Download */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 shrink-0">
+                      ফিল্টার:
+                    </span>
+                    <select
+                      value={studentHistoryFilter}
+                      onChange={(e) => setStudentHistoryFilter(e.target.value as 'both' | 'live' | 'practice')}
+                      className="px-3 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-xs"
                     >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            sub.isLive 
-                              ? 'bg-rose-100 dark:bg-rose-950 text-rose-600 border border-rose-200 dark:border-rose-900/40' 
-                              : 'bg-blue-100 dark:bg-blue-950 text-blue-600 border border-blue-200 dark:border-blue-900/40'
-                          }`}>
-                            {sub.isLive ? 'লাইভ পরীক্ষা (Live)' : 'অনুশীলন পরীক্ষা (Practice)'}
-                          </span>
-                          <span className="text-xs text-slate-400">
-                            {new Date(sub.submittedAt).toLocaleDateString('en-GB')}
-                          </span>
-                        </div>
-                        <h4 className="font-bold text-sm text-slate-900 dark:text-white">
-                          {examTitle}
-                        </h4>
-                      </div>
+                      <option value="both">Both Exam (লাইভ + প্র্যাকটিস সব পরীক্ষা)</option>
+                      <option value="live">Live exam (শুধুমাত্র লাইভ পরীক্ষা)</option>
+                      <option value="practice">Practice exam (শুধুমাত্র অনুশীলন পরীক্ষা)</option>
+                    </select>
+                  </div>
 
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <span className="text-xs text-slate-500">প্রাপ্ত নম্বর:</span>
-                          <div className="font-bold text-sm text-blue-600 dark:text-blue-400">
-                            {sub.marksObtained}/{sub.totalMarks} ({sub.percentage.toFixed(1)}%)
-                          </div>
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            সময়: {mins}মি {secs}সে
-                          </span>
-                        </div>
-
-                        {exam && (
-                          <button
-                            onClick={() => setInspectSubmission({ submission: sub, exam })}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
-                            title="উত্তরপত্র দেখুন"
-                          >
-                            <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                            <span>উত্তরপত্র</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                  <button
+                    onClick={() => exportStudentSummaryPDF(
+                      { name: user?.name || 'Student', email: user?.email || '', college: user?.college || 'N/A', mobile: user?.mobile },
+                      filteredStudentPastSubs,
+                      exams,
+                      studentHistoryFilter
+                    )}
+                    disabled={filteredStudentPastSubs.length === 0}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs disabled:opacity-40 transition-colors cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>সামারি রিপোর্ট PDF ডাউনলোড</span>
+                  </button>
+                </div>
               </div>
-            )}
-          </div>
+
+              {/* Past Submissions List */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xs">
+                <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-50/60 dark:bg-slate-900/40">
+                  <div className="font-semibold text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>পরীক্ষার হিস্ট্রি (Exam History)</span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+                      {filteredStudentPastSubs.length} টি পরীক্ষা
+                    </span>
+                    <span className="text-xs text-slate-400 font-normal">
+                      ({studentHistoryFilter === 'live' ? 'লাইভ পরীক্ষা' : studentHistoryFilter === 'practice' ? 'অনুশীলন পরীক্ষা' : 'সব পরীক্ষা'})
+                    </span>
+                  </div>
+                </div>
+
+                {filteredStudentPastSubs.length === 0 ? (
+                  <div className="p-12 text-center text-slate-400 space-y-2">
+                    <FileText className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-700" />
+                    <p className="text-sm font-medium">
+                      {studentHistoryFilter === 'live' 
+                        ? 'আপনার কোনো লাইভ পরীক্ষার রেকর্ড পাওয়া যায়নি।'
+                        : studentHistoryFilter === 'practice'
+                        ? 'আপনার কোনো প্র্যাকটিস পরীক্ষার রেকর্ড পাওয়া যায়নি।'
+                        : 'আপনার কোনো পরীক্ষার রেকর্ড পাওয়া যায়নি।'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                    {filteredStudentPastSubs.map((sub) => {
+                      const exam = exams.find(e => e.id === sub.examId);
+                      const examTitle = exam ? exam.title : 'Exam';
+                      const mins = Math.floor(sub.durationSeconds / 60);
+                      const secs = sub.durationSeconds % 60;
+
+                      return (
+                        <div
+                          key={sub.id}
+                          className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                sub.isLive 
+                                  ? 'bg-rose-100 dark:bg-rose-950 text-rose-600 border border-rose-200 dark:border-rose-900/40' 
+                                  : 'bg-blue-100 dark:bg-blue-950 text-blue-600 border border-blue-200 dark:border-blue-900/40'
+                              }`}>
+                                {sub.isLive ? 'লাইভ পরীক্ষা (Live)' : 'অনুশীলন পরীক্ষা (Practice)'}
+                              </span>
+                              <span className="text-xs text-slate-400">
+                                {new Date(sub.submittedAt).toLocaleDateString('en-GB')}
+                              </span>
+                            </div>
+                            <h4 className="font-bold text-sm text-slate-900 dark:text-white">
+                              {examTitle}
+                            </h4>
+                          </div>
+
+                          <div className="flex items-center gap-4">
+                            <div className="text-right">
+                              <span className="text-xs text-slate-500">প্রাপ্ত নম্বর:</span>
+                              <div className="font-bold text-sm text-blue-600 dark:text-blue-400">
+                                {sub.marksObtained}/{sub.totalMarks} ({sub.percentage.toFixed(1)}%)
+                              </div>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                সময়: {mins}মি {secs}সে
+                              </span>
+                            </div>
+
+                            {exam && (
+                              <button
+                                onClick={() => setInspectSubmission({ submission: sub, exam })}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+                                title="উত্তরপত্র দেখুন"
+                              >
+                                <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                <span>উত্তরপত্র</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -901,7 +1138,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             {/* Modal Body */}
             <div className="p-6 space-y-4">
               <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
-                <strong>কেন এই অপশন?</strong> যদি কোনো শিক্ষার্থী নির্দিষ্ট সময়ে লাইভ পরীক্ষায় অংশ নিতে না পেরে থাকে বা আপনি পুনরায় লাইভ পরীক্ষা নিতে চান, তাহলে নতুন সময়সীমা দিয়ে পুনরায় লাইভ করুন। পরীক্ষাটি স্বয়ংক্রিয়ভাবে লাইভ সেগমেন্টে চলে যাবে।
+                <strong>কেন এই অপশন?</strong> যদি কোনো শিক্ষার্থী নির্দিষ্ট সময়ে লাইভ পরীক্ষায় অংশ নিতে না পেরে থাকে বা আপনি পুনরায় লাইভ পরীক্ষা নিতে চান, তাহলে নতুন সময়সীমা দিয়ে পুনরায় লাইভ করুন। পরবর্তীতে যারা এই পরীক্ষা দিবে তাদের ফলাফলও <strong>একই মূল লিডারবোর্ডে</strong> স্বয়ংক্রিয়ভাবে যুক্ত হয়ে যাবে।
               </div>
 
               <div>
@@ -1016,11 +1253,23 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
       )}
 
       {/* ========================================================= */}
+      {/* STUDENT PROFILE MODAL */}
+      {/* ========================================================= */}
+      {inspectStudentProfile && (
+        <StudentProfileModal
+          student={inspectStudentProfile}
+          courses={courses}
+          submissions={submissions}
+          onClose={() => setInspectStudentProfile(null)}
+        />
+      )}
+
+      {/* ========================================================= */}
       {/* INSPECT ANSWER SCRIPT MODAL */}
       {/* ========================================================= */}
       {inspectSubmission && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[92vh]">
+          <div className="w-full max-w-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[92vh]">
             {/* Header */}
             <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 flex items-center justify-between">
               <div>

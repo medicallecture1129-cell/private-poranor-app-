@@ -5,6 +5,7 @@ export interface AdminUser {
   name: string;
   email: string;
   password?: string;
+  canManageAdmins?: boolean; // If true, can remove other admins
   createdAt: number;
 }
 
@@ -40,8 +41,11 @@ export interface CourseClass {
   courseId: string;
   folderId?: string | null; // can belong to root or a folder
   title: string;
+  instructor?: string;
   createdAt: number;
 }
+
+export type PdfCategory = 'lecture' | 'practice' | 'solution' | 'marked_book';
 
 export interface MediaResource {
   id: string;
@@ -50,6 +54,8 @@ export interface MediaResource {
   classId?: string | null; // assigned to a class
   title: string;
   type: 'video' | 'pdf';
+  category?: PdfCategory;
+  instructor?: string;
   url: string; // YouTube link or Google Drive/PDF link
   createdAt: number;
 }

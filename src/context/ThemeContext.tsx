@@ -1,48 +1,75 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-type Theme = 'dark' | 'light';
+export type ThemeMode = 'dark' | 'light';
+export type ThemeColor = 'default' | 'ocean' | 'emerald' | 'purple' | 'amber' | 'crimson';
 
 interface ThemeContextType {
-  theme: Theme;
+  theme: ThemeMode;
+  colorTheme: ThemeColor;
   toggleTheme: () => void;
-  setTheme: (theme: Theme) => void;
+  setTheme: (theme: ThemeMode) => void;
+  setColorTheme: (color: ThemeColor) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
-const THEME_STORAGE_KEY = 'examportal_device_theme';
+const THEME_MODE_KEY = 'examportal_device_theme_mode';
+const THEME_COLOR_KEY = 'examportal_device_theme_color';
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Device-specific theme preference (each user/device controls their own theme independently)
-  const [theme, setThemeState] = useState<Theme>(() => {
+  // Device-specific theme mode ('dark' or 'light')
+  const [theme, setThemeState] = useState<ThemeMode>(() => {
     try {
-      const saved = localStorage.getItem(THEME_STORAGE_KEY);
+      const saved = localStorage.getItem(THEME_MODE_KEY);
       if (saved === 'light' || saved === 'dark') return saved;
     } catch {}
     return 'dark';
   });
 
-  // Apply HTML dark class
-  useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+  // Device-specific color accent theme
+  const [colorTheme, setColorThemeState] = useState<ThemeColor>(() => {
     try {
-      localStorage.setItem(THEME_STORAGE_KEY, theme);
+      const saved = localStorage.getItem(THEME_COLOR_KEY);
+      if (saved && ['default', 'ocean', 'emerald', 'purple', 'amber', 'crimson'].includes(saved)) {
+        return saved as ThemeColor;
+      }
     } catch {}
-  }, [theme]);
+    return 'default';
+  });
+
+  // Apply HTML classes and data-theme
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+
+    // Remove existing color theme classes
+    root.classList.remove('theme-ocean', 'theme-emerald', 'theme-purple', 'theme-amber', 'theme-crimson', 'theme-default');
+    root.classList.add(`theme-${colorTheme}`);
+    root.setAttribute('data-color-theme', colorTheme);
+
+    try {
+      localStorage.setItem(THEME_MODE_KEY, theme);
+      localStorage.setItem(THEME_COLOR_KEY, colorTheme);
+    } catch {}
+  }, [theme, colorTheme]);
 
   const toggleTheme = () => {
-    setThemeState(prev => prev === 'dark' ? 'light' : 'dark');
+    setThemeState(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  const setTheme = (newTheme: Theme) => {
+  const setTheme = (newTheme: ThemeMode) => {
     setThemeState(newTheme);
   };
 
+  const setColorTheme = (newColor: ThemeColor) => {
+    setColorThemeState(newColor);
+  };
+
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, colorTheme, toggleTheme, setTheme, setColorTheme }}>
       {children}
     </ThemeContext.Provider>
   );

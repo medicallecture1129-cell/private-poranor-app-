@@ -33,6 +33,7 @@ export const DEFAULT_ADMIN: AdminUser = {
   name: 'Head Teacher / Admin',
   email: 'admin@examportal.com',
   password: 'admin',
+  canManageAdmins: true,
   createdAt: 1700000000000
 };
 
@@ -265,22 +266,28 @@ export const subscribeClasses = (
 export const createClass = async (
   courseId: string,
   title: string,
-  folderId?: string | null
+  folderId?: string | null,
+  instructor?: string
 ): Promise<CourseClass> => {
   const classData: Omit<CourseClass, 'id'> = {
     courseId,
     title: title.trim(),
     folderId: folderId || null,
+    instructor: (instructor || '').trim() || undefined,
     createdAt: Date.now()
   };
   const docRef = await addDoc(collection(db, 'classes'), classData);
   return { id: docRef.id, ...classData };
 };
 
-export const updateClassTitle = async (classId: string, newTitle: string): Promise<void> => {
-  await updateDoc(doc(db, 'classes', classId), {
+export const updateClassTitle = async (classId: string, newTitle: string, newInstructor?: string): Promise<void> => {
+  const updates: Record<string, any> = {
     title: newTitle.trim()
-  });
+  };
+  if (newInstructor !== undefined) {
+    updates.instructor = newInstructor.trim();
+  }
+  await updateDoc(doc(db, 'classes', classId), updates);
 };
 
 export const deleteClass = async (classId: string): Promise<void> => {
@@ -325,7 +332,9 @@ export const createResource = async (
   type: 'video' | 'pdf', 
   url: string, 
   folderId?: string | null,
-  classId?: string | null
+  classId?: string | null,
+  category?: 'lecture' | 'practice' | 'solution' | 'marked_book',
+  instructor?: string
 ): Promise<MediaResource> => {
   const resourceData: Omit<MediaResource, 'id'> = {
     courseId,
@@ -334,6 +343,8 @@ export const createResource = async (
     url: url.trim(),
     folderId: folderId || null,
     classId: classId || null,
+    category: category || (type === 'pdf' ? 'lecture' : undefined),
+    instructor: (instructor || '').trim() || undefined,
     createdAt: Date.now()
   };
   const docRef = await addDoc(collection(db, 'resources'), resourceData);

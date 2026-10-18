@@ -299,11 +299,59 @@ export const EditExamModal: React.FC<EditExamModalProps> = ({
                 </div>
               </div>
 
-              {/* Time Configuration */}
+              {/* Time Configuration & Make Live Again */}
               <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                  Exam Timing Configuration
-                </h4>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700/60 pb-2.5">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <span>Exam Timing & Live Schedule (পুনরায় লাইভ করার অপশন)</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      পূর্বে শেষ হওয়া পরীক্ষা পুনরায় লাইভ করতে চাইলে নতুন সময়সূচী নির্ধারণ করুন। নতুন পরীক্ষার্থীদের রেজাল্ট একই লিডারবোর্ডে যুক্ত হবে।
+                    </p>
+                  </div>
+
+                  {/* Quick Preset Buttons */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const now = Date.now();
+                        setStartTimeInput(formatForInput(now));
+                        setEndTimeInput(formatForInput(now + 2 * 60 * 60 * 1000));
+                        setPublishTimeInput(formatForInput(now + 3 * 60 * 60 * 1000));
+                      }}
+                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-blue-100 hover:bg-blue-200 dark:bg-blue-950/70 dark:hover:bg-blue-900 text-blue-700 dark:text-blue-300 transition-colors"
+                    >
+                      +২ ঘণ্টা লাইভ
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const now = Date.now();
+                        setStartTimeInput(formatForInput(now));
+                        setEndTimeInput(formatForInput(now + 4 * 60 * 60 * 1000));
+                        setPublishTimeInput(formatForInput(now + 5 * 60 * 60 * 1000));
+                      }}
+                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/70 dark:hover:bg-rose-900 text-rose-700 dark:text-rose-300 transition-colors"
+                    >
+                      +৪ ঘণ্টা লাইভ
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const now = Date.now();
+                        setStartTimeInput(formatForInput(now));
+                        setEndTimeInput(formatForInput(now + 24 * 60 * 60 * 1000));
+                        setPublishTimeInput(formatForInput(now + 25 * 60 * 60 * 1000));
+                      }}
+                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/70 dark:hover:bg-emerald-900 text-emerald-700 dark:text-emerald-300 transition-colors"
+                    >
+                      ২৪ ঘণ্টা লাইভ
+                    </button>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-500 mb-1">Start Time (Live Begins)</label>

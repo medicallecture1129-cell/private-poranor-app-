@@ -39,6 +39,7 @@ export const AdminManagement: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [canManageAdmins, setCanManageAdmins] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -80,7 +81,8 @@ export const AdminManagement: React.FC = () => {
       await createAdminUser({
         name: name.trim(),
         email: cleanEmail,
-        password: password.trim()
+        password: password.trim(),
+        canManageAdmins: canManageAdmins
       });
 
       const succ = `Administrator ${name} added successfully. They can now log in using ${cleanEmail}.`;
@@ -89,6 +91,7 @@ export const AdminManagement: React.FC = () => {
       setName('');
       setEmail('');
       setPassword('');
+      setCanManageAdmins(false);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to create administrator account.';
       setErrorMsg(msg);
@@ -258,6 +261,25 @@ export const AdminManagement: React.FC = () => {
                 </div>
               </div>
 
+              <div>
+                <label className="flex items-start gap-2.5 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={canManageAdmins}
+                    onChange={(e) => setCanManageAdmins(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 rounded text-blue-600 focus:ring-blue-500"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                      অন্যান্য এডমিন রিমুভ করার ক্ষমতা দিন (Allow to Remove Other Admins)
+                    </span>
+                    <span className="text-[11px] text-slate-500 block">
+                      সক্রিয় রাখলে এই এডমিন বাকি এডমিনদের এডমিন পোস্ট থেকে ডিলিট বা রিমুভ করতে পারবেন।
+                    </span>
+                  </div>
+                </label>
+              </div>
+
               <button
                 type="submit"
                 disabled={isSubmitting}
@@ -283,6 +305,8 @@ export const AdminManagement: React.FC = () => {
             <div className="divide-y divide-slate-100 dark:divide-slate-800/80 max-h-[380px] overflow-y-auto pr-1">
               {admins.map((adm) => {
                 const isCurrent = user?.email.toLowerCase() === adm.email.toLowerCase();
+                const loggedInAdmin = admins.find(a => a.email.toLowerCase() === user?.email.toLowerCase());
+                const loggedInCanDelete = loggedInAdmin?.id === 'admin_primary' || loggedInAdmin?.canManageAdmins === true;
 
                 return (
                   <div key={adm.id} className="py-3 flex items-center justify-between gap-3">
@@ -298,6 +322,11 @@ export const AdminManagement: React.FC = () => {
                               You
                             </span>
                           )}
+                          {adm.canManageAdmins && (
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-300 font-semibold" title="Can remove other admins">
+                              Super Admin
+                            </span>
+                          )}
                         </div>
                         <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
                           {adm.email}
@@ -310,7 +339,7 @@ export const AdminManagement: React.FC = () => {
                         Administrator
                       </span>
 
-                      {!isCurrent && adm.id !== 'admin_primary' && (
+                      {!isCurrent && adm.id !== 'admin_primary' && loggedInCanDelete && (
                         <button
                           onClick={async () => {
                             if (window.confirm(`Are you sure you want to delete administrator "${adm.name}"?`)) {
