@@ -154,7 +154,7 @@ export const CourseMembers: React.FC<CourseMembersProps> = ({ course, students }
                           setInspectStudent(member);
                         }}
                         className="p-1 rounded-md text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                        title={role === 'admin' ? "শিক্ষার্থীর তথ্য দেখুন" : "সহপাঠীর প্রোফাইল কার্ড"}
+                        title={role === 'admin' ? "View Student Details" : "View Student Profile"}
                       >
                         <UserCircle className="w-3.5 h-3.5 text-blue-500" />
                       </button>

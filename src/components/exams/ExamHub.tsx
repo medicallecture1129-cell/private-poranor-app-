@@ -353,7 +353,7 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
                     /* STUDENT CONTROLS: Start Live Exam or Practice */
                     !isExamActive ? (
                       <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-center text-xs text-amber-700 dark:text-amber-300 font-medium">
-                        ⚠️ পরীক্ষা সাময়িকভাবে বন্ধ আছে (Paused by Admin)
+                        ⚠️ Exam temporarily paused by Administrator
                       </div>
                     ) : activeSegment === 'live' ? (
                       studentLiveSubmission ? (

@@ -206,10 +206,10 @@ export const EditExamModal: React.FC<EditExamModalProps> = ({
                 <div>
                   <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2">
                     <Power className="w-4 h-4 text-blue-600" />
-                    <span>Exam Active Status (পরীক্ষা চালু / বন্ধ)</span>
+                    <span>Exam Active Status</span>
                   </h4>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    বন্ধ থাকলে শিক্ষার্থীরা পরীক্ষা দিতে পারবে না। চালু রাখলে নির্ধারিত সময়ে লাইভ পরীক্ষা দেওয়া যাবে।
+                    When active, students can access the live exam during the scheduled window.
                   </p>
                 </div>
                 <button
@@ -222,7 +222,7 @@ export const EditExamModal: React.FC<EditExamModalProps> = ({
                   }`}
                 >
                   <Power className="w-3.5 h-3.5" />
-                  <span>{isActive ? 'Exam ON (সক্রিয়)' : 'Exam OFF (স্থগিত)'}</span>
+                  <span>{isActive ? 'Exam Active' : 'Exam Inactive'}</span>
                 </button>
               </div>
 
@@ -304,10 +304,10 @@ export const EditExamModal: React.FC<EditExamModalProps> = ({
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700/60 pb-2.5">
                   <div>
                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                      <span>Exam Timing & Live Schedule (পুনরায় লাইভ করার অপশন)</span>
+                      <span>Exam Timing & Live Schedule (Re-open Live Window)</span>
                     </h4>
                     <p className="text-[11px] text-slate-500 mt-0.5">
-                      পূর্বে শেষ হওয়া পরীক্ষা পুনরায় লাইভ করতে চাইলে নতুন সময়সূচী নির্ধারণ করুন। নতুন পরীক্ষার্থীদের রেজাল্ট একই লিডারবোর্ডে যুক্ত হবে।
+                      Set a new schedule to re-open the exam for live test-takers. Submissions will be ranked on the leaderboard.
                     </p>
                   </div>
 
@@ -323,7 +323,7 @@ export const EditExamModal: React.FC<EditExamModalProps> = ({
                       }}
                       className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-blue-100 hover:bg-blue-200 dark:bg-blue-950/70 dark:hover:bg-blue-900 text-blue-700 dark:text-blue-300 transition-colors"
                     >
-                      +২ ঘণ্টা লাইভ
+                      +2 Hours Live
                     </button>
                     <button
                       type="button"
@@ -335,7 +335,7 @@ export const EditExamModal: React.FC<EditExamModalProps> = ({
                       }}
                       className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/70 dark:hover:bg-rose-900 text-rose-700 dark:text-rose-300 transition-colors"
                     >
-                      +৪ ঘণ্টা লাইভ
+                      +4 Hours Live
                     </button>
                     <button
                       type="button"
@@ -347,7 +347,7 @@ export const EditExamModal: React.FC<EditExamModalProps> = ({
                       }}
                       className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/70 dark:hover:bg-emerald-900 text-emerald-700 dark:text-emerald-300 transition-colors"
                     >
-                      ২৪ ঘণ্টা লাইভ
+                      24 Hours Live
                     </button>
                   </div>
                 </div>

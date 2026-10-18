@@ -193,15 +193,15 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     const pubMs = new Date(reLiveResultPub).getTime();
 
     if (isNaN(startMs) || isNaN(endMs) || isNaN(pubMs)) {
-      toastError('সঠিক তারিখ ও সময় নির্বাচন করুন');
+      toastError('Please select valid date and time');
       return;
     }
     if (endMs <= startMs) {
-      toastError('পরীক্ষা সমাপ্তির সময় অবশ্যই শুরু হওয়ার সময় থেকে পরবর্তী হতে হবে');
+      toastError('Exam end time must be after start time');
       return;
     }
     if (pubMs < endMs) {
-      toastError('ফলাফল প্রকাশের সময় অবশ্যই পরীক্ষা সমাপ্তির সমান বা পরবর্তী হতে হবে');
+      toastError('Result publish time must be on or after exam end time');
       return;
     }
 
@@ -213,10 +213,10 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
         resultPublishTime: pubMs,
         isActive: true
       });
-      toastSuccess(`"${selectedExam.title}" সফলভাবে পুনরায় লাইভ করা হয়েছে!`);
+      toastSuccess(`"${selectedExam.title}" is now live again!`);
       setShowReLiveModal(false);
     } catch (err: unknown) {
-      toastError(err instanceof Error ? err.message : 'পরীক্ষা পুনরায় লাইভ করতে ব্যর্থ হয়েছে');
+      toastError(err instanceof Error ? err.message : 'Failed to make exam live again');
     } finally {
       setIsUpdatingLive(false);
     }
@@ -227,21 +227,21 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     const newStatus = selectedExam.isActive === false ? true : false;
     try {
       await updateExam(selectedExam.id, { isActive: newStatus });
-      toastSuccess(`পরীক্ষা এখন ${newStatus ? 'সক্রিয় (ON)' : 'স্থগিত (OFF)'}`);
+      toastSuccess(`Exam is now ${newStatus ? 'Active (ON)' : 'Inactive (OFF)'}`);
     } catch (err: unknown) {
-      toastError(err instanceof Error ? err.message : 'স্ট্যাটাস পরিবর্তন ব্যর্থ হয়েছে');
+      toastError(err instanceof Error ? err.message : 'Failed to update exam status');
     }
   };
 
   const handleDeleteCurrentExam = async () => {
     if (!selectedExam) return;
-    if (window.confirm(`আপনি কি নিশ্চিত যে "${selectedExam.title}" পরীক্ষাটি সম্পূর্ণ মুছে ফেলতে চান?`)) {
+    if (window.confirm(`Are you sure you want to permanently delete "${selectedExam.title}"?`)) {
       try {
         await deleteExam(selectedExam.id);
         setSelectedExamId('');
-        toastSuccess('পরীক্ষা সফলভাবে মুছে ফেলা হয়েছে');
+        toastSuccess('Exam deleted successfully');
       } catch (err: unknown) {
-        toastError(err instanceof Error ? err.message : 'পরীক্ষা মুছতে সমস্যা হয়েছে');
+        toastError(err instanceof Error ? err.message : 'Failed to delete exam');
       }
     }
   };
@@ -270,8 +270,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             {role === 'admin'
-              ? 'কোর্স ও পরীক্ষা সিলেক্ট করে অফিশিয়াল লিডারবোর্ড দেখুন, পরীক্ষার সময় ও সেটিংস পরিবর্তন করুন অথবা শিক্ষার্থীদের কোর্স-ভিত্তিক সারসংক্ষেপ বিশ্লেষণ করুন।'
-              : 'কোর্স ও পরীক্ষা সিলেক্ট করে মেধা তালিকা দেখুন অথবা আপনার বিগত পরীক্ষার সামারি রিপোর্ট ও উত্তরপত্র বিশ্লেষণ করুন।'}
+              ? 'Select a course and exam to view official leaderboards, manage timings & settings, or analyze student performance reports.'
+              : 'Select a course and exam to view leaderboards, or analyze your past exam performance and answer scripts.'}
           </p>
         </div>
 
@@ -311,7 +311,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                ধাপ ১: কোর্স সিলেক্ট করুন (Step 1: Select Course)
+                Step 1: Select Course
               </label>
               <select
                 value={selectedCourseId}
@@ -322,7 +322,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 }}
                 className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
               >
-                <option value="">-- কোর্স সিলেক্ট করুন (Choose a Course) --</option>
+                <option value="">-- Choose a Course --</option>
                 {courses.map(c => (
                   <option key={c.id} value={c.id}>{c.name} ({c.batch})</option>
                 ))}
@@ -331,7 +331,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                ধাপ ২: পরীক্ষা সিলেক্ট করুন (Step 2: Select Exam)
+                Step 2: Select Exam
               </label>
               <select
                 value={selectedExamId}
@@ -341,10 +341,10 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
               >
                 <option value="">
                   {!selectedCourseId 
-                    ? '-- প্রথমে কোর্স সিলেক্ট করুন --' 
+                    ? '-- Select a course first --' 
                     : courseExams.length === 0 
-                    ? '-- এই কোর্সে কোনো পরীক্ষা নেই --' 
-                    : '-- পরীক্ষা সিলেক্ট করুন (Choose an Exam) --'}
+                    ? '-- No exams in this course --' 
+                    : '-- Choose an Exam --'}
                 </option>
                 {courseExams.map(ex => (
                   <option key={ex.id} value={ex.id}>{ex.title}</option>
@@ -355,7 +355,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             {/* Filter by Name / College inside Leaderboard */}
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                মেধা তালিকায় নাম বা কলেজ খুঁজুন (Search)
+                Search by Name or College
               </label>
               <div className="relative">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -364,7 +364,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                   disabled={!selectedExam}
                   value={leaderboardSearch}
                   onChange={(e) => setLeaderboardSearch(e.target.value)}
-                  placeholder={selectedExam ? "শিক্ষার্থীর নাম বা কলেজ লিখুন..." : "আগে পরীক্ষা সিলেক্ট করুন..."}
+                  placeholder={selectedExam ? "Search student name or college..." : "Select an exam first..."}
                   className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40"
                 />
               </div>
@@ -379,10 +379,10 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
               </div>
               <div className="max-w-md mx-auto space-y-2">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  কোনো পরীক্ষার মেধা তালিকা নির্বাচন করা হয়নি
+                  No Exam Leaderboard Selected
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                  ডিফল্টভাবে কোনো ফলাফল লোড করা হয়নি। অনুগ্রহ করে উপরের ড্রপডাউন থেকে প্রথমে আপনার <strong>কোর্স</strong> এবং এরপর যে পরীক্ষার ফলাফল ও মেধা তালিকা দেখতে চান তা <strong>সিলেক্ট</strong> করুন।
+                  Please select your <strong>Course</strong> and then choose the <strong>Exam</strong> from the dropdown above to view its official results and leaderboard.
                 </p>
               </div>
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold">
@@ -413,12 +413,12 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                           <Radio className="w-3 h-3" />
                           <span>
                             {selectedExam.isActive === false
-                              ? 'Exam Paused (বন্ধ)'
+                              ? 'Exam Paused'
                               : currentTime < selectedExam.startTime
-                              ? 'Scheduled (আসন্ন)'
+                              ? 'Scheduled'
                               : currentTime <= selectedExam.endTime
-                              ? 'LIVE NOW (লাইভ চলছে)'
-                              : 'Live Completed (লাইভ সমাপ্ত)'}
+                              ? 'LIVE NOW'
+                              : 'Live Completed'}
                           </span>
                         </span>
                       </div>
@@ -426,15 +426,15 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                         <span>{selectedExam.title}</span>
                       </h3>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-blue-200/90 font-medium pt-1">
-                        <span>সময়কাল: {selectedExam.durationMinutes} মিনিট</span>
+                        <span>Duration: {selectedExam.durationMinutes} mins</span>
                         <span>•</span>
-                        <span>মোট নম্বর: {selectedExam.totalMarks}</span>
+                        <span>Total Marks: {selectedExam.totalMarks}</span>
                         <span>•</span>
-                        <span>পাস মার্ক: {selectedExam.passMark}</span>
+                        <span>Pass Mark: {selectedExam.passMark}</span>
                         <span>•</span>
-                        <span>নেগেটিভ মার্কিং: {(selectedExam.negativeMarkPercentage || 0) * 100}%</span>
+                        <span>Negative Mark: {(selectedExam.negativeMarkPercentage || 0) * 100}%</span>
                         <span>•</span>
-                        <span>মোট প্রশ্ন: {selectedExam.questions?.length || selectedExam.totalQuestions} টি</span>
+                        <span>Total Questions: {selectedExam.questions?.length || selectedExam.totalQuestions}</span>
                       </div>
                     </div>
 
@@ -444,20 +444,20 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                       <button
                         onClick={handleOpenReLiveModal}
                         className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-                        title="পুনরায় লাইভ শুরু করার সময় নির্ধারণ করুন"
+                        title="Reschedule and Make Live Again"
                       >
                         <Zap className="w-4 h-4" />
-                        <span>পুনরায় লাইভ করুন (Make Live Again)</span>
+                        <span>Make Live Again</span>
                       </button>
 
                       {/* 2. Edit Exam Details & Questions */}
                       <button
                         onClick={() => setEditingExamData(selectedExam)}
                         className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
-                        title="নাম, কোর্স, সময়, নম্বর ও প্রশ্ন পরিবর্তন করুন"
+                        title="Edit Exam Details & Questions"
                       >
                         <Edit className="w-4 h-4" />
-                        <span>পরীক্ষা এডিট করুন</span>
+                        <span>Edit Exam</span>
                       </button>
 
                       {/* 3. Toggle Active ON/OFF */}
@@ -468,17 +468,17 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                             ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
                             : 'bg-amber-600/80 hover:bg-amber-600 text-white'
                         }`}
-                        title="পরীক্ষা চালু বা বন্ধ করুন"
+                        title="Toggle Exam Status"
                       >
                         <Power className="w-4 h-4" />
-                        <span>{selectedExam.isActive === false ? 'চালু করুন (Turn ON)' : 'বন্ধ করুন (Turn OFF)'}</span>
+                        <span>{selectedExam.isActive === false ? 'Turn ON' : 'Turn OFF'}</span>
                       </button>
 
                       {/* 4. Delete Exam */}
                       <button
                         onClick={handleDeleteCurrentExam}
                         className="p-2 rounded-xl bg-red-950/60 hover:bg-red-900 border border-red-700/50 text-red-300 hover:text-white transition-all cursor-pointer"
-                        title="পরীক্ষাটি মুছে ফেলুন"
+                        title="Delete Exam"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -488,7 +488,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                   {/* Schedule Timestamps View */}
                   <div className="pt-2 border-t border-white/10 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-blue-200/80">
                     <div>
-                      <span className="text-white/60">শুরু (Live Start):</span>{' '}
+                      <span className="text-white/60">Live Start:</span>{' '}
                       <span className="font-semibold text-white">
                         {new Date(selectedExam.startTime).toLocaleString('en-US', {
                           month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
@@ -496,7 +496,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                       </span>
                     </div>
                     <div>
-                      <span className="text-white/60">সমাপ্তি (Live End):</span>{' '}
+                      <span className="text-white/60">Live End:</span>{' '}
                       <span className="font-semibold text-white">
                         {new Date(selectedExam.endTime).toLocaleString('en-US', {
                           month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
@@ -504,7 +504,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                       </span>
                     </div>
                     <div>
-                      <span className="text-white/60">ফলাফল প্রকাশ (Result Publish):</span>{' '}
+                      <span className="text-white/60">Result Publish:</span>{' '}
                       <span className="font-semibold text-white">
                         {new Date(selectedExam.resultPublishTime).toLocaleString('en-US', {
                           month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
@@ -523,14 +523,14 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                   </div>
                   <div className="max-w-md mx-auto space-y-2">
                     <h3 className="font-bold text-lg text-slate-900 dark:text-white">
-                      ফলাফল প্রকাশের নির্ধারিত সময় এখনো হয়নি
+                      Result has not been published yet
                     </h3>
                     <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                      অফিশিয়াল নিয়ম অনুযায়ী <strong>{selectedExam.title}</strong> পরীক্ষার লাইভ মেধা তালিকা এবং উত্তরপত্র ফলাফল প্রকাশের নির্দিষ্ট তারিখে উন্মুক্ত হবে।
+                      In accordance with official guidelines, the live leaderboard and answer scripts for <strong>{selectedExam.title}</strong> will be revealed at the scheduled publish time.
                     </p>
                   </div>
                   <div className="inline-block px-5 py-2.5 rounded-2xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-300 font-bold text-xs sm:text-sm">
-                    প্রকাশের সময়: {new Date(selectedExam.resultPublishTime).toLocaleString('en-US', {
+                    Publish Time: {new Date(selectedExam.resultPublishTime).toLocaleString('en-US', {
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric',
@@ -548,10 +548,10 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                     <div>
                       <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white flex items-center gap-2">
                         <Trophy className="w-4 h-4 text-amber-500" />
-                        <span>অফিশিয়াল মেধা তালিকা (Live Leaderboard) • {selectedExam.title}</span>
+                        <span>Official Leaderboard • {selectedExam.title}</span>
                       </h3>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        {leaderboardRows.length} জন পরীক্ষার্থী অংশগ্রহণ করেছে (নম্বর ও সময়ের ভিত্তিতে র‍্যাংক নির্ধারিত)
+                        {leaderboardRows.length} Participants (Ranked by Marks and Duration)
                       </p>
                     </div>
 
@@ -562,7 +562,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs disabled:opacity-40 transition-colors cursor-pointer self-start sm:self-auto"
                     >
                       <Download className="w-3.5 h-3.5" />
-                      <span>মেধা তালিকা PDF ডাউনলোড</span>
+                      <span>Download Leaderboard PDF</span>
                     </button>
                   </div>
 
@@ -571,24 +571,24 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/60 text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                          <th className="py-3 px-4">র‍্যাংক</th>
-                          <th className="py-3 px-4">শিক্ষার্থীর নাম</th>
-                          <th className="py-3 px-4">কলেজ / প্রতিষ্ঠান</th>
-                          <th className="py-3 px-4 text-center">প্রাপ্ত নম্বর</th>
-                          <th className="py-3 px-4 text-center">শতাংশ (%)</th>
-                          <th className="py-3 px-4 text-center">ব্যয়িত সময়</th>
-                          <th className="py-3 px-4 text-center">উত্তর বিভাজন</th>
+                          <th className="py-3 px-4">Rank</th>
+                          <th className="py-3 px-4">Student Name</th>
+                          <th className="py-3 px-4">College / Institution</th>
+                          <th className="py-3 px-4 text-center">Marks</th>
+                          <th className="py-3 px-4 text-center">Score (%)</th>
+                          <th className="py-3 px-4 text-center">Duration</th>
+                          <th className="py-3 px-4 text-center">Breakdown</th>
                           {role === 'admin' && (
-                            <th className="py-3 px-4">সাবমিশন সময়</th>
+                            <th className="py-3 px-4">Submitted At</th>
                           )}
-                          <th className="py-3 px-4 text-right">উত্তরপত্র</th>
+                          <th className="py-3 px-4 text-right">Answer Script</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
                         {filteredLeaderboardRows.length === 0 ? (
                           <tr>
                             <td colSpan={role === 'admin' ? 9 : 8} className="py-12 text-center text-slate-400">
-                              এই পরীক্ষায় এখনো কোনো সাবমিশন পাওয়া যায়নি।
+                              No submissions recorded for this exam yet.
                             </td>
                           </tr>
                         ) : (
@@ -630,7 +630,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                         email: row.studentEmail
                                       })}
                                       className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-md transition-colors cursor-pointer"
-                                      title="শিক্ষার্থীর প্রোফাইল দেখুন"
+                                      title="View Student Profile"
                                     >
                                       <UserCircle className="w-3.5 h-3.5" />
                                     </button>
@@ -651,13 +651,13 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                 </td>
                                 <td className="py-3 px-4 text-center">
                                   <div className="flex items-center justify-center gap-2 text-[11px]">
-                                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold" title="সঠিক">
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold" title="Correct">
                                       ✓{row.correctCount}
                                     </span>
-                                    <span className="text-red-500 font-semibold" title="ভুল">
+                                    <span className="text-red-500 font-semibold" title="Wrong">
                                       ✕{row.wrongCount}
                                     </span>
-                                    <span className="text-slate-400" title="ছেড়ে দেওয়া">
+                                    <span className="text-slate-400" title="Skipped">
                                       –{row.skippedCount}
                                     </span>
                                   </div>
@@ -679,11 +679,11 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-[11px] font-semibold text-blue-600 dark:text-blue-400 transition-colors cursor-pointer"
                                     >
                                       <Eye className="w-3.5 h-3.5" />
-                                      <span>উত্তরপত্র দেখুন</span>
+                                      <span>View Script</span>
                                     </button>
                                   ) : (
                                     <span className="text-[11px] text-slate-400 italic">
-                                      গোপনীয়
+                                      Confidential
                                     </span>
                                   )}
                                 </td>
@@ -717,10 +717,10 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                   <div>
                     <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
                       <Users className="w-5 h-5 text-blue-600" />
-                      <span>শিক্ষার্থীদের কোর্স-ভিত্তিক সারসংক্ষেপ (Student Summary Report)</span>
+                      <span>Student Summary Report</span>
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      কোর্স নির্বাচন করে মেম্বারদের লাইভ, প্র্যাকটিস বা উভয়ের পরীক্ষার রেজাল্ট দেখুন ও একক বা ব্যাচ PDF ডাউনলোড করুন।
+                      Select a course to view member results for live, practice, or both exams and download individual or batch PDF reports.
                     </p>
                   </div>
                 </div>
@@ -729,14 +729,14 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                   {/* Course Dropdown */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                      ১. কোর্স সিলেক্ট করুন (Course Filter)
+                      1. Select Course (Course Filter)
                     </label>
                     <select
                       value={adminCourseFilter}
                       onChange={(e) => setAdminCourseFilter(e.target.value)}
                       className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="all">-- সকল কোর্স (All Enrolled Members) --</option>
+                      <option value="all">-- All Courses (All Enrolled Members) --</option>
                       {courses.map(c => (
                         <option key={c.id} value={c.id}>{c.name} ({c.batch})</option>
                       ))}
@@ -746,7 +746,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                   {/* Search by Name, Email, College */}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                      ২. নাম, ইমেইল বা কলেজ দিয়ে খুঁজুন (Search Student)
+                      2. Search by Name, Email, or College
                     </label>
                     <div className="relative">
                       <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -754,7 +754,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                         type="text"
                         value={adminMemberSearch}
                         onChange={(e) => setAdminMemberSearch(e.target.value)}
-                        placeholder="শিক্ষার্থীর নাম, ইমেইল বা কলেজ লিখুন..."
+                        placeholder="Search student name, email, or college..."
                         className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
@@ -766,7 +766,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xs">
                 <div className="p-4 sm:px-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-50/70 dark:bg-slate-900/60">
                   <div className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                    <span>এনরোল্ড মেম্বার তালিকা ({filteredAdminMembers.length})</span>
+                    <span>Enrolled Members List ({filteredAdminMembers.length})</span>
                     {adminCourseFilter !== 'all' && (
                       <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
                         {courses.find(c => c.id === adminCourseFilter)?.name}
@@ -778,8 +778,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 {filteredAdminMembers.length === 0 ? (
                   <div className="p-12 text-center text-slate-400 space-y-2">
                     <User className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-700" />
-                    <p className="text-sm font-medium">কোনো শিক্ষার্থী পাওয়া যায়নি।</p>
-                    <p className="text-xs text-slate-500">অন্য কোনো কোর্স সিলেক্ট করুন অথবা সার্চ পরিবর্তন করুন।</p>
+                    <p className="text-sm font-medium">No students found.</p>
+                    <p className="text-xs text-slate-500">Select another course or change search query.</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
@@ -825,7 +825,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                   <button
                                     onClick={() => setInspectStudentProfile(member)}
                                     className="p-1 rounded-md text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                                    title="শিক্ষার্থীর পূর্ণাঙ্গ প্রোফাইল দেখুন"
+                                    title="View Student Full Profile"
                                   >
                                     <UserCircle className="w-4 h-4 text-blue-500" />
                                   </button>
@@ -840,7 +840,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                             <div className="flex flex-wrap items-center gap-2.5">
                               {/* Dropdown 1: Enrolled Courses */}
                               <div className="flex items-center gap-1.5">
-                                <span className="text-[11px] font-semibold text-slate-400 hidden sm:inline">কোর্স:</span>
+                                <span className="text-[11px] font-semibold text-slate-400 hidden sm:inline">Course:</span>
                                 <select
                                   value={effectiveCourseId}
                                   onChange={(e) => {
@@ -849,7 +849,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                   }}
                                   className="px-2.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium max-w-[170px]"
                                 >
-                                  <option value="all">সকল কোর্স</option>
+                                  <option value="all">All Courses</option>
                                   {studentEnrolledCourses.map(c => (
                                     <option key={c.id} value={c.id}>{c.name}</option>
                                   ))}
@@ -858,7 +858,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
                               {/* Dropdown 2: Exam Filter (Live / Practice / Both) */}
                               <div className="flex items-center gap-1.5">
-                                <span className="text-[11px] font-semibold text-slate-400 hidden sm:inline">পরীক্ষা:</span>
+                                <span className="text-[11px] font-semibold text-slate-400 hidden sm:inline">Exam:</span>
                                 <select
                                   value={memberExamFilter}
                                   onChange={(e) => {
@@ -867,9 +867,9 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                   }}
                                   className="px-2.5 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-semibold"
                                 >
-                                  <option value="both">Both Exam (লাইভ+প্র্যাকটিস)</option>
-                                  <option value="live">Live exam (লাইভ)</option>
-                                  <option value="practice">Practice exam (প্র্যাকটিস)</option>
+                                  <option value="both">Both Exams (Live + Practice)</option>
+                                  <option value="live">Live Exam Only</option>
+                                  <option value="practice">Practice Exam Only</option>
                                 </select>
                               </div>
 
@@ -884,7 +884,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                 )}
                                 disabled={memberCourseSubs.length === 0}
                                 className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs disabled:opacity-40 transition-colors cursor-pointer"
-                                title="সামারি রিপোর্ট PDF ডাউনলোড করুন"
+                                title="Download Summary Report PDF"
                               >
                                 <Download className="w-3.5 h-3.5" />
                                 <span>PDF</span>
@@ -895,7 +895,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                 onClick={() => setExpandedStudentEmail(isExpanded ? null : member.email)}
                                 className="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center gap-1 transition-colors cursor-pointer"
                               >
-                                <span>{memberCourseSubs.length} সাবমিশন</span>
+                                <span>{memberCourseSubs.length} Submissions</span>
                                 <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                               </button>
                             </div>
@@ -906,7 +906,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                             <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800/80 space-y-2">
                               {memberCourseSubs.length === 0 ? (
                                 <p className="text-xs text-slate-400 italic py-2">
-                                  এই ক্যাটাগরিতে কোনো পরীক্ষার রেকর্ড পাওয়া যায়নি।
+                                  No exam records found in this category.
                                 </p>
                               ) : (
                                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
@@ -950,7 +950,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                             <button
                                               onClick={() => setInspectSubmission({ submission: sub, exam: ex })}
                                               className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 cursor-pointer"
-                                              title="উত্তরপত্র দেখুন"
+                                              title="View Answer Script"
                                             >
                                               <Eye className="w-4 h-4" />
                                             </button>
@@ -995,16 +995,16 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 shrink-0">
-                      ফিল্টার:
+                      Filter:
                     </span>
                     <select
                       value={studentHistoryFilter}
                       onChange={(e) => setStudentHistoryFilter(e.target.value as 'both' | 'live' | 'practice')}
                       className="px-3 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-xs"
                     >
-                      <option value="both">Both Exam (লাইভ + প্র্যাকটিস সব পরীক্ষা)</option>
-                      <option value="live">Live exam (শুধুমাত্র লাইভ পরীক্ষা)</option>
-                      <option value="practice">Practice exam (শুধুমাত্র অনুশীলন পরীক্ষা)</option>
+                      <option value="both">Both Exams (Live + Practice)</option>
+                      <option value="live">Live Exam Only</option>
+                      <option value="practice">Practice Exam Only</option>
                     </select>
                   </div>
 
@@ -1019,7 +1019,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                     className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs disabled:opacity-40 transition-colors cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5" />
-                    <span>সামারি রিপোর্ট PDF ডাউনলোড</span>
+                    <span>Download Summary Report PDF</span>
                   </button>
                 </div>
               </div>
@@ -1028,12 +1028,12 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xs">
                 <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-50/60 dark:bg-slate-900/40">
                   <div className="font-semibold text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                    <span>পরীক্ষার হিস্ট্রি (Exam History)</span>
+                    <span>Exam History</span>
                     <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
-                      {filteredStudentPastSubs.length} টি পরীক্ষা
+                      {filteredStudentPastSubs.length} Exams
                     </span>
                     <span className="text-xs text-slate-400 font-normal">
-                      ({studentHistoryFilter === 'live' ? 'লাইভ পরীক্ষা' : studentHistoryFilter === 'practice' ? 'অনুশীলন পরীক্ষা' : 'সব পরীক্ষা'})
+                      ({studentHistoryFilter === 'live' ? 'Live Exams' : studentHistoryFilter === 'practice' ? 'Practice Exams' : 'All Exams'})
                     </span>
                   </div>
                 </div>
@@ -1043,10 +1043,10 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                     <FileText className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-700" />
                     <p className="text-sm font-medium">
                       {studentHistoryFilter === 'live' 
-                        ? 'আপনার কোনো লাইভ পরীক্ষার রেকর্ড পাওয়া যায়নি।'
+                        ? 'No live exam records found.'
                         : studentHistoryFilter === 'practice'
-                        ? 'আপনার কোনো প্র্যাকটিস পরীক্ষার রেকর্ড পাওয়া যায়নি।'
-                        : 'আপনার কোনো পরীক্ষার রেকর্ড পাওয়া যায়নি।'}
+                        ? 'No practice exam records found.'
+                        : 'No exam records found.'}
                     </p>
                   </div>
                 ) : (
@@ -1069,7 +1069,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                   ? 'bg-rose-100 dark:bg-rose-950 text-rose-600 border border-rose-200 dark:border-rose-900/40' 
                                   : 'bg-blue-100 dark:bg-blue-950 text-blue-600 border border-blue-200 dark:border-blue-900/40'
                               }`}>
-                                {sub.isLive ? 'লাইভ পরীক্ষা (Live)' : 'অনুশীলন পরীক্ষা (Practice)'}
+                                {sub.isLive ? 'Live Exam' : 'Practice Exam'}
                               </span>
                               <span className="text-xs text-slate-400">
                                 {new Date(sub.submittedAt).toLocaleDateString('en-GB')}
@@ -1082,12 +1082,12 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
                           <div className="flex items-center gap-4">
                             <div className="text-right">
-                              <span className="text-xs text-slate-500">প্রাপ্ত নম্বর:</span>
+                              <span className="text-xs text-slate-500">Score:</span>
                               <div className="font-bold text-sm text-blue-600 dark:text-blue-400">
                                 {sub.marksObtained}/{sub.totalMarks} ({sub.percentage.toFixed(1)}%)
                               </div>
                               <span className="text-[10px] text-slate-400 font-mono">
-                                সময়: {mins}মি {secs}সে
+                                Time: {mins}m {secs}s
                               </span>
                             </div>
 
@@ -1095,10 +1095,10 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                               <button
                                 onClick={() => setInspectSubmission({ submission: sub, exam })}
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
-                                title="উত্তরপত্র দেখুন"
+                                title="View Answer Script"
                               >
                                 <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                                <span>উত্তরপত্র</span>
+                                <span>Answer Script</span>
                               </button>
                             )}
                           </div>
@@ -1124,7 +1124,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
               <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
                 <Zap className="w-5 h-5" />
                 <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                  পরীক্ষা পুনরায় লাইভ করুন (Make Exam Live Again)
+                  Make Exam Live Again
                 </h3>
               </div>
               <button
@@ -1138,12 +1138,12 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             {/* Modal Body */}
             <div className="p-6 space-y-4">
               <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
-                <strong>কেন এই অপশন?</strong> যদি কোনো শিক্ষার্থী নির্দিষ্ট সময়ে লাইভ পরীক্ষায় অংশ নিতে না পেরে থাকে বা আপনি পুনরায় লাইভ পরীক্ষা নিতে চান, তাহলে নতুন সময়সীমা দিয়ে পুনরায় লাইভ করুন। পরবর্তীতে যারা এই পরীক্ষা দিবে তাদের ফলাফলও <strong>একই মূল লিডারবোর্ডে</strong> স্বয়ংক্রিয়ভাবে যুক্ত হয়ে যাবে।
+                <strong>Why this option?</strong> If any student missed the exam during the scheduled window or you want to host it again, enter new start and end times to make it live again. Submissions will automatically merge into the <strong>main official leaderboard</strong>.
               </div>
 
               <div>
                 <div className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-                  কুইক প্রিসেট (Quick Presets):
+                  Quick Presets:
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <button
@@ -1151,21 +1151,21 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                     onClick={() => handleApplyPreset(2)}
                     className="py-1.5 px-2 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-blue-50 dark:hover:bg-blue-950 text-slate-700 dark:text-slate-300 transition-colors"
                   >
-                    এখন থেকে ২ ঘণ্টা
+                    2 Hours from Now
                   </button>
                   <button
                     type="button"
                     onClick={() => handleApplyPreset(4)}
                     className="py-1.5 px-2 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-blue-50 dark:hover:bg-blue-950 text-slate-700 dark:text-slate-300 transition-colors"
                   >
-                    এখন থেকে ৪ ঘণ্টা
+                    4 Hours from Now
                   </button>
                   <button
                     type="button"
                     onClick={() => handleApplyPreset(24)}
                     className="py-1.5 px-2 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-blue-50 dark:hover:bg-blue-950 text-slate-700 dark:text-slate-300 transition-colors"
                   >
-                    ২৪ ঘণ্টা লাইভ
+                    24 Hours Live
                   </button>
                 </div>
               </div>
@@ -1173,7 +1173,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
               <div className="space-y-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    ১. লাইভ শুরু হওয়ার সময় (Start Time)
+                    1. Live Start Time
                   </label>
                   <input
                     type="datetime-local"
@@ -1185,7 +1185,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    ২. লাইভ সমাপ্তির সময় (End Time)
+                    2. Live End Time
                   </label>
                   <input
                     type="datetime-local"
@@ -1197,7 +1197,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    ৩. ফলাফল প্রকাশের সময় (Result Publish Date & Time)
+                    3. Result Publish Date & Time
                   </label>
                   <input
                     type="datetime-local"
@@ -1214,7 +1214,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                   onClick={() => setShowReLiveModal(false)}
                   className="px-4 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
-                  বাতিল
+                  Cancel
                 </button>
                 <button
                   type="button"
@@ -1223,11 +1223,11 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                   className="px-5 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-xs transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                 >
                   {isUpdatingLive ? (
-                    <span>সংরক্ষণ হচ্ছে...</span>
+                    <span>Saving...</span>
                   ) : (
                     <>
                       <Zap className="w-3.5 h-3.5" />
-                      <span>সংরক্ষণ করুন ও লাইভ চালু করুন</span>
+                      <span>Save & Make Live</span>
                     </>
                   )}
                 </button>
@@ -1247,7 +1247,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
           onClose={() => setEditingExamData(null)}
           onExamUpdated={(updated) => {
             setEditingExamData(null);
-            toastSuccess(`"${updated.title}" সফলভাবে আপডেট করা হয়েছে`);
+            toastSuccess(`"${updated.title}" updated successfully`);
           }}
         />
       )}
@@ -1274,10 +1274,10 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                  উত্তরপত্র বিশ্লেষণ (Answer Script) • {inspectSubmission.submission.studentName}
+                  Answer Script Analysis • {inspectSubmission.submission.studentName}
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {inspectSubmission.exam.title} • স্কোর: {inspectSubmission.submission.marksObtained}/{inspectSubmission.exam.totalMarks} ({inspectSubmission.submission.percentage.toFixed(1)}%)
+                  {inspectSubmission.exam.title} • Score: {inspectSubmission.submission.marksObtained}/{inspectSubmission.exam.totalMarks} ({inspectSubmission.submission.percentage.toFixed(1)}%)
                 </p>
               </div>
 
@@ -1292,7 +1292,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                   className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer text-slate-700 dark:text-slate-300"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>উত্তরপত্র PDF</span>
+                  <span>Answer Script PDF</span>
                 </button>
                 <button
                   onClick={() => setInspectSubmission(null)}
@@ -1334,7 +1334,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                             : 'bg-red-600 text-white'
                         }`}
                       >
-                        {isCorrect ? 'সঠিক' : isSkipped ? 'ছেড়ে দেওয়া' : 'ভুল'}
+                        {isCorrect ? 'Correct' : isSkipped ? 'Skipped' : 'Wrong'}
                       </span>
                     </div>
 
@@ -1354,8 +1354,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                           <div key={opt.id} className={`p-2 rounded-lg border text-xs ${styleClass}`}>
                             <span className="font-bold mr-1.5">{opt.id})</span>
                             <span>{opt.text}</span>
-                            {isCorrectOption && <span className="text-[10px] ml-1 font-bold text-emerald-700 dark:text-emerald-300">[সঠিক উত্তর]</span>}
-                            {isStudentChoice && !isCorrectOption && <span className="text-[10px] ml-1 font-bold text-red-700 dark:text-red-300">[আপনার পছন্দ]</span>}
+                            {isCorrectOption && <span className="text-[10px] ml-1 font-bold text-emerald-700 dark:text-emerald-300">[Correct Answer]</span>}
+                            {isStudentChoice && !isCorrectOption && <span className="text-[10px] ml-1 font-bold text-red-700 dark:text-red-300">[Your Choice]</span>}
                           </div>
                         );
                       })}
@@ -1363,7 +1363,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
                     {q.explanation && (
                       <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed">
-                        <span className="font-semibold text-slate-800 dark:text-slate-200">ব্যাখ্যা: </span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">Explanation: </span>
                         {q.explanation}
                       </div>
                     )}

@@ -271,10 +271,10 @@ export const AdminManagement: React.FC = () => {
                   />
                   <div>
                     <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
-                      অন্যান্য এডমিন রিমুভ করার ক্ষমতা দিন (Allow to Remove Other Admins)
+                      Allow to Remove Other Admins
                     </span>
                     <span className="text-[11px] text-slate-500 block">
-                      সক্রিয় রাখলে এই এডমিন বাকি এডমিনদের এডমিন পোস্ট থেকে ডিলিট বা রিমুভ করতে পারবেন।
+                      When enabled, this admin can remove other administrators from the system.
                     </span>
                   </div>
                 </label>

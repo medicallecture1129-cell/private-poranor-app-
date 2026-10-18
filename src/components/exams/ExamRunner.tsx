@@ -44,7 +44,7 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
               Admin Cannot Take Student Exams
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-              শুধুমাত্র শিক্ষার্থীরা পরীক্ষা দিতে পারবে। এডমিন অ্যাকাউন্টের স্কোর বা এটেম্পট লিডারবোর্ডে যুক্ত হবে না। আপনি এডমিন প্যানেল থেকে পরীক্ষা এডিট বা মনিটর করতে পারবেন।
+              Only enrolled students can take examination papers. Administrator accounts are excluded from official leaderboards. You can monitor and edit exams from the Admin panel.
             </p>
           </div>
           <button
@@ -269,12 +269,12 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
               Live Exam Paper Submitted Successfully!
             </h3>
             <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-              আপনার উত্তরপত্র ফায়ারবেস ক্লাউডে সফলভাবে সেভ হয়েছে। অফিশিয়াল নিয়ম অনুযায়ী লাইভ পরীক্ষার ফলাফল নির্ধারিত সময়ে প্রকাশিত হবে।
+              Your answer script has been securely saved to Cloud Firestore. Live examination results and rankings will be officially published at the scheduled time.
             </p>
           </div>
 
           <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-xs text-blue-800 dark:text-blue-300">
-            <strong>রেজাল্ট প্রকাশের সময়:</strong> {new Date(exam.resultPublishTime).toLocaleString('bn-BD', { dateStyle: 'full', timeStyle: 'short' })}
+            <strong>Results Publication:</strong> {new Date(exam.resultPublishTime).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' })}
           </div>
 
           <button
@@ -389,7 +389,7 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
             <div className="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/50 text-xs text-blue-900 dark:text-blue-300 flex items-start gap-3">
               <HelpCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
               <div className="leading-relaxed">
-                <strong>নির্দেশনা:</strong> {exam.instructions}
+                <strong>Instructions:</strong> {exam.instructions}
               </div>
             </div>
           )}
@@ -585,11 +585,15 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
 
             <div className="text-xs text-slate-600 dark:text-slate-400 space-y-2">
               <p>
-                আপনি মোট <strong>{answeredCount}</strong> টি প্রশ্নের উত্তর দিয়েছেন।
-                বাকি <strong>{exam.questions.length - answeredCount}</strong> টি প্রশ্নের উত্তর এখনো দেওয়া হয়নি।
+                You have answered <strong>{answeredCount}</strong> questions.
+                {exam.questions.length - answeredCount > 0 ? (
+                  <> Remaining <strong>{exam.questions.length - answeredCount}</strong> questions are not answered yet.</>
+                ) : (
+                  <> All questions have been answered.</>
+                )}
               </p>
               <p className="text-[11px] text-slate-500">
-                একবার সাবমিট করার পর আর পরিবর্তন করা সম্ভব হবে না।
+                Once submitted, you will not be able to modify your answers.
               </p>
             </div>
 

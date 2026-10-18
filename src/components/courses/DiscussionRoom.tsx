@@ -574,7 +574,7 @@ export const DiscussionRoom: React.FC<DiscussionRoomProps> = ({ courseId }) => {
                                 });
                               }}
                               className="p-0.5 text-slate-400 hover:text-blue-500 rounded transition-colors cursor-pointer"
-                              title={role === 'admin' ? "শিক্ষার্থীর তথ্য দেখুন" : "প্রোফাইল কার্ড"}
+                              title={role === 'admin' ? "View Student Details" : "View Profile Card"}
                             >
                               <UserCircle className="w-3.5 h-3.5 text-blue-500/80 hover:text-blue-500" />
                             </button>

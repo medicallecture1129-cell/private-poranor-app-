@@ -15,7 +15,6 @@ export type ThemeColor =
 export interface ThemeOption {
   id: ThemeColor;
   name: string;
-  nameBn: string;
   colorHex: string;
   colorRgb: string;
   bgClass: string;
@@ -26,8 +25,7 @@ export interface ThemeOption {
 export const AVAILABLE_THEMES: ThemeOption[] = [
   { 
     id: 'default', 
-    name: 'Classic Sapphire', 
-    nameBn: 'ক্লাসিক ব্লু', 
+    name: 'Electric Blue', 
     colorHex: '#2563eb', 
     colorRgb: '37, 99, 235', 
     bgClass: 'bg-blue-600',
@@ -37,7 +35,6 @@ export const AVAILABLE_THEMES: ThemeOption[] = [
   { 
     id: 'ocean', 
     name: 'Ocean Cyan', 
-    nameBn: 'সমুদ্র নীল', 
     colorHex: '#06b6d4', 
     colorRgb: '6, 182, 212', 
     bgClass: 'bg-cyan-500',
@@ -46,48 +43,43 @@ export const AVAILABLE_THEMES: ThemeOption[] = [
   },
   { 
     id: 'emerald', 
-    name: 'Medical Mint', 
-    nameBn: 'মেডিকেল মিন্ট', 
-    colorHex: '#059669', 
-    colorRgb: '5, 150, 105', 
+    name: 'Medical Emerald', 
+    colorHex: '#10b981', 
+    colorRgb: '16, 185, 129', 
     bgClass: 'bg-emerald-600',
-    hoverHex: '#047857',
-    glowRgba: 'rgba(5, 150, 105, 0.35)'
+    hoverHex: '#059669',
+    glowRgba: 'rgba(16, 185, 129, 0.35)'
   },
   { 
     id: 'purple', 
-    name: 'Royal Indigo', 
-    nameBn: 'রয়েল পার্পল', 
-    colorHex: '#7c3aed', 
-    colorRgb: '124, 58, 237', 
+    name: 'Royal Purple', 
+    colorHex: '#8b5cf6', 
+    colorRgb: '139, 92, 246', 
     bgClass: 'bg-purple-600',
-    hoverHex: '#6d28d9',
-    glowRgba: 'rgba(124, 58, 237, 0.35)'
+    hoverHex: '#7c3aed',
+    glowRgba: 'rgba(139, 92, 246, 0.35)'
   },
   { 
     id: 'amber', 
     name: 'Warm Amber', 
-    nameBn: 'সূর্যাস্ত সোনালী', 
-    colorHex: '#d97706', 
-    colorRgb: '217, 119, 6', 
+    colorHex: '#f59e0b', 
+    colorRgb: '245, 158, 11', 
     bgClass: 'bg-amber-600',
-    hoverHex: '#b45309',
-    glowRgba: 'rgba(217, 119, 6, 0.35)'
+    hoverHex: '#d97706',
+    glowRgba: 'rgba(245, 158, 11, 0.35)'
   },
   { 
     id: 'crimson', 
     name: 'Rose Crimson', 
-    nameBn: 'গোলাপী রুবি', 
-    colorHex: '#e11d48', 
-    colorRgb: '225, 29, 72', 
+    colorHex: '#f43f5e', 
+    colorRgb: '244, 63, 94', 
     bgClass: 'bg-rose-600',
-    hoverHex: '#be123c',
-    glowRgba: 'rgba(225, 29, 72, 0.35)'
+    hoverHex: '#e11d48',
+    glowRgba: 'rgba(244, 63, 94, 0.35)'
   },
   { 
     id: 'cyberpunk', 
-    name: 'Neon Cyber', 
-    nameBn: 'নিয়ন সাইবার', 
+    name: 'Neon Pink', 
     colorHex: '#ec4899', 
     colorRgb: '236, 72, 153', 
     bgClass: 'bg-pink-600',
@@ -96,23 +88,21 @@ export const AVAILABLE_THEMES: ThemeOption[] = [
   },
   { 
     id: 'midnight', 
-    name: 'Midnight Electric', 
-    nameBn: 'মধ্যরাত ইলেকট্রিক', 
-    colorHex: '#4f46e5', 
-    colorRgb: '79, 70, 229', 
+    name: 'Deep Indigo', 
+    colorHex: '#6366f1', 
+    colorRgb: '99, 102, 241', 
     bgClass: 'bg-indigo-600',
-    hoverHex: '#4338ca',
-    glowRgba: 'rgba(79, 70, 229, 0.38)'
+    hoverHex: '#4f46e5',
+    glowRgba: 'rgba(99, 102, 241, 0.38)'
   },
   { 
     id: 'forest', 
-    name: 'Deep Forest', 
-    nameBn: 'গভীর অরণ্য', 
-    colorHex: '#15803d', 
-    colorRgb: '21, 128, 61', 
-    bgClass: 'bg-green-700',
-    hoverHex: '#166534',
-    glowRgba: 'rgba(21, 128, 61, 0.35)'
+    name: 'Forest Green', 
+    colorHex: '#16a34a', 
+    colorRgb: '22, 163, 74', 
+    bgClass: 'bg-green-600',
+    hoverHex: '#15803d',
+    glowRgba: 'rgba(22, 163, 74, 0.35)'
   },
 ];
 

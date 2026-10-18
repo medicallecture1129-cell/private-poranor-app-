@@ -88,18 +88,22 @@ export const Navbar: React.FC = () => {
     const handlePopState = () => {
       if (showProfileModal) setShowProfileModal(false);
       if (showInstallGuide) setShowInstallGuide(false);
+      if (showThemePicker) setShowThemePicker(false);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [showProfileModal, showInstallGuide]);
+  }, [showProfileModal, showInstallGuide, showThemePicker]);
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full border-b backdrop-blur-md transition-colors bg-white/95 dark:bg-black/95 border-slate-200 dark:border-slate-800">
+      <header className="sticky top-0 z-40 w-full border-b backdrop-blur-md transition-colors bg-white/95 dark:bg-[#080b14]/95 border-slate-200 dark:border-slate-800/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           {/* Left: Logo & App Name */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 dark:bg-blue-600 flex items-center justify-center text-white shadow-sm ring-1 ring-blue-500/20">
+            <div 
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm ring-1 ring-white/10"
+              style={{ backgroundColor: 'var(--theme-primary)' }}
+            >
               <GraduationCap className="w-6 h-6" />
             </div>
             <div className="flex flex-col">
@@ -107,7 +111,7 @@ export const Navbar: React.FC = () => {
                 <span className="font-bold text-lg sm:text-xl tracking-tight text-slate-900 dark:text-white">
                   {settings.portalName || 'Exam Portal'}
                 </span>
-                <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800" title="All data 100% saved in Cloud Firestore">
+                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800" title="All data 100% saved in Cloud Firestore">
                   <Cloud className="w-2.5 h-2.5" />
                   <span>Cloud Sync</span>
                 </span>
@@ -120,12 +124,12 @@ export const Navbar: React.FC = () => {
 
           {/* Right: Controls, Install PWA, & Profile */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Install PWA / Add to Home Screen Button */}
+            {/* Install PWA Button */}
             {!isInstalled ? (
               <button
                 onClick={handleInstallClick}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-                title="Add to Home Screen / Install App"
+                title="Add to Home Screen / Install PWA"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Install App</span>
@@ -138,35 +142,41 @@ export const Navbar: React.FC = () => {
               </span>
             )}
 
-            {/* Palette & Theme Controls */}
+            {/* Dynamic Palette & Theme Controller */}
             <div className="relative">
               <button
                 onClick={() => setShowThemePicker(!showThemePicker)}
                 aria-label="Change Theme Palette"
                 className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all cursor-pointer flex items-center gap-1.5"
-                title="থিম কালার ও ভাইব পরিবর্তন করুন"
+                title="Change Theme Palette & Color"
               >
-                <Palette className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <Palette 
+                  className="w-4 h-4 transition-colors" 
+                  style={{ color: 'var(--theme-primary)' }}
+                />
                 <span 
                   className="w-2.5 h-2.5 rounded-full ring-2 ring-white dark:ring-slate-900 shadow-xs"
                   style={{ backgroundColor: activeThemeOption.colorHex }}
                 />
               </button>
 
-              {/* Quick Theme Picker Popover */}
+              {/* Theme Picker Popover */}
               {showThemePicker && (
                 <>
                   <div 
                     className="fixed inset-0 z-40" 
                     onClick={() => setShowThemePicker(false)} 
                   />
-                  <div className="absolute right-0 mt-2 w-72 p-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 space-y-3.5">
+                  <div className="absolute right-0 mt-2 w-72 p-4 bg-white/98 dark:bg-slate-900/98 backdrop-blur-xl border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 space-y-3.5">
                     <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
                       <div className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        <span className="font-bold text-xs text-slate-900 dark:text-white">থিম ভাইব ও কালার</span>
+                        <Sparkles 
+                          className="w-4 h-4" 
+                          style={{ color: 'var(--theme-primary)' }}
+                        />
+                        <span className="font-bold text-xs text-slate-900 dark:text-white">Theme & Palette</span>
                       </div>
-                      <span className="text-[10px] text-slate-400 font-mono">9 Palettes</span>
+                      <span className="text-[10px] text-slate-400 font-mono">9 Accents</span>
                     </div>
 
                     {/* Dark / Light Mode Switcher */}
@@ -190,7 +200,10 @@ export const Navbar: React.FC = () => {
                             : 'text-slate-400 hover:text-white'
                         }`}
                       >
-                        <Moon className="w-3.5 h-3.5 text-blue-400" />
+                        <Moon 
+                          className="w-3.5 h-3.5" 
+                          style={{ color: 'var(--theme-primary)' }}
+                        />
                         <span>Dark</span>
                       </button>
                     </div>
@@ -217,7 +230,7 @@ export const Navbar: React.FC = () => {
                               style={{ backgroundColor: t.colorHex }}
                             />
                             <span className="truncate max-w-full text-[10px] text-slate-700 dark:text-slate-300">
-                              {t.nameBn}
+                              {t.name}
                             </span>
                           </button>
                         );
@@ -247,17 +260,20 @@ export const Navbar: React.FC = () => {
                     setShowProfileModal(true);
                   }}
                   className="flex items-center gap-2.5 p-1 -m-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors cursor-pointer text-left"
-                  title="আপনার প্রোফাইল ও থিম সেটিংস দেখুন"
+                  title="View Profile & Settings"
                 >
                   <div className="hidden sm:flex flex-col text-right">
                     <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-tight">
                       {user.name}
                     </span>
                     <span className="text-[11px] text-slate-500 dark:text-slate-400 capitalize">
-                      {user.role === 'admin' ? 'এডমিন' : 'শিক্ষার্থী'} {user.college ? `• ${user.college}` : ''}
+                      {user.role === 'admin' ? 'Admin' : 'Student'} {user.college ? `• ${user.college}` : ''}
                     </span>
                   </div>
-                  <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs ring-2 ring-blue-500/30">
+                  <div 
+                    className="w-8 h-8 rounded-full text-white flex items-center justify-center font-bold text-xs ring-2 ring-white/20 shadow-xs"
+                    style={{ backgroundColor: 'var(--theme-primary)' }}
+                  >
                     {user.name ? user.name.slice(0, 1).toUpperCase() : <UserCircle className="w-5 h-5" />}
                   </div>
                 </button>
@@ -274,7 +290,7 @@ export const Navbar: React.FC = () => {
           </div>
         </div>
 
-        {/* Global Real-Time Announcement Banner from Cloud Firestore */}
+        {/* Real-Time Announcement Banner */}
         {settings.showAnnouncement && settings.announcementText && (
           <div className="bg-blue-600/10 dark:bg-blue-950/40 border-t border-blue-200 dark:border-blue-900/50 py-1.5 px-4 text-center">
             <div className="max-w-7xl mx-auto flex items-center justify-center gap-2 text-xs text-blue-700 dark:text-blue-300 font-medium">
@@ -285,13 +301,16 @@ export const Navbar: React.FC = () => {
         )}
       </header>
 
-      {/* Install App / Add to Home Screen Instructions Modal */}
+      {/* Install PWA Instructions Modal */}
       {showInstallGuide && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center">
+                <div 
+                  className="w-8 h-8 rounded-lg text-white flex items-center justify-center shadow-xs"
+                  style={{ backgroundColor: 'var(--theme-primary)' }}
+                >
                   <Download className="w-4 h-4" />
                 </div>
                 <h3 className="font-bold text-slate-900 dark:text-white text-base">
@@ -307,7 +326,7 @@ export const Navbar: React.FC = () => {
             </div>
 
             <div className="space-y-3 text-xs sm:text-sm text-slate-600 dark:text-slate-300">
-              <p>To install this app on your device for full-screen offline access:</p>
+              <p>Install this app on your device for fast, full-screen offline access:</p>
               <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-2 text-xs">
                 <div>
                   <strong className="text-slate-900 dark:text-white">Android (Chrome):</strong>
@@ -315,7 +334,7 @@ export const Navbar: React.FC = () => {
                 </div>
                 <div>
                   <strong className="text-slate-900 dark:text-white">iPhone / iPad (Safari):</strong>
-                  <p className="text-slate-500 dark:text-slate-400">Tap the Share icon &gt; scroll down &gt; "Add to Home Screen".</p>
+                  <p className="text-slate-500 dark:text-slate-400">Tap the Share icon &gt; scroll down &gt; select "Add to Home Screen".</p>
                 </div>
                 <div>
                   <strong className="text-slate-900 dark:text-white">Desktop (Chrome/Edge):</strong>
@@ -326,7 +345,8 @@ export const Navbar: React.FC = () => {
 
             <button
               onClick={() => setShowInstallGuide(false)}
-              className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm transition-colors cursor-pointer"
+              className="w-full py-2.5 rounded-xl text-white font-semibold text-xs sm:text-sm transition-colors cursor-pointer shadow-xs"
+              style={{ backgroundColor: 'var(--theme-primary)' }}
             >
               Got it
             </button>
@@ -334,12 +354,17 @@ export const Navbar: React.FC = () => {
         </div>
       )}
 
-      {/* USER PROFILE & THEME SETTINGS MODAL */}
+      {/* User Profile & Theme Settings Modal */}
       {showProfileModal && user && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
           <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
             {/* Header */}
-            <div className="relative bg-gradient-to-r from-blue-600 via-indigo-600 to-slate-900 p-6 text-white text-center">
+            <div 
+              className="relative p-6 text-white text-center"
+              style={{ 
+                background: `linear-gradient(135deg, var(--theme-primary) 0%, #1e1b4b 100%)` 
+              }}
+            >
               <button
                 onClick={() => setShowProfileModal(false)}
                 className="absolute top-4 right-4 p-1.5 rounded-full bg-black/20 hover:bg-black/40 text-white/80 hover:text-white transition-colors cursor-pointer"
@@ -355,7 +380,7 @@ export const Navbar: React.FC = () => {
                 {user.name}
               </h3>
               <p className="text-xs text-blue-200 mt-1">
-                {user.college || 'College N/A'} • <span className="capitalize">{user.role === 'admin' ? 'অ্যাডমিনিস্ট্রেটর' : 'শিক্ষার্থী'}</span>
+                {user.college || 'Institution N/A'} • <span className="capitalize">{user.role === 'admin' ? 'Administrator' : 'Student'}</span>
               </p>
             </div>
 
@@ -363,13 +388,13 @@ export const Navbar: React.FC = () => {
             <div className="p-6 space-y-5 text-xs sm:text-sm">
               <div className="space-y-2.5">
                 <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">ইমেইল এড্রেস</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Email Address</span>
                   <span className="font-semibold text-slate-900 dark:text-white">{user.email || 'N/A'}</span>
                 </div>
 
                 {user.mobile && (
                   <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-1">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">মোবাইল নম্বর</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Phone Number</span>
                     <span className="font-semibold text-slate-900 dark:text-white">{user.mobile}</span>
                   </div>
                 )}
@@ -379,7 +404,7 @@ export const Navbar: React.FC = () => {
               <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                    ইন্টারফেস থিম (Theme Palette)
+                    Theme & Color Palette
                   </span>
                   <button
                     onClick={toggleTheme}
@@ -390,7 +415,7 @@ export const Navbar: React.FC = () => {
                   </button>
                 </div>
 
-                {/* Color themes (9 distinct options) */}
+                {/* Color themes (9 options) */}
                 <div className="grid grid-cols-3 gap-2">
                   {AVAILABLE_THEMES.map((t) => (
                     <button
@@ -419,14 +444,14 @@ export const Navbar: React.FC = () => {
                   className="px-4 py-2 rounded-xl bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <LogOut className="w-4 h-4" />
-                  <span>লগ আউট</span>
+                  <span>Log Out</span>
                 </button>
 
                 <button
                   onClick={() => setShowProfileModal(false)}
                   className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-black text-white dark:bg-slate-800 dark:hover:bg-slate-700 font-bold text-xs transition-colors cursor-pointer"
                 >
-                  বন্ধ করুন
+                  Close
                 </button>
               </div>
             </div>

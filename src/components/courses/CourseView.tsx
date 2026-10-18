@@ -359,7 +359,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
 
     let finalUrl = resourceUrl.trim();
     if (!finalUrl) {
-      toastError(resourceType === 'video' ? 'ভিডিও লিঙ্ক প্রদান করুন অথবা ফাইল সিলেক্ট করুন' : 'পিডিএফ লিঙ্ক প্রদান করুন অথবা ফাইল সিলেক্ট করুন');
+      toastError(resourceType === 'video' ? 'Please provide a video URL or select a file.' : 'Please provide a PDF URL or select a file.');
       return;
     }
 
@@ -382,8 +382,8 @@ export const CourseView: React.FC<CourseViewProps> = ({
     if (finalUrl.startsWith('data:') && finalUrl.length > 950000) {
       toastError(
         resourceType === 'video'
-          ? 'ভিডিও ফাইলটি সাইজে খুব বড়। অনুগ্রহ করে ভিডিওটি YouTube-এ (Unlisted) বা Google Drive-এ আপলোড করে সেই লিঙ্কটি পেস্ট করুন।'
-          : 'পিডিএফ ফাইলটি সাইজে বড়। অনুগ্রহ করে Google Drive লিঙ্ক পেস্ট করুন।'
+          ? 'The video file is too large for database storage. Please upload the video to YouTube (Unlisted) or Google Drive and paste the link.'
+          : 'The PDF file is too large. Please paste a Google Drive or cloud PDF link.'
       );
       return;
     }
@@ -393,7 +393,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
     if (!finalTitle) {
       if (resourceType === 'video') {
         const ytId = extractYouTubeId(finalUrl);
-        finalTitle = ytId ? `ভিডিও লেকচার ${classVideos.length + 1}` : `ক্লাস লেকচার ${classVideos.length + 1}`;
+        finalTitle = ytId ? `Video Lecture ${classVideos.length + 1}` : `Class Lecture ${classVideos.length + 1}`;
       } else {
         if (resourceCategory === 'lecture') finalTitle = `Lecture Sheet - ${currentClass.title}`;
         else if (resourceCategory === 'practice') finalTitle = `Practice Sheet - ${currentClass.title}`;
@@ -414,14 +414,14 @@ export const CourseView: React.FC<CourseViewProps> = ({
         resourceType === 'pdf' ? resourceCategory : undefined,
         resourceInstructor.trim() || undefined
       );
-      toastSuccess(`${resourceType === 'video' ? 'ভিডিও লেকচার' : 'ক্লাস শিট'} সফলভাবে যুক্ত হয়েছে।`);
+      toastSuccess(`${resourceType === 'video' ? 'Video lecture' : 'Class sheet'} added successfully.`);
       setShowAddResourceModal(false);
       setResourceTitle('');
       setResourceUrl('');
       setSelectedFileName('');
       setUploadMode('link');
     } catch (err: unknown) {
-      toastError(err instanceof Error ? err.message : 'ফাইল আপলোড করতে সমস্যা হয়েছে');
+      toastError(err instanceof Error ? err.message : 'Failed to upload material');
     } finally {
       setIsUploading(false);
     }
@@ -568,142 +568,151 @@ export const CourseView: React.FC<CourseViewProps> = ({
             ))}
           </div>
 
-          {/* VIEW: INSIDE A CLASS (MATCHING SCREENSHOT 1) */}
+          {/* VIEW: INSIDE A CLASS */}
           {currentClass ? (
-            <div className="space-y-6">
-              {/* TOP: VIDEO LECTURE PLAYER (EMBEDDED) */}
-              <div className="rounded-3xl overflow-hidden bg-black border border-slate-800 shadow-xl">
-                {activeVideoResource ? (
-                  <div className="space-y-0">
-                    <ProtectedVideoPlayer
-                      title={activeVideoResource.title}
-                      url={activeVideoResource.url}
-                      isInline={true}
-                    />
+            <div className="space-y-5">
+              {/* BOX 1: VIDEO LECTURE PLAYER (STANDALONE 16px ROUNDED BOX) */}
+              {activeVideoResource ? (
+                <div 
+                  className="overflow-hidden bg-black border border-slate-800 shadow-xl"
+                  style={{ borderRadius: '16px' }}
+                >
+                  <ProtectedVideoPlayer
+                    title={activeVideoResource.title}
+                    url={activeVideoResource.url}
+                    isInline={true}
+                  />
+                </div>
+              ) : (
+                <div 
+                  className="p-10 text-center text-slate-500 dark:text-slate-400 space-y-3 bg-white/80 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 shadow-md backdrop-blur-md"
+                  style={{ borderRadius: '16px' }}
+                >
+                  <Video className="w-10 h-10 mx-auto text-slate-400 dark:text-slate-600" />
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-300">No video lectures added to this class yet.</p>
+                  {role === 'admin' && (
+                    <button
+                      onClick={() => {
+                        setResourceType('video');
+                        setShowAddResourceModal(true);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Add Video Lecture</span>
+                    </button>
+                  )}
+                </div>
+              )}
 
-                    {/* CLASS VIDEO LECTURES LIST (VERTICAL STACK - NO HORIZONTAL SCROLL) */}
-                    <div className="p-4 sm:p-5 bg-white/95 dark:bg-slate-900/90 border-t border-slate-200 dark:border-slate-800 space-y-3">
-                      <div className="flex items-center justify-between pb-1">
-                        <div className="flex items-center gap-2">
-                          <Video className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                          <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white uppercase tracking-wider">
-                            ভিডিও লেকচার তালিকা ({classVideos.length} টি পার্ট)
-                          </h4>
-                        </div>
-                        {role === 'admin' && (
-                          <button
-                            onClick={() => {
-                              setResourceType('video');
-                              setShowAddResourceModal(true);
-                            }}
-                            className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                            <span>Add Video</span>
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Vertically Listed Videos */}
-                      <div className="space-y-2">
-                        {classVideos.map((vid, idx) => {
-                          const isCurrent = (activeVideoId || classVideos[0].id) === vid.id;
-                          return (
-                            <div
-                              key={vid.id}
-                              onClick={() => setActiveVideoId(vid.id)}
-                              className={`group relative p-3 sm:p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                                isCurrent
-                                  ? 'bg-blue-50/90 dark:bg-blue-950/50 border-blue-500 shadow-sm ring-1 ring-blue-500/30'
-                                  : 'bg-slate-50/80 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800'
-                              }`}
-                            >
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div 
-                                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 shadow-xs ${
-                                    isCurrent
-                                      ? 'text-white'
-                                      : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
-                                  }`}
-                                  style={isCurrent ? { backgroundColor: 'var(--theme-primary)' } : undefined}
-                                >
-                                  <Play className={`w-4 h-4 ${isCurrent ? 'fill-current' : ''}`} />
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <span 
-                                      className="text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-md font-mono"
-                                      style={isCurrent ? { backgroundColor: 'var(--theme-primary-light)', color: 'var(--theme-primary)' } : { backgroundColor: 'rgba(148, 163, 184, 0.15)', color: '#64748b' }}
-                                    >
-                                      Part {idx + 1}
-                                    </span>
-                                    {isCurrent && (
-                                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                        <span>এখন চলছে</span>
-                                      </span>
-                                    )}
-                                  </div>
-                                  <h5 className="font-semibold text-xs sm:text-sm text-slate-900 dark:text-white truncate mt-0.5">
-                                    {vid.title}
-                                  </h5>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-2 shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveVideoId(vid.id);
-                                  }}
-                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                    isCurrent
-                                      ? 'text-white shadow-xs'
-                                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
-                                  }`}
-                                  style={isCurrent ? { backgroundColor: 'var(--theme-primary)' } : undefined}
-                                >
-                                  {isCurrent ? 'চলমান' : 'প্লে করুন'}
-                                </button>
-                                {role === 'admin' && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteResource(vid, e);
-                                    }}
-                                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/60 transition-colors cursor-pointer"
-                                    title="Delete Video"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+              {/* BOX 2: CLASS VIDEO PARTS PLAYLIST (SEPARATE STANDALONE 16px ROUNDED BOX) */}
+              {classVideos.length > 0 && (
+                <div 
+                  className="p-4 sm:p-5 bg-white/95 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-md space-y-3"
+                  style={{ borderRadius: '16px' }}
+                >
+                  <div className="flex items-center justify-between pb-1">
+                    <div className="flex items-center gap-2">
+                      <Video className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white uppercase tracking-wider">
+                        Class Video Lectures ({classVideos.length} {classVideos.length === 1 ? 'Part' : 'Parts'})
+                      </h4>
                     </div>
-                  </div>
-                ) : (
-                  <div className="p-12 text-center text-slate-500 dark:text-slate-400 space-y-3 bg-white/80 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-3xl backdrop-blur-md">
-                    <Video className="w-10 h-10 mx-auto text-slate-400 dark:text-slate-600" />
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">এই ক্লাসে এখনো কোনো ভিডিও লেকচার যুক্ত করা হয়নি।</p>
                     {role === 'admin' && (
                       <button
                         onClick={() => {
                           setResourceType('video');
                           setShowAddResourceModal(true);
                         }}
-                        className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
                       >
-                        <Plus className="w-4 h-4" />
-                        <span>ভিডিও লেকচার যুক্ত করুন</span>
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add Video</span>
                       </button>
                     )}
                   </div>
-                )}
-              </div>
+
+                  {/* Vertically Listed Videos */}
+                  <div className="space-y-2">
+                    {classVideos.map((vid, idx) => {
+                      const isCurrent = (activeVideoId || classVideos[0].id) === vid.id;
+                      return (
+                        <div
+                          key={vid.id}
+                          onClick={() => setActiveVideoId(vid.id)}
+                          className={`group relative p-3 sm:p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                            isCurrent
+                              ? 'bg-blue-50/90 dark:bg-blue-950/50 border-blue-500 shadow-sm ring-1 ring-blue-500/30'
+                              : 'bg-slate-50/80 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div 
+                              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 shadow-xs ${
+                                isCurrent
+                                  ? 'text-white'
+                                  : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                              }`}
+                              style={isCurrent ? { backgroundColor: 'var(--theme-primary)' } : undefined}
+                            >
+                              <Play className={`w-4 h-4 ${isCurrent ? 'fill-current' : ''}`} />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span 
+                                  className="text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-md font-mono"
+                                  style={isCurrent ? { backgroundColor: 'var(--theme-primary-light)', color: 'var(--theme-primary)' } : { backgroundColor: 'rgba(148, 163, 184, 0.15)', color: '#64748b' }}
+                                >
+                                  Part {idx + 1}
+                                </span>
+                                {isCurrent && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span>Playing Now</span>
+                                  </span>
+                                )}
+                              </div>
+                              <h5 className="font-semibold text-xs sm:text-sm text-slate-900 dark:text-white truncate mt-0.5">
+                                {vid.title}
+                              </h5>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveVideoId(vid.id);
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                isCurrent
+                                  ? 'text-white shadow-xs'
+                                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                              }`}
+                              style={isCurrent ? { backgroundColor: 'var(--theme-primary)' } : undefined}
+                            >
+                              {isCurrent ? 'Playing' : 'Play'}
+                            </button>
+                            {role === 'admin' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteResource(vid, e);
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/60 transition-colors cursor-pointer"
+                                title="Delete Video"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* TITLE CARD */}
               <div className="bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 text-slate-900 dark:text-white shadow-md backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -802,7 +811,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                 {categoryPdfs.length === 0 ? (
                   <div className="p-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl text-center text-slate-400 space-y-2">
                     <FileText className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-700" />
-                    <p className="text-xs sm:text-sm font-medium">এই ক্যাটাগরিতে এখনো কোনো শিট আপলোড করা হয়নি।</p>
+                    <p className="text-xs sm:text-sm font-medium">No sheets uploaded in this category yet.</p>
                     {role === 'admin' && (
                       <button
                         onClick={() => {
@@ -812,7 +821,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                         }}
                         className="mt-1 text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer"
                       >
-                        + এই ক্যাটাগরিতে PDF যুক্ত করুন
+                        + Add PDF in this category
                       </button>
                     )}
                   </div>
@@ -822,7 +831,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                     {categoryPdfs.length > 1 && (
                       <div className="flex items-center gap-2 overflow-x-auto pb-1">
                         <span className="text-[11px] font-bold text-slate-400 shrink-0 uppercase tracking-wider">
-                          উপলব্ধ শিট:
+                          Available Sheets:
                         </span>
                         {categoryPdfs.map((pdf) => (
                           <button
@@ -957,7 +966,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                               {folder.name}
                             </h4>
                             <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                              ফোল্ডার • ব্রাউজ করতে ট্যাপ করুন
+                              Folder • Tap to browse
                             </span>
                           </div>
                         </div>
@@ -1001,11 +1010,11 @@ export const CourseView: React.FC<CourseViewProps> = ({
                     <div className="bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-3xl p-12 text-center text-slate-500 dark:text-slate-400 space-y-3 backdrop-blur-md">
                       <GraduationCap className="w-12 h-12 mx-auto text-blue-600 dark:text-blue-400 opacity-80" />
                       <div>
-                        <p className="text-base font-bold text-slate-900 dark:text-white">এখনো কোনো ফোল্ডার বা ক্লাস তৈরি করা হয়নি</p>
+                        <p className="text-base font-bold text-slate-900 dark:text-white">No folders or classes created yet</p>
                         {role === 'admin' ? (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">ভিডিও লেকচার ও ক্লাস শিট আপলোড করতে প্রথমে একটি ক্লাস তৈরি করুন।</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Create a class to start adding video lectures and class sheets.</p>
                         ) : (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">শিক্ষক শীঘ্রই এই কোর্সে ক্লাস ও লেকচার ভিডিও যুক্ত করবেন।</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">The instructor will add classes and lecture videos soon.</p>
                         )}
                       </div>
                       {role === 'admin' && (
@@ -1015,7 +1024,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                             className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs inline-flex items-center gap-2 cursor-pointer shadow-md transition-all"
                           >
                             <Plus className="w-4 h-4" />
-                            <span>ক্লাস তৈরি করুন ও ভিডিও দিন</span>
+                            <span>Create Class & Add Content</span>
                           </button>
                         </div>
                       )}
@@ -1042,7 +1051,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                               {cClass.title}
                             </h4>
                             <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                              by {cClass.instructor || 'Dr Tofael Ahmed'} • <span className="font-semibold text-blue-600 dark:text-blue-400">প্রবেশ করুন</span> <ChevronRight className="w-3 h-3 text-blue-500 group-hover:translate-x-1 transition-transform" />
+                              by {cClass.instructor || 'Dr Tofael Ahmed'} • <span className="font-semibold text-blue-600 dark:text-blue-400">Enter Class</span> <ChevronRight className="w-3 h-3 text-blue-500 group-hover:translate-x-1 transition-transform" />
                             </span>
                           </div>
                         </div>
@@ -1151,7 +1160,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                   autoFocus
                   value={newClassTitle}
                   onChange={(e) => setNewClassTitle(e.target.value)}
-                  placeholder="e.g. Introduction to animal (প্রাণীর পরিচিতি) - 01"
+                  placeholder="e.g. Introduction to Biology - Class 01"
                   className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -1326,17 +1335,17 @@ export const CourseView: React.FC<CourseViewProps> = ({
               {resourceType === 'pdf' && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                    পিডিএফ ক্যাটাগরি (Material Category)
+                    Material Category
                   </label>
                   <select
                     value={resourceCategory}
                     onChange={(e) => setResourceCategory(e.target.value as PdfCategory)}
                     className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
                   >
-                    <option value="lecture">📖 Lecture Sheet (লেকচার শিট)</option>
-                    <option value="practice">📝 Practice Sheet (অনুশীলন শিট)</option>
-                    <option value="solution">📄 Solution Sheet (সমাধান শিট)</option>
-                    <option value="marked_book">📕 Marked Book (দাগানো বই)</option>
+                    <option value="lecture">📖 Lecture Sheet</option>
+                    <option value="practice">📝 Practice Sheet</option>
+                    <option value="solution">📄 Solution Sheet</option>
+                    <option value="marked_book">📕 Marked Book</option>
                   </select>
                 </div>
               )}
@@ -1345,7 +1354,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-                    নাম / শিরোনাম (ঐচ্ছিক - খালি রাখলে স্বয়ংক্রিয় নাম হবে)
+                    Title / Label
                   </label>
                   <span className="text-[10px] text-slate-400 font-medium">Optional</span>
                 </div>
@@ -1353,7 +1362,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                   type="text"
                   value={resourceTitle}
                   onChange={(e) => setResourceTitle(e.target.value)}
-                  placeholder={resourceType === 'video' ? 'খালি রাখলে "ভিডিও লেকচার ১" ইত্যাদি হবে' : 'খালি রাখলে ক্যাটাগরি অনুযায়ী নাম তৈরি হবে'}
+                  placeholder={resourceType === 'video' ? 'Leave blank for auto-numbering (e.g. Video Lecture 1)' : 'Leave blank for default category title'}
                   className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -1361,7 +1370,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
               {/* Upload Source: Link or Device File */}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
-                  আপলোড মাধ্যম (Upload Source)
+                  Upload Source
                 </label>
                 <div className="grid grid-cols-2 gap-2 mb-2">
                   <button
@@ -1373,7 +1382,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                         : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
                     }`}
                   >
-                    <span>🔗 লিঙ্ক পেস্ট করুন</span>
+                    <span>🔗 Paste Link</span>
                   </button>
                   <button
                     type="button"
@@ -1384,7 +1393,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                         : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
                     }`}
                   >
-                    <span>📁 ফাইল সিলেক্ট করুন</span>
+                    <span>📁 Select File</span>
                   </button>
                 </div>
 
@@ -1392,7 +1401,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                        {resourceType === 'video' ? 'YouTube / Google Drive লিঙ্ক' : 'PDF লিঙ্ক'}
+                        {resourceType === 'video' ? 'YouTube / Google Drive Link' : 'PDF Link'}
                       </span>
                       <button
                         type="button"
@@ -1406,7 +1415,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                         }}
                         className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
                       >
-                        ক্লিপবোর্ড থেকে পেস্ট করুন
+                        Paste from clipboard
                       </button>
                     </div>
 
@@ -1417,8 +1426,8 @@ export const CourseView: React.FC<CourseViewProps> = ({
                       onChange={(e) => setResourceUrl(e.target.value)}
                       placeholder={
                         resourceType === 'video'
-                          ? 'YouTube লিঙ্ক (watch/youtu.be/shorts) বা Google Drive লিঙ্ক পেস্ট করুন'
-                          : 'Google Drive বা অনলাইন PDF লিঙ্ক পেস্ট করুন'
+                          ? 'Paste YouTube link (watch/youtu.be/shorts) or Google Drive link'
+                          : 'Paste Google Drive or direct PDF link'
                       }
                       className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -1439,7 +1448,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                         <div className="min-w-0">
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
                             <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>YouTube ভিডিও পাওয়া গেছে!</span>
+                            <span>YouTube Video Detected!</span>
                           </span>
                           <span className="block text-xs font-mono text-slate-600 dark:text-slate-400 truncate mt-0.5">
                             ID: {extractYouTubeId(resourceUrl)}
@@ -1449,7 +1458,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                     )}
 
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      YouTube (watch, youtu.be, shorts, embed, live), Google Drive বা MP4 লিংক সমর্থন করে।
+                      Supports YouTube (watch, youtu.be, shorts, embed), Google Drive, or MP4 URLs.
                     </p>
                   </div>
                 ) : (
@@ -1462,18 +1471,18 @@ export const CourseView: React.FC<CourseViewProps> = ({
                         className="hidden"
                       />
                       <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
-                        {selectedFileName ? selectedFileName : (resourceType === 'video' ? 'ডিভাইস থেকে ভিডিও ফাইল সিলেক্ট করুন' : 'ডিভাইস থেকে পিডিএফ ফাইল সিলেক্ট করুন')}
+                        {selectedFileName ? selectedFileName : (resourceType === 'video' ? 'Select video file from device' : 'Select PDF file from device')}
                       </span>
                       <span className="text-[10px] text-slate-500 mt-0.5">
-                        {resourceType === 'video' ? 'MP4, WebM, MOV সাপোর্টেড' : 'PDF ফাইল সাপোর্টেড'}
+                        {resourceType === 'video' ? 'MP4, WebM, MOV supported' : 'PDF file supported'}
                       </span>
                     </label>
 
                     {resourceType === 'video' && (
                       <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-[11px] text-amber-800 dark:text-amber-300 space-y-1">
-                        <p className="font-bold">💡 সবচেয়ে ভালো উপায় (Recommended):</p>
+                        <p className="font-bold">💡 Recommended for large videos:</p>
                         <p className="text-amber-700 dark:text-amber-400">
-                          বড় ভিডিও ফাইলের জন্য ভিডিওটি আপনার YouTube চ্যানেলে <b>Unlisted</b> করে আপলোড করুন এবং লিঙ্কটি দিন। এতে স্টুডেন্টরা নিরবচ্ছিন্নভাবে হাই-স্পিডে দেখতে পারবে।
+                          For high-speed, buffer-free playback, upload large video files to YouTube as <b>Unlisted</b> and paste the link.
                         </p>
                       </div>
                     )}
@@ -1500,7 +1509,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                   className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5"
                 >
                   {isUploading && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                  <span>{isUploading ? 'যুক্ত হচ্ছে...' : 'আপলোড করুন'}</span>
+                  <span>{isUploading ? 'Uploading...' : 'Upload Material'}</span>
                 </button>
               </div>
             </form>

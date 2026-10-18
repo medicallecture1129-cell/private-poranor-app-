@@ -21,7 +21,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
   // If no courses exist, provide fallback general course
   const defaultCourseList = courses.length > 0 
     ? courses 
-    : [{ id: 'general', name: 'General Batch (সকল ব্যাচ)', batch: 'All Students', allowedEmails: [], createdAt: Date.now() }];
+    : [{ id: 'general', name: 'General Batch (All Students)', batch: 'All Students', allowedEmails: [], createdAt: Date.now() }];
 
   const [selectedCourseId, setSelectedCourseId] = useState(defaultCourseList[0]?.id || 'general');
   const [title, setTitle] = useState('');
@@ -146,7 +146,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
     setErrorNotice(null);
 
     if (!title.trim()) {
-      const msg = 'Please provide an exam title (পরীক্ষার নাম লিখুন).';
+      const msg = 'Please enter an exam title.';
       setErrorNotice(msg);
       toastError(msg);
       return;
@@ -180,7 +180,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
     }
 
     if (readyQuestions.length === 0) {
-      const msg = 'অনুগ্রহ করে কমপক্ষে ১টি প্রশ্ন যোগ করুন। প্রশ্ন ও অপশন লিখে "+ Add Question to Exam" বাটনে ক্লিক করুন।';
+      const msg = 'Please add at least 1 question. Type question and options, then click "+ Add Question to Exam".';
       setErrorNotice(msg);
       toastError(msg);
       return;
@@ -193,7 +193,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
     const pubMs = new Date(publishTimeInput).getTime();
 
     if (endMs <= startMs) {
-      const msg = 'End time must be after Start time (পরীক্ষা শেষের সময় শুরুর সময়ের পরে হতে হবে)।';
+      const msg = 'End time must be after Start time.';
       setErrorNotice(msg);
       toastError(msg);
       return;
@@ -475,7 +475,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                     rows={currQText.includes('\n') ? 3 : 2}
                     value={currQText}
                     onChange={(e) => setCurrQText(e.target.value)}
-                    placeholder="Enter question text (বা এখানে একাধিক প্রশ্ন পেস্ট করলেও অটো-ডিটেক্ট হবে)..."
+                    placeholder="Enter question text (or paste multiple questions here for auto-detection)..."
                     className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
@@ -484,14 +484,14 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                 {currQText.includes('\n') && parseBulkMCQText(currQText).length > 1 && (
                   <div className="p-3 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 animate-in fade-in">
                     <div className="text-xs text-blue-900 dark:text-blue-300">
-                      ⚡ <strong>{parseBulkMCQText(currQText).length} টি প্রশ্ন পাওয়া গেছে!</strong> আপনি কি এক ক্লিকে সবগুলো আলাদা প্রশ্ন হিসেবে যোগ করতে চান?
+                      ⚡ <strong>{parseBulkMCQText(currQText).length} questions detected!</strong> Would you like to import them all at once?
                     </div>
                     <button
                       type="button"
                       onClick={() => {
                         const parsed = parseBulkMCQText(currQText);
                         setQuestions(prev => [...prev, ...parsed]);
-                        toastSuccess(`${parsed.length}টি প্রশ্ন একসাথে সফলভাবে যুক্ত হয়েছে!`);
+                        toastSuccess(`${parsed.length} questions imported successfully!`);
                         setCurrQText('');
                         setOptA('');
                         setOptB('');
@@ -501,7 +501,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                       }}
                       className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shrink-0 cursor-pointer shadow-xs"
                     >
-                      সব {parseBulkMCQText(currQText).length}টি প্রশ্ন অ্যাড করুন
+                      Add all {parseBulkMCQText(currQText).length} questions
                     </button>
                   </div>
                 )}
@@ -596,30 +596,30 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
               <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Paste Raw MCQs (Word / PDF / বাংলা বা ইংরেজি টেক্সট)
+                    Paste Raw MCQs (Word / PDF / Plain text)
                   </span>
                   <button
                     type="button"
                     onClick={() => {
-                      setBulkText(`১. মানবদেহে ক্রোমোজোম সংখ্যা কতটি?
-ক) ৪৪টি
-খ) ৪৬টি
-গ) ৪৮টি
-ঘ) ৫০টি
-উত্তর: খ
-ব্যাখ্যা: মানবদেহে ২৩ জোড়া বা ৪৬টি ক্রোমোজোম থাকে।
+                      setBulkText(`1. What is the number of chromosomes in humans?
+A) 44
+B) 46
+C) 48
+D) 50
+Ans: B
+Explanation: Humans have 23 pairs or 46 chromosomes in somatic cells.
 
-২. নিচের কোনটি আলোর বেগ নির্দেশ করে?
+2. What is the speed of light in vacuum?
 A) 3 x 10^8 m/s
 B) 3 x 10^6 m/s
 C) 3 x 10^4 m/s
 D) 3 x 10^2 m/s
 Ans: A
-ব্যাখ্যা: শূন্য মাধ্যমে আলোর বেগ প্রায় ৩ লক্ষ কিমি/সেকেন্ড।`);
+Explanation: The speed of light in vacuum is approximately 300,000 km/s.`);
                     }}
                     className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
                   >
-                    নমুনা বাংলা প্রশ্ন লোড করুন
+                    Load Sample Questions
                   </button>
                 </div>
 

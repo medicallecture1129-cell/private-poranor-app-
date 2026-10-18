@@ -5,13 +5,13 @@ import { getAnalytics, isSupported } from 'firebase/analytics';
 
 // Web app's Firebase configuration provided by the user
 export const firebaseConfig = {
-  apiKey: "AIzaSyDy1IFOYcPma4VFSguPMQ3P8gJHOS27niE",
-  authDomain: "examportalonline-cb0a0.firebaseapp.com",
-  projectId: "examportalonline-cb0a0",
-  storageBucket: "examportalonline-cb0a0.firebasestorage.app",
-  messagingSenderId: "991705340498",
-  appId: "1:991705340498:web:abc98a9e4f2c3914611d8b",
-  measurementId: "G-PVHS1KESXW"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDy1IFOYcPma4VFSguPMQ3P8gJHOS27niE",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "examportalonline-cb0a0.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "examportalonline-cb0a0",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "examportalonline-cb0a0.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "991705340498",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:991705340498:web:abc98a9e4f2c3914611d8b",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-PVHS1KESXW"
 };
 
 // Initialize Firebase App
