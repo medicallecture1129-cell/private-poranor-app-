@@ -3,16 +3,15 @@ import {
   computeThemeVariables, 
   ComputedTheme, 
   CustomColors, 
-  DEFAULT_CUSTOM_COLORS 
+  DEFAULT_CUSTOM_COLORS,
+  normalizeHex 
 } from '../utils/themeColors';
 
-export type ThemePreference = 'light' | 'dark' | 'system';
 export type { CustomColors };
 
 interface ThemeContextType {
-  theme: 'light' | 'dark'; // Effective active theme
-  preference: ThemePreference;
-  isDarkMode: boolean;
+  theme: 'dark';
+  isDarkMode: true;
   customColors: CustomColors;
   computedTheme: ComputedTheme;
   setCustomColor: (key: keyof CustomColors, value: string) => void;
@@ -21,99 +20,75 @@ interface ThemeContextType {
   // Backwards-compatible aliases
   baseColor: string;
   setBaseColor: (hex: string) => void;
-  setThemePreference: (pref: ThemePreference) => void;
-  toggleTheme: () => void;
+  preference?: 'dark';
+  setThemePreference?: (pref: any) => void;
+  toggleTheme?: () => void;
 }
 
-const defaultComputed = computeThemeVariables(DEFAULT_CUSTOM_COLORS, true);
+const defaultComputed = computeThemeVariables(DEFAULT_CUSTOM_COLORS);
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: 'dark',
-  preference: 'dark',
   isDarkMode: true,
   customColors: DEFAULT_CUSTOM_COLORS,
   computedTheme: defaultComputed,
   setCustomColor: () => {},
   setAllCustomColors: () => {},
   resetCustomColors: () => {},
-  baseColor: DEFAULT_CUSTOM_COLORS.buttonColor,
+  baseColor: DEFAULT_CUSTOM_COLORS.primaryColor,
   setBaseColor: () => {},
+  preference: 'dark',
   setThemePreference: () => {},
   toggleTheme: () => {}
 });
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [preference, setPreference] = useState<ThemePreference>(() => {
-    try {
-      const saved = localStorage.getItem('examportal_theme_preference') as ThemePreference | null;
-      if (saved === 'light' || saved === 'dark' || saved === 'system') {
-        return saved;
-      }
-    } catch {}
-    return 'dark';
-  });
-
   const [customColors, setCustomColorsState] = useState<CustomColors>(() => {
     try {
       const saved = localStorage.getItem('examportal_custom_colors');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.bgColor && parsed.fgColor && parsed.buttonColor && parsed.logoColor) {
-          return parsed;
+        if (parsed.bgColor && parsed.fgColor) {
+          const primary = normalizeHex(parsed.primaryColor || parsed.buttonColor || parsed.logoColor || DEFAULT_CUSTOM_COLORS.primaryColor);
+          return {
+            bgColor: normalizeHex(parsed.bgColor, DEFAULT_CUSTOM_COLORS.bgColor),
+            fgColor: normalizeHex(parsed.fgColor, DEFAULT_CUSTOM_COLORS.fgColor),
+            primaryColor: primary,
+            buttonColor: primary,
+            logoColor: primary
+          };
         }
       }
       // Migrate from old base color if present
       const oldBase = localStorage.getItem('examportal_base_color');
       if (oldBase && /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(oldBase)) {
+        const norm = normalizeHex(oldBase);
         return {
           ...DEFAULT_CUSTOM_COLORS,
-          buttonColor: oldBase,
-          logoColor: oldBase
+          primaryColor: norm,
+          buttonColor: norm,
+          logoColor: norm
         };
       }
     } catch {}
     return DEFAULT_CUSTOM_COLORS;
   });
 
-  const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>('dark');
-
-  // Compute theme variables from the 4 custom color settings
+  // Compute theme variables from custom colors (strictly dark mode)
   const computedTheme = useMemo(() => {
-    return computeThemeVariables(customColors, effectiveTheme === 'dark');
-  }, [customColors, effectiveTheme]);
+    return computeThemeVariables(customColors);
+  }, [customColors]);
 
-  // System appearance handler
-  useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-
-    const resolveThemeMode = () => {
-      if (preference === 'system') {
-        return mediaQuery.matches ? 'dark' : 'light';
-      }
-      return preference;
-    };
-
-    const activeTheme = resolveThemeMode();
-    setEffectiveTheme(activeTheme);
-  }, [preference]);
-
-  // Apply CSS Variables to root & body
+  // Ensure DOM is permanently in Dark Mode
   useEffect(() => {
     const root = document.documentElement;
-    const isDark = effectiveTheme === 'dark';
+    root.classList.add('dark');
+    root.classList.remove('light');
+    root.setAttribute('data-theme', 'dark');
 
-    if (isDark) {
-      root.classList.add('dark');
-      root.classList.remove('light');
+    if (document.body) {
       document.body.classList.add('dark');
       document.body.classList.remove('light');
-      root.setAttribute('data-theme', 'dark');
-    } else {
-      root.classList.remove('dark');
-      root.classList.add('light');
-      document.body.classList.remove('dark');
-      document.body.classList.add('light');
-      root.setAttribute('data-theme', 'light');
     }
 
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
@@ -141,7 +116,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       el.style.setProperty('--theme-border-card', computedTheme.borderCard);
       el.style.setProperty('--theme-border-strong', computedTheme.borderStrong);
 
-      // 5. Button
+      // 5. Button & Logo (Unified Primary)
       el.style.setProperty('--theme-primary', computedTheme.primary);
       el.style.setProperty('--theme-primary-hover', computedTheme.primaryHover);
       el.style.setProperty('--theme-primary-rgb', computedTheme.primaryRgb);
@@ -150,13 +125,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       el.style.setProperty('--theme-primary-border', computedTheme.primaryBorder);
       el.style.setProperty('--theme-primary-glow', computedTheme.primaryGlow);
 
-      // 6. Logo
+      // Logo uses the same unified color
       el.style.setProperty('--theme-logo', computedTheme.logoColor);
       el.style.setProperty('--theme-logo-hover', computedTheme.logoHover);
       el.style.setProperty('--theme-logo-rgb', computedTheme.logoRgb);
       el.style.setProperty('--theme-logo-glow', computedTheme.logoGlow);
 
-      // 7. Text
+      // 6. Text
       el.style.setProperty('--theme-text-title', computedTheme.textTitle);
       el.style.setProperty('--theme-text-body', computedTheme.textBody);
       el.style.setProperty('--theme-text-muted', computedTheme.textMuted);
@@ -169,23 +144,39 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Persist in localStorage
     try {
-      localStorage.setItem('examportal_theme_preference', preference);
-      localStorage.setItem('examportal_theme', effectiveTheme);
       localStorage.setItem('examportal_custom_colors', JSON.stringify(customColors));
-      localStorage.setItem('examportal_base_color', customColors.buttonColor);
+      localStorage.setItem('examportal_base_color', customColors.primaryColor);
     } catch {}
-  }, [computedTheme, effectiveTheme, preference, customColors]);
+  }, [computedTheme, customColors]);
 
   const setCustomColor = (key: keyof CustomColors, value: string) => {
     if (!value) return;
-    setCustomColorsState(prev => ({
-      ...prev,
-      [key]: value
-    }));
+    const normalized = normalizeHex(value);
+    setCustomColorsState(prev => {
+      if (key === 'primaryColor' || key === 'buttonColor' || key === 'logoColor') {
+        return {
+          ...prev,
+          primaryColor: normalized,
+          buttonColor: normalized,
+          logoColor: normalized
+        };
+      }
+      return {
+        ...prev,
+        [key]: normalized
+      };
+    });
   };
 
   const setAllCustomColors = (colors: CustomColors) => {
-    setCustomColorsState(colors);
+    const primary = normalizeHex(colors.primaryColor || colors.buttonColor || colors.logoColor);
+    setCustomColorsState({
+      bgColor: normalizeHex(colors.bgColor, DEFAULT_CUSTOM_COLORS.bgColor),
+      fgColor: normalizeHex(colors.fgColor, DEFAULT_CUSTOM_COLORS.fgColor),
+      primaryColor: primary,
+      buttonColor: primary,
+      logoColor: primary
+    });
   };
 
   const resetCustomColors = () => {
@@ -193,32 +184,24 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const setBaseColor = (hex: string) => {
-    setCustomColor('buttonColor', hex);
-  };
-
-  const setThemePreference = (pref: ThemePreference) => {
-    setPreference(pref);
-  };
-
-  const toggleTheme = () => {
-    setPreference(prev => (prev === 'dark' ? 'light' : 'dark'));
+    setCustomColor('primaryColor', hex);
   };
 
   return (
     <ThemeContext.Provider
       value={{
-        theme: effectiveTheme,
-        preference,
-        isDarkMode: effectiveTheme === 'dark',
+        theme: 'dark',
+        isDarkMode: true,
         customColors,
         computedTheme,
         setCustomColor,
         setAllCustomColors,
         resetCustomColors,
-        baseColor: customColors.buttonColor,
+        baseColor: customColors.primaryColor,
         setBaseColor,
-        setThemePreference,
-        toggleTheme
+        preference: 'dark',
+        setThemePreference: () => {},
+        toggleTheme: () => {}
       }}
     >
       {children}

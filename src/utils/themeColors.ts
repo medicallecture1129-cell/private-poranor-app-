@@ -1,11 +1,10 @@
 /**
- * Custom Color Management Engine (Zero Presets)
+ * Custom Color Management Engine
  * 
- * Allows setting:
+ * 3 Unified Color Controls:
  * 1. Background Color (মেইন ব্যাকগ্রাউন্ড কালার)
  * 2. Foreground Color (ফোরগ্রাউন্ড / কার্ড কালার)
- * 3. Button Color (বাটন কালার)
- * 4. Logo Color (লোগো কালার)
+ * 3. Button & Logo Color (বাটন ও লোগো কালার — ১টি সমন্বিত কালার পিকার)
  */
 
 export interface ColorHSL {
@@ -20,13 +19,21 @@ export interface ColorRGB {
   b: number;
 }
 
-export function hexToRgb(hex: string): ColorRGB {
-  let cleanHex = hex.replace('#', '').trim();
-  if (cleanHex.length === 3) {
-    cleanHex = cleanHex.split('').map(c => c + c).join('');
+export function normalizeHex(hex: string | undefined | null, fallback: string = '#2563eb'): string {
+  if (!hex || typeof hex !== 'string') return fallback;
+  let clean = hex.trim();
+  if (!clean.startsWith('#')) clean = '#' + clean;
+  if (/^#[0-9A-Fa-f]{6}$/.test(clean)) return clean.toLowerCase();
+  if (/^#[0-9A-Fa-f]{3}$/.test(clean)) {
+    return (`#${clean[1]}${clean[1]}${clean[2]}${clean[2]}${clean[3]}${clean[3]}`).toLowerCase();
   }
+  return fallback;
+}
+
+export function hexToRgb(hex: string): ColorRGB {
+  const cleanHex = normalizeHex(hex, '#2563eb').replace('#', '');
   const num = parseInt(cleanHex, 16);
-  if (isNaN(num) || cleanHex.length !== 6) {
+  if (isNaN(num)) {
     return { r: 37, g: 99, b: 235 };
   }
   return {
@@ -102,21 +109,23 @@ export function hslToHex(h: number, s: number, l: number): string {
 }
 
 export interface CustomColors {
-  bgColor: string;     // Background Color (Default: #090e18)
-  fgColor: string;     // Foreground / Card Color (Default: #132035)
-  buttonColor: string; // Button Color (Default: #2563eb)
-  logoColor: string;   // Logo Color (Default: #2563eb)
+  bgColor: string;      // Background Color (Default: #090e18)
+  fgColor: string;      // Foreground / Card Color (Default: #132035)
+  primaryColor: string; // Unified Button & Logo Color (Default: #2563eb)
+  buttonColor?: string; // Compatibility alias
+  logoColor?: string;   // Compatibility alias
 }
 
 export const DEFAULT_CUSTOM_COLORS: CustomColors = {
   bgColor: '#090e18',
   fgColor: '#132035',
+  primaryColor: '#2563eb',
   buttonColor: '#2563eb',
   logoColor: '#2563eb'
 };
 
 export interface ComputedTheme {
-  isDark: boolean;
+  isDark: true;
   // 1. Backgrounds
   bgMain: string;
   bgMainRgb: string;
@@ -129,7 +138,7 @@ export interface ComputedTheme {
   borderColor: string;
   borderCard: string;
   borderStrong: string;
-  // 3. Button
+  // 3. Button & Logo (Unified Primary)
   primary: string;
   primaryHover: string;
   primaryRgb: string;
@@ -137,68 +146,74 @@ export interface ComputedTheme {
   primaryLight: string;
   primaryBorder: string;
   primaryGlow: string;
-  // 4. Logo
   logoColor: string;
   logoHover: string;
   logoRgb: string;
   logoGlow: string;
-  // 5. Typography
+  // 4. Typography
   textTitle: string;
   textBody: string;
   textMuted: string;
 }
 
-export function computeThemeVariables(colors: CustomColors, isDark: boolean = true): ComputedTheme {
-  const bgRgb = hexToRgb(colors.bgColor || DEFAULT_CUSTOM_COLORS.bgColor);
-  const fgRgb = hexToRgb(colors.fgColor || DEFAULT_CUSTOM_COLORS.fgColor);
-  const btnRgb = hexToRgb(colors.buttonColor || DEFAULT_CUSTOM_COLORS.buttonColor);
-  const logoRgb = hexToRgb(colors.logoColor || DEFAULT_CUSTOM_COLORS.logoColor);
+export function computeThemeVariables(colors: CustomColors): ComputedTheme {
+  const normBg = normalizeHex(colors.bgColor, DEFAULT_CUSTOM_COLORS.bgColor);
+  const normFg = normalizeHex(colors.fgColor, DEFAULT_CUSTOM_COLORS.fgColor);
+  const normPrimary = normalizeHex(
+    colors.primaryColor || colors.buttonColor || colors.logoColor, 
+    DEFAULT_CUSTOM_COLORS.primaryColor
+  );
 
-  const btnHsl = rgbToHsl(btnRgb.r, btnRgb.g, btnRgb.b);
+  const bgRgb = hexToRgb(normBg);
+  const fgRgb = hexToRgb(normFg);
+  const primaryRgb = hexToRgb(normPrimary);
+
+  const primaryHsl = rgbToHsl(primaryRgb.r, primaryRgb.g, primaryRgb.b);
   const fgHsl = rgbToHsl(fgRgb.r, fgRgb.g, fgRgb.b);
-  const logoHsl = rgbToHsl(logoRgb.r, logoRgb.g, logoRgb.b);
 
-  const primaryHex = colors.buttonColor || DEFAULT_CUSTOM_COLORS.buttonColor;
-  const primaryHoverHex = hslToHex(btnHsl.h, btnHsl.s, Math.max(20, Math.min(80, btnHsl.l > 40 ? btnHsl.l - 7 : btnHsl.l + 7)));
-  const primaryRgbStr = `${btnRgb.r}, ${btnRgb.g}, ${btnRgb.b}`;
+  const primaryHex = normPrimary;
+  const primaryHoverHex = hslToHex(
+    primaryHsl.h, 
+    primaryHsl.s, 
+    Math.max(20, Math.min(80, primaryHsl.l > 40 ? primaryHsl.l - 7 : primaryHsl.l + 7))
+  );
+  const primaryRgbStr = `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`;
 
-  const logoHex = colors.logoColor || DEFAULT_CUSTOM_COLORS.logoColor;
-  const logoHoverHex = hslToHex(logoHsl.h, logoHsl.s, Math.max(20, Math.min(80, logoHsl.l > 40 ? logoHsl.l - 7 : logoHsl.l + 7)));
-  const logoRgbStr = `${logoRgb.r}, ${logoRgb.g}, ${logoRgb.b}`;
-
-  const bgMainHex = colors.bgColor || DEFAULT_CUSTOM_COLORS.bgColor;
+  const bgMainHex = normBg;
   const bgMainRgbStr = `${bgRgb.r}, ${bgRgb.g}, ${bgRgb.b}`;
 
-  const bgCardHex = colors.fgColor || DEFAULT_CUSTOM_COLORS.fgColor;
-  const bgCardHoverHex = hslToHex(fgHsl.h, fgHsl.s, Math.max(10, Math.min(95, fgHsl.l > 50 ? fgHsl.l - 4 : fgHsl.l + 4)));
+  const bgCardHex = normFg;
+  const bgCardHoverHex = hslToHex(
+    fgHsl.h, 
+    fgHsl.s, 
+    Math.max(10, Math.min(95, fgHsl.l > 50 ? fgHsl.l - 4 : fgHsl.l + 4))
+  );
   const bgCardRgbStr = `${fgRgb.r}, ${fgRgb.g}, ${fgRgb.b}`;
 
-  // Surface: slightly toned between card and bg
-  const bgSurfaceHex = hslToHex(fgHsl.h, Math.round(fgHsl.s * 0.9), Math.max(6, Math.min(94, fgHsl.l > 50 ? fgHsl.l + 3 : fgHsl.l - 3)));
+  // Surface: slightly adjusted relative to card
+  const bgSurfaceHex = hslToHex(
+    fgHsl.h, 
+    Math.round(fgHsl.s * 0.9), 
+    Math.max(6, Math.min(94, fgHsl.l > 50 ? fgHsl.l + 3 : fgHsl.l - 3))
+  );
   const bgSurfaceElevated = bgCardHoverHex;
 
   // Borders
-  const borderCard = `rgba(${btnRgb.r}, ${btnRgb.g}, ${btnRgb.b}, 0.25)`;
-  const borderColor = `rgba(${btnRgb.r}, ${btnRgb.g}, ${btnRgb.b}, 0.18)`;
-  const borderStrong = `rgba(${btnRgb.r}, ${btnRgb.g}, ${btnRgb.b}, 0.45)`;
+  const borderCard = `rgba(${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}, 0.25)`;
+  const borderColor = `rgba(${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}, 0.18)`;
+  const borderStrong = `rgba(${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}, 0.45)`;
 
-  // Button glow & light
-  const primaryLight = `rgba(${btnRgb.r}, ${btnRgb.g}, ${btnRgb.b}, 0.18)`;
-  const primaryBorder = `rgba(${btnRgb.r}, ${btnRgb.g}, ${btnRgb.b}, 0.42)`;
-  const primaryGlow = `rgba(${btnRgb.r}, ${btnRgb.g}, ${btnRgb.b}, 0.35)`;
+  // Button & Logo Glow / Tints
+  const primaryLight = `rgba(${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}, 0.18)`;
+  const primaryBorder = `rgba(${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}, 0.42)`;
+  const primaryGlow = `rgba(${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}, 0.35)`;
 
-  const logoGlow = `rgba(${logoRgb.r}, ${logoRgb.g}, ${logoRgb.b}, 0.35)`;
-
-  // Text contrast
-  const bgHsl = rgbToHsl(bgRgb.r, bgRgb.g, bgRgb.b);
-  const isBackgroundDark = bgHsl.l < 50;
-
-  const textTitle = isBackgroundDark ? '#f8fafc' : '#0f172a';
-  const textBody = isBackgroundDark ? '#e2e8f0' : '#334155';
-  const textMuted = isBackgroundDark ? '#94a3b8' : '#64748b';
+  const textTitle = '#f8fafc';
+  const textBody = '#e2e8f0';
+  const textMuted = '#94a3b8';
 
   return {
-    isDark,
+    isDark: true,
     bgMain: bgMainHex,
     bgMainRgb: bgMainRgbStr,
     bgCard: bgCardHex,
@@ -216,10 +231,10 @@ export function computeThemeVariables(colors: CustomColors, isDark: boolean = tr
     primaryLight,
     primaryBorder,
     primaryGlow,
-    logoColor: logoHex,
-    logoHover: logoHoverHex,
-    logoRgb: logoRgbStr,
-    logoGlow,
+    logoColor: primaryHex,
+    logoHover: primaryHoverHex,
+    logoRgb: primaryRgbStr,
+    logoGlow: primaryGlow,
     textTitle,
     textBody,
     textMuted

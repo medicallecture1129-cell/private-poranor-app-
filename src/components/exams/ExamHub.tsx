@@ -241,16 +241,16 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
         <div className="inline-flex p-1 bg-theme-surface border border-theme-border rounded-2xl shadow-xs self-start">
           <button
             onClick={() => setActiveSegment('live')}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
               activeSegment === 'live'
-                ? 'btn-theme-primary shadow-xs'
+                ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-md shadow-rose-950/50 ring-1 ring-rose-400/40'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <Radio className="w-3.5 h-3.5" />
+            <Radio className={`w-3.5 h-3.5 ${activeSegment === 'live' ? 'animate-pulse text-white' : 'text-rose-500'}`} />
             <span>Live Exams</span>
             <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-              activeSegment === 'live' ? 'bg-white/20 text-white' : 'bg-theme-card text-slate-300'
+              activeSegment === 'live' ? 'bg-white/20 text-white' : 'bg-rose-950/60 text-rose-300 border border-rose-800/60'
             }`}>
               {liveExams.length}
             </span>
@@ -308,9 +308,12 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
         <div className="bg-theme-card border border-theme-card rounded-3xl p-12 text-center text-slate-400 shadow-md">
           <div 
             className="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center ring-1 ring-white/10"
-            style={{ backgroundColor: 'var(--theme-primary-light)' }}
+            style={{ 
+              backgroundColor: activeSegment === 'live' ? 'rgba(244, 63, 94, 0.18)' : 'var(--theme-primary-light)',
+              color: activeSegment === 'live' ? '#fb7185' : 'var(--theme-primary)'
+            }}
           >
-            <Clock className="w-8 h-8 text-theme-primary" />
+            <Clock className="w-8 h-8" />
           </div>
           <h4 className="font-bold text-theme-title text-base">
             No {activeSegment === 'live' ? 'Live' : 'Practice'} Exams Found
@@ -337,16 +340,23 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
               s => s.examId === exam.id && s.studentId === user?.id && !s.isLive
             );
 
+            const isLiveCard = activeSegment === 'live';
+
             return (
               <div
                 key={exam.id}
                 className={`group relative bg-white/95 dark:bg-[#121622]/95 border card-theme-interactive rounded-3xl p-5 shadow-xs hover:shadow-xl flex flex-col justify-between overflow-hidden ${
                   !isExamActive 
                     ? 'border-amber-300/70 dark:border-amber-900/60 bg-amber-50/10' 
-                    : 'border-slate-200 dark:border-white/[0.08]'
+                    : isLiveCard 
+                      ? 'border-rose-500/40 shadow-rose-950/20 hover:border-rose-500/70'
+                      : 'border-slate-200 dark:border-white/[0.08]'
                 }`}
               >
-                <div className="card-glow-line" />
+                <div 
+                  className="card-glow-line" 
+                  style={isLiveCard ? { background: 'linear-gradient(90deg, transparent, #f43f5e, transparent)', opacity: 0.95 } : undefined}
+                />
                 <div className="space-y-3">
                   {/* Top Badges & Status */}
                   <div className="flex items-center justify-between gap-2">
@@ -355,14 +365,21 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
                     </span>
 
                     <div className="flex items-center gap-1.5">
-                      {/* Active / Inactive Status Badge (Requirement 2 & 3) */}
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                        isExamActive 
-                          ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' 
-                          : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 flex items-center gap-1'
-                      }`}>
-                        {isExamActive ? 'Active' : 'Inactive'}
-                      </span>
+                      {/* Active / Inactive / Live Status Badge */}
+                      {isLiveCard && isExamActive ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-950/80 text-rose-300 border border-rose-500/50 flex items-center gap-1.5 shadow-xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+                          <span>Live Exam</span>
+                        </span>
+                      ) : (
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          isExamActive 
+                            ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' 
+                            : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 flex items-center gap-1'
+                        }`}>
+                          {isExamActive ? 'Active' : 'Inactive'}
+                        </span>
+                      )}
 
                       {role === 'admin' && (
                         <button
@@ -404,21 +421,21 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
 
                   {/* Schedule Details */}
                   {activeSegment === 'live' && (
-                    <div className="text-[11px] space-y-1 text-slate-500 dark:text-slate-400">
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-theme-primary" />
+                    <div className="text-[11px] space-y-1.5 text-slate-400">
+                      <div className="flex items-center gap-1.5 text-rose-400 font-semibold">
+                        <Calendar className="w-3.5 h-3.5 text-rose-500 shrink-0" />
                         <span>Live: {new Date(exam.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(exam.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
-                      <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
-                        <Award className="w-3.5 h-3.5" />
+                      <div className="flex items-center gap-1.5 text-amber-400">
+                        <Award className="w-3.5 h-3.5 shrink-0" />
                         <span>Results: {new Date(exam.resultPublishTime).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     </div>
                   )}
 
                   {activeSegment === 'practice' && studentPracticeSubmissions.length > 0 && (
-                    <div className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    <div className="text-[11px] text-emerald-400 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                       <span>Attempted {studentPracticeSubmissions.length} time(s)</span>
                     </div>
                   )}
@@ -434,10 +451,10 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
                         <button
                           type="button"
                           onClick={(e) => handleMakePracticeExam(exam, e)}
-                          className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-white/[0.08]"
+                          className="w-full py-2 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-rose-500/30"
                           title="Convert this live exam to practice mode directly"
                         >
-                          <RotateCcw className="w-3.5 h-3.5" />
+                          <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
                           <span>Make it Practice Exam</span>
                         </button>
                       )}
@@ -499,14 +516,15 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
                       ) : isLiveNow ? (
                         <button
                           onClick={() => setActiveExamRunning({ exam, isLive: true })}
-                          className="w-full py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
+                          className="w-full py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-rose-950/60 ring-2 ring-rose-400/50 transition-all cursor-pointer animate-pulse"
                         >
                           <Play className="w-3.5 h-3.5 fill-current" />
                           <span>Start Live Exam Now</span>
                         </button>
                       ) : !hasStarted ? (
-                        <div className="p-2.5 rounded-2xl bg-slate-100 dark:bg-white/[0.06] text-center text-xs text-slate-500 dark:text-slate-400 font-medium">
-                          Starts {new Date(exam.startTime).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        <div className="p-2.5 rounded-2xl bg-rose-950/25 border border-rose-500/30 text-center text-xs text-rose-300 font-medium flex items-center justify-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                          <span>Starts {new Date(exam.startTime).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       ) : (
                         <button
