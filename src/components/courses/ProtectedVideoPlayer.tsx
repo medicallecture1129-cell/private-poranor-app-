@@ -14,25 +14,16 @@ import {
   Sun,
   Minus,
   Plus,
-  ExternalLink,
-  Tv,
-  Sparkles,
-  AlertCircle
+  ShieldCheck,
+  Lock
 } from 'lucide-react';
-import { extractYouTubeId, getGoogleDriveEmbedUrl, getYouTubeWatchUrl } from '../../utils/mediaUrl';
+import { extractYouTubeId, getGoogleDriveEmbedUrl } from '../../utils/mediaUrl';
 
 interface ProtectedVideoPlayerProps {
   title: string;
   url: string;
   onClose?: () => void;
   isInline?: boolean;
-}
-
-declare global {
-  interface Window {
-    YT: any;
-    onYouTubeIframeAPIReady: () => void;
-  }
 }
 
 export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
@@ -44,8 +35,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const html5VideoRef = useRef<HTMLVideoElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const playerRef = useRef<any>(null);
   const hideControlsTimerRef = useRef<any>(null);
+  const pollTimerRef = useRef<any>(null);
   const uniquePlayerId = useRef(`yt-player-${Math.random().toString(36).substring(2, 9)}`);
   
   // Touch gesture tracking for brightness (left) and volume (right)
@@ -70,7 +61,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [playerMode, setPlayerMode] = useState<'smart' | 'native'>('smart');
 
   // Gesture indicators
   const [skipFeedback, setSkipFeedback] = useState<{ side: 'left' | 'right'; text: string } | null>(null);
@@ -147,6 +137,85 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     };
   }, [showSpeedMenu, isFullscreen, onClose, isInline, isPlaying]);
 
+  // PostMessage listener for YouTube IFrame API communication
+  useEffect(() => {
+    if (!videoId) return;
+
+    const handleMessage = (e: MessageEvent) => {
+      try {
+        let data = e.data;
+        if (typeof data === 'string') {
+          try {
+            data = JSON.parse(data);
+          } catch {
+            return;
+          }
+        }
+        if (data && data.event === 'infoDelivery' && data.info) {
+          if (typeof data.info.currentTime === 'number') {
+            setCurrentTime(data.info.currentTime);
+          }
+          if (typeof data.info.duration === 'number' && data.info.duration > 0) {
+            setDuration(data.info.duration);
+          }
+          if (typeof data.info.playerState === 'number') {
+            // 1 = PLAYING, 2 = PAUSED, 0 = ENDED, 3 = BUFFERING
+            if (data.info.playerState === 1) {
+              setIsPlaying(true);
+              setHasStarted(true);
+            } else if (data.info.playerState === 2) {
+              setIsPlaying(false);
+            } else if (data.info.playerState === 0) {
+              setIsPlaying(false);
+              setControlsVisible(true);
+            }
+          }
+        }
+      } catch {}
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    // Initial handshake with iframe
+    const handshakeTimer = setTimeout(() => {
+      if (iframeRef.current && iframeRef.current.contentWindow) {
+        iframeRef.current.contentWindow.postMessage(
+          JSON.stringify({ event: 'listening', id: uniquePlayerId.current }),
+          '*'
+        );
+      }
+    }, 800);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      clearTimeout(handshakeTimer);
+    };
+  }, [videoId]);
+
+  // Periodic polling for YouTube player state & time
+  useEffect(() => {
+    if (videoId && isPlaying) {
+      pollTimerRef.current = setInterval(() => {
+        if (iframeRef.current && iframeRef.current.contentWindow) {
+          iframeRef.current.contentWindow.postMessage(
+            JSON.stringify({ event: 'command', func: 'getCurrentTime', args: [] }),
+            '*'
+          );
+          iframeRef.current.contentWindow.postMessage(
+            JSON.stringify({ event: 'command', func: 'getDuration', args: [] }),
+            '*'
+          );
+        }
+      }, 1000);
+    } else {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    }
+
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    };
+  }, [videoId, isPlaying]);
+
   // Autohide controls after inactivity
   const resetHideTimer = () => {
     if (hideControlsTimerRef.current) clearTimeout(hideControlsTimerRef.current);
@@ -183,7 +252,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
 
     if (videoId) {
-      // Toggle YouTube iframe state via postMessage
       if (iframeRef.current && iframeRef.current.contentWindow) {
         const action = isPlaying ? 'pauseVideo' : 'playVideo';
         iframeRef.current.contentWindow.postMessage(
@@ -191,9 +259,10 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           '*'
         );
       }
-      setIsPlaying(!isPlaying);
-      setPlayFeedback(isPlaying ? 'pause' : 'play');
-      if (!isPlaying) resetHideTimer();
+      const nextPlaying = !isPlaying;
+      setIsPlaying(nextPlaying);
+      setPlayFeedback(nextPlaying ? 'play' : 'pause');
+      if (nextPlaying) resetHideTimer();
       else setControlsVisible(true);
       setTimeout(() => setPlayFeedback(null), 600);
     }
@@ -363,7 +432,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   };
 
   const handleSetSpeed = (speed: number) => {
-    // 0.25 to 5.0 with 0.01 precision
     const clamped = Math.round(Math.min(5.0, Math.max(0.25, speed)) * 100) / 100;
     setPlaybackSpeed(clamped);
 
@@ -430,7 +498,10 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         }`}
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
+          <div 
+            className="w-7 h-7 rounded-lg text-white flex items-center justify-center shadow-xs shrink-0"
+            style={{ backgroundColor: 'var(--theme-primary)' }}
+          >
             <GraduationCap className="w-4 h-4" />
           </div>
           <span className="font-semibold text-xs sm:text-sm text-white truncate max-w-xs sm:max-w-md">
@@ -439,39 +510,15 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Mode switch for YouTube (Smart Protected vs Native Controls) */}
-          {videoId && (
-            <button
-              onClick={() => setPlayerMode(playerMode === 'smart' ? 'native' : 'smart')}
-              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
-              title={playerMode === 'smart' ? 'Switch to Native YouTube controls' : 'Switch to Protected Smart Controls'}
-            >
-              {playerMode === 'smart' ? (
-                <>
-                  <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                  <span>স্মার্ট প্লেয়ার</span>
-                </>
-              ) : (
-                <>
-                  <Tv className="w-3.5 h-3.5 text-amber-400" />
-                  <span>ইউটিউব মোড</span>
-                </>
-              )}
-            </button>
-          )}
-
-          {/* External Fallback Link */}
-          {videoId && (
-            <a
-              href={getYouTubeWatchUrl(videoId)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
-              title="YouTube অ্যাপে দেখুন"
-            >
-              <ExternalLink className="w-4 h-4" />
-            </a>
-          )}
+          {/* Strictly Protected In-App Player Badge */}
+          <span className="text-[11px] font-semibold text-slate-300 bg-slate-800/90 px-2.5 py-1 rounded-lg border border-slate-700/60 flex items-center gap-1.5 shadow-xs">
+            <span 
+              className="w-2 h-2 rounded-full animate-pulse" 
+              style={{ backgroundColor: 'var(--theme-primary)' }}
+            />
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span>সুরক্ষিত ইন-অ্যাপ প্লেয়ার</span>
+          </span>
 
           {onClose && !isInline && (
             <button
@@ -490,15 +537,16 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         className="relative w-full aspect-video max-w-full bg-black flex items-center justify-center overflow-hidden"
         style={{ filter: `brightness(${brightness})` }}
       >
-        {/* Case 1: YouTube video */}
+        {/* Case 1: YouTube video - 100% IN-APP PLAYBACK, STRICTLY PREVENTING OPENING YOUTUBE */}
         {videoId && (
           <div className="absolute inset-0 w-full h-full select-none">
             <iframe
               ref={iframeRef}
               id={uniquePlayerId.current}
-              src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=${hasStarted ? 1 : 0}&enablejsapi=1&rel=0&playsinline=1&modestbranding=1&controls=${playerMode === 'native' ? 1 : 0}`}
+              src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=${hasStarted ? 1 : 0}&enablejsapi=1&rel=0&playsinline=1&modestbranding=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`}
               title={title}
-              className="w-full h-full border-0 absolute inset-0"
+              className="w-full h-full border-0 absolute inset-0 pointer-events-none select-none"
+              sandbox="allow-scripts allow-same-origin allow-presentation"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               allowFullScreen
             />
@@ -540,8 +588,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           />
         )}
 
-        {/* Smart Player Overlay (Single tap: play/pause; Double tap: 10s skip; Swipe: Brightness/Volume) */}
-        {!isDriveVideo && playerMode === 'smart' && (
+        {/* In-App Smart Interaction Overlay (Intercepts all clicks, prevents any click escaping to YouTube) */}
+        {!isDriveVideo && (
           <div 
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
@@ -555,13 +603,20 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         {!hasStarted && !isDriveVideo && (
           <div 
             onClick={togglePlay}
-            className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px] cursor-pointer group"
+            className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/50 backdrop-blur-[2px] cursor-pointer group"
           >
-            <div className="w-16 sm:w-20 h-16 sm:h-20 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center shadow-2xl transition-all transform group-hover:scale-110">
+            <div 
+              className="w-16 sm:w-20 h-16 sm:h-20 rounded-full text-white flex items-center justify-center shadow-2xl transition-all transform group-hover:scale-110"
+              style={{ 
+                backgroundColor: 'var(--theme-primary)',
+                boxShadow: '0 0 35px var(--theme-primary-glow)' 
+              }}
+            >
               <Play className="w-8 sm:w-10 h-8 sm:h-10 fill-white ml-1" />
             </div>
-            <span className="mt-3 text-xs sm:text-sm font-bold text-white bg-black/70 px-4 py-1.5 rounded-full border border-white/10 shadow-lg">
-              ভিডিও প্লে করতে ক্লিক করুন
+            <span className="mt-3.5 text-xs sm:text-sm font-bold text-white bg-black/80 px-4 py-1.5 rounded-full border border-white/10 shadow-lg flex items-center gap-1.5">
+              <Lock className="w-3.5 h-3.5 text-emerald-400" />
+              <span>ইন-অ্যাপ প্লে করুন</span>
             </span>
           </div>
         )}
@@ -586,7 +641,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               skipFeedback.side === 'left' ? 'left-0 bg-gradient-to-r from-blue-600/30 to-transparent' : 'right-0 bg-gradient-to-l from-blue-600/30 to-transparent'
             }`}
           >
-            <div className="flex flex-col items-center text-white bg-black/80 px-4 py-3 rounded-2xl backdrop-blur-md shadow-2xl">
+            <div className="flex flex-col items-center text-white bg-black/80 px-4 py-3 rounded-2xl backdrop-blur-md shadow-2xl border border-white/10">
               {skipFeedback.side === 'left' ? <RotateCcw className="w-6 h-6 mb-1 text-blue-400" /> : <RotateCw className="w-6 h-6 mb-1 text-blue-400" />}
               <span className="text-xs font-bold font-mono">{skipFeedback.text}</span>
             </div>
@@ -595,7 +650,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 
         {/* Gesture HUD Feedback: Brightness & Volume */}
         {gestureFeedback && (
-          <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-black/80 backdrop-blur-md text-white shadow-2xl pointer-events-none border border-white/10">
+          <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-black/85 backdrop-blur-md text-white shadow-2xl pointer-events-none border border-white/10">
             {gestureFeedback.type === 'brightness' ? (
               <>
                 <Sun className="w-4 h-4 text-amber-400" />
@@ -615,7 +670,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       {!isDriveVideo && (
         <div 
           className={`z-30 px-3 sm:px-4 py-2 bg-gradient-to-t from-black/95 via-black/80 to-transparent text-white transition-all duration-300 ${
-            controlsVisible || playerMode === 'native' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+            controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
           }`}
         >
           {/* Seek Progress Bar */}
@@ -626,7 +681,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               max={duration || 100}
               value={currentTime}
               onChange={handleSeek}
-              className="w-full h-1.5 bg-slate-700/80 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:h-2 transition-all"
+              className="w-full h-1.5 bg-slate-700/80 rounded-lg appearance-none cursor-pointer hover:h-2 transition-all"
+              style={{ accentColor: 'var(--theme-primary)' }}
             />
           </div>
 
@@ -685,7 +741,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                       );
                     }
                   }}
-                  className="w-14 sm:w-20 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500 hidden sm:inline-block"
+                  className="w-14 sm:w-20 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer hidden sm:inline-block"
+                  style={{ accentColor: 'var(--theme-primary)' }}
                 />
               </div>
 
@@ -705,7 +762,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-mono text-xs flex items-center gap-1 transition-all cursor-pointer border border-white/10"
                 title="Playback Speed (0.25x - 5.0x)"
               >
-                <Gauge className="w-3.5 h-3.5 text-blue-400" />
+                <Gauge className="w-3.5 h-3.5" style={{ color: 'var(--theme-primary)' }} />
                 <span>{playbackSpeed.toFixed(2)}x</span>
               </button>
 
@@ -724,12 +781,12 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 
       {/* PLAYBACK SPEED MODAL */}
       {showSpeedMenu && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
           <div className="w-full max-w-sm bg-slate-900 border border-slate-700/80 rounded-3xl p-6 shadow-2xl text-white space-y-5 animate-scaleUp">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
-                <Gauge className="w-5 h-5 text-blue-400" />
+                <Gauge className="w-5 h-5" style={{ color: 'var(--theme-primary)' }} />
                 <h3 className="font-bold text-base text-white">Playback Speed</h3>
               </div>
               <button
@@ -742,7 +799,10 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 
             {/* Current Speed Display */}
             <div className="text-center py-2">
-              <span className="text-4xl font-extrabold font-mono text-blue-400 tracking-tight">
+              <span 
+                className="text-4xl font-extrabold font-mono tracking-tight"
+                style={{ color: 'var(--theme-primary)' }}
+              >
                 {playbackSpeed.toFixed(2)}x
               </span>
               <p className="text-xs text-slate-400 mt-1">
@@ -759,7 +819,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 step={0.01}
                 value={playbackSpeed}
                 onChange={(e) => handleSetSpeed(Number(e.target.value))}
-                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                style={{ accentColor: 'var(--theme-primary)' }}
               />
               <div className="flex justify-between text-[10px] text-slate-400 font-mono">
                 <span>0.25x</span>
@@ -793,25 +854,29 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 
             {/* Quick Presets */}
             <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-800">
-              {[0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5].map((preset) => (
-                <button
-                  key={preset}
-                  onClick={() => handleSetSpeed(preset)}
-                  className={`py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
-                    Math.abs(playbackSpeed - preset) < 0.005
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-800/90 text-slate-300 hover:bg-slate-700'
-                  }`}
-                >
-                  {preset.toFixed(2)}x
-                </button>
-              ))}
+              {[0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5].map((preset) => {
+                const isMatch = Math.abs(playbackSpeed - preset) < 0.005;
+                return (
+                  <button
+                    key={preset}
+                    onClick={() => handleSetSpeed(preset)}
+                    className="py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer"
+                    style={{
+                      backgroundColor: isMatch ? 'var(--theme-primary)' : 'rgba(30, 41, 59, 0.9)',
+                      color: isMatch ? '#ffffff' : '#cbd5e1'
+                    }}
+                  >
+                    {preset.toFixed(2)}x
+                  </button>
+                );
+              })}
             </div>
 
             {/* Done button */}
             <button
               onClick={() => setShowSpeedMenu(false)}
-              className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm cursor-pointer shadow-md transition-all"
+              className="w-full py-2.5 rounded-xl text-white font-bold text-xs sm:text-sm cursor-pointer shadow-md transition-all"
+              style={{ backgroundColor: 'var(--theme-primary)' }}
             >
               Done
             </button>

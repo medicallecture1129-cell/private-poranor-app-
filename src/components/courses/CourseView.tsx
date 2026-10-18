@@ -891,8 +891,8 @@ export const CourseView: React.FC<CourseViewProps> = ({
                       >
                         <div className="card-glow-line" />
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300 shadow-xs">
-                            <FolderIcon className="w-5 h-5 fill-current opacity-85" />
+                          <div className="w-10 h-10 rounded-xl theme-folder-icon flex items-center justify-center shrink-0 shadow-xs">
+                            <FolderIcon className="w-5 h-5 fill-current opacity-90" />
                           </div>
                           <div className="min-w-0">
                             <h4 className="font-semibold text-sm text-slate-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
@@ -976,7 +976,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
                       >
                         <div className="card-glow-line" />
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300 shadow-xs">
+                          <div className="w-10 h-10 rounded-xl theme-folder-icon flex items-center justify-center shrink-0 shadow-xs">
                             <GraduationCap className="w-5 h-5" />
                           </div>
                           <div className="min-w-0">

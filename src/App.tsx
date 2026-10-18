@@ -130,17 +130,39 @@ const MainApp: React.FC = () => {
   if (!user) {
     return (
       <div className="min-h-screen text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-all duration-300 overflow-x-hidden relative">
-        <Navbar />
-        <main className="flex-1">
-          <LoginPage courses={courses} />
-        </main>
+        {/* Dynamic Theme Atmospheric Aura */}
+        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+          <div 
+            className="absolute -top-[15%] left-1/2 -translate-x-1/2 w-[700px] sm:w-[950px] h-[450px] sm:h-[600px] rounded-full blur-[110px] sm:blur-[140px] opacity-40 dark:opacity-60 transition-all duration-700"
+            style={{ backgroundColor: 'var(--theme-primary)' }}
+          />
+        </div>
+        <div className="relative z-10 flex flex-col flex-1">
+          <Navbar />
+          <main className="flex-1">
+            <LoginPage courses={courses} />
+          </main>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-all duration-300 overflow-x-hidden relative">
-      <Navbar />
+      {/* Dynamic Theme Atmospheric Aura */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div 
+          className="absolute -top-[15%] left-1/2 -translate-x-1/2 w-[700px] sm:w-[950px] h-[450px] sm:h-[600px] rounded-full blur-[110px] sm:blur-[140px] opacity-35 dark:opacity-55 transition-all duration-700"
+          style={{ backgroundColor: 'var(--theme-primary)' }}
+        />
+        <div 
+          className="absolute -bottom-[20%] right-[-10%] w-[550px] sm:w-[750px] h-[450px] sm:h-[550px] rounded-full blur-[120px] sm:blur-[150px] opacity-25 dark:opacity-40 transition-all duration-700"
+          style={{ backgroundColor: 'var(--theme-primary)' }}
+        />
+      </div>
+
+      <div className="relative z-10 flex flex-col flex-1">
+        <Navbar />
 
         <main className="flex-1">
         {/* TAB 1: COURSES */}
@@ -210,6 +232,7 @@ const MainApp: React.FC = () => {
           }
         }}
       />
+      </div>
     </div>
   );
 };
