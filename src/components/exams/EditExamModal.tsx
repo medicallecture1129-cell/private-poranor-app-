@@ -3,6 +3,7 @@ import { Course, Question, Exam } from '../../types';
 import { updateExam } from '../../services/db';
 import { parseBulkMCQText } from '../../utils/mcqParser';
 import { useToast } from '../../context/ToastContext';
+import { ModernSelect } from '../ui/ModernSelect';
 import { X, Plus, Trash2, Sparkles, Check, CheckCircle2, AlertCircle, Save, Power } from 'lucide-react';
 
 interface EditExamModalProps {
@@ -230,28 +231,28 @@ export const EditExamModal: React.FC<EditExamModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                    Exam Title
+                    Exam Title (পরীক্ষার নাম)
                   </label>
                   <input
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                    className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-white/[0.1] bg-white dark:bg-[#121622] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                    Course / Batch
+                    Course / Batch (কোর্স / ব্যাচ)
                   </label>
-                  <select
+                  <ModernSelect
                     value={courseId}
-                    onChange={(e) => setCourseId(e.target.value)}
-                    className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                  >
-                    {courses.map(c => (
-                      <option key={c.id} value={c.id}>{c.name} ({c.batch})</option>
-                    ))}
-                  </select>
+                    onChange={setCourseId}
+                    options={courses.map(c => ({
+                      value: c.id,
+                      label: c.name,
+                      badge: c.batch
+                    }))}
+                  />
                 </div>
               </div>
 
@@ -263,7 +264,7 @@ export const EditExamModal: React.FC<EditExamModalProps> = ({
                     type="number"
                     value={durationMinutes}
                     onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-white/[0.1] bg-white dark:bg-[#121622] text-slate-900 dark:text-white"
                   />
                 </div>
                 <div>
@@ -272,7 +273,7 @@ export const EditExamModal: React.FC<EditExamModalProps> = ({
                     type="number"
                     value={totalMarks}
                     onChange={(e) => setTotalMarks(Number(e.target.value))}
-                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-white/[0.1] bg-white dark:bg-[#121622] text-slate-900 dark:text-white"
                   />
                 </div>
                 <div>
@@ -281,21 +282,21 @@ export const EditExamModal: React.FC<EditExamModalProps> = ({
                     type="number"
                     value={passMark}
                     onChange={(e) => setPassMark(Number(e.target.value))}
-                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-white/[0.1] bg-white dark:bg-[#121622] text-slate-900 dark:text-white"
                   />
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 mb-1">Negative Marking</label>
-                  <select
-                    value={negativeMarkPercentage}
-                    onChange={(e) => setNegativeMarkPercentage(Number(e.target.value))}
-                    className="w-full px-2 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                  >
-                    <option value={0}>0%</option>
-                    <option value={0.25}>25% (-0.25)</option>
-                    <option value={0.33}>33.3% (-0.33)</option>
-                    <option value={0.50}>50% (-0.50)</option>
-                  </select>
+                  <ModernSelect
+                    value={String(negativeMarkPercentage)}
+                    onChange={(v) => setNegativeMarkPercentage(Number(v))}
+                    options={[
+                      { value: '0', label: '0% (নেই)' },
+                      { value: '0.25', label: '25% (-0.25)' },
+                      { value: '0.33', label: '33.3% (-0.33)' },
+                      { value: '0.50', label: '50% (-0.50)' },
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -556,7 +557,7 @@ export const EditExamModal: React.FC<EditExamModalProps> = ({
             <button
               onClick={handleSave}
               disabled={isSaving}
-              className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer"
+              className="px-5 py-2 rounded-xl btn-theme-primary text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer"
             >
               <Save className="w-4 h-4" />
               <span>{isSaving ? 'Saving...' : 'Save Changes'}</span>

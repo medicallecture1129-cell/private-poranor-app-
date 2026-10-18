@@ -14,18 +14,30 @@ import {
   Bell,
   Sun,
   Moon,
-  Monitor
+  Monitor,
+  Palette,
+  Check
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const { user, role, logout } = useAuth();
-  const { theme, preference, isDarkMode, setThemePreference, toggleTheme } = useTheme();
+  const { 
+    theme, 
+    preference, 
+    isDarkMode, 
+    accentPalette, 
+    palettes, 
+    setAccentPaletteId, 
+    setThemePreference, 
+    toggleTheme 
+  } = useTheme();
 
   const [settings, setSettings] = useState<PortalSettings>(DEFAULT_PORTAL_SETTINGS);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showPaletteModal, setShowPaletteModal] = useState(false);
 
   // Subscribe to real-time Portal Settings from Firestore
   useEffect(() => {
@@ -125,7 +137,7 @@ export const Navbar: React.FC = () => {
             <button
               onClick={toggleTheme}
               aria-label={isDarkMode ? "Switch to Light mode" : "Switch to Dark mode"}
-              title={isDarkMode ? "Switch to Light mode (Gemini)" : "Switch to Dark mode (Gemini)"}
+              title={isDarkMode ? "Switch to Light mode" : "Switch to Dark mode"}
               className="relative p-2 rounded-xl border border-slate-200/80 dark:border-white/10 bg-slate-100/90 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 transition-all cursor-pointer flex items-center gap-1.5 shadow-xs group"
             >
               {isDarkMode ? (
@@ -139,6 +151,21 @@ export const Navbar: React.FC = () => {
                   <span className="hidden sm:inline text-xs font-semibold">Dark</span>
                 </>
               )}
+            </button>
+
+            {/* Accent Color Palette Selector Button */}
+            <button
+              onClick={() => setShowPaletteModal(true)}
+              aria-label="Theme Color Palette"
+              title={`Theme Color: ${accentPalette.name} (${accentPalette.nameBn})`}
+              className="relative p-2 rounded-xl border border-slate-200/80 dark:border-white/10 bg-slate-100/90 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 transition-all cursor-pointer flex items-center gap-1.5 shadow-xs group"
+            >
+              <span
+                className="w-3.5 h-3.5 rounded-full ring-2 ring-white/40 shadow-xs shrink-0"
+                style={{ backgroundColor: accentPalette.hex }}
+              />
+              <Palette className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 group-hover:rotate-12 transition-transform" />
+              <span className="hidden sm:inline text-xs font-semibold">Color</span>
             </button>
             {/* Install PWA Button */}
             {!isInstalled ? (
@@ -307,6 +334,52 @@ export const Navbar: React.FC = () => {
                 )}
               </div>
 
+              {/* Theme Color Palette Selector (10 Curated Palettes) */}
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Palette className="w-3.5 h-3.5" style={{ color: accentPalette.hex }} />
+                    <span>Theme Color / কালার প্যালেট</span>
+                  </span>
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                    {accentPalette.nameBn}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                  {palettes.map((p) => {
+                    const isSelected = p.id === accentPalette.id;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setAccentPaletteId(p.id)}
+                        className={`p-2 rounded-xl border text-left flex items-center gap-2 transition-all cursor-pointer ${
+                          isSelected
+                            ? 'border-slate-400 dark:border-white/30 bg-slate-100/90 dark:bg-white/[0.08] shadow-xs'
+                            : 'border-slate-200 dark:border-white/[0.06] hover:bg-slate-50 dark:hover:bg-white/[0.04]'
+                        }`}
+                      >
+                        <span
+                          className="w-4 h-4 rounded-full ring-2 ring-white/50 shrink-0 shadow-xs flex items-center justify-center"
+                          style={{ backgroundColor: p.hex }}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5 text-white stroke-[3]" />}
+                        </span>
+                        <div className="min-w-0 flex-1 truncate">
+                          <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                            {p.nameBn}
+                          </p>
+                          <p className="text-[10px] text-slate-400 font-mono truncate">
+                            {p.hex}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Gemini Appearance Selector (Light, Dark, System) */}
               <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
                 <div className="flex items-center justify-between">
@@ -380,6 +453,102 @@ export const Navbar: React.FC = () => {
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Standalone Theme Color Palette Selector Modal */}
+      {showPaletteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white dark:bg-[#121622] border border-slate-200 dark:border-white/[0.08] rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/[0.06]">
+              <div className="flex items-center gap-2.5">
+                <div 
+                  className="w-8 h-8 rounded-xl text-white flex items-center justify-center shadow-xs"
+                  style={{ backgroundColor: accentPalette.hex }}
+                >
+                  <Palette className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                    কালার প্যালেট নির্বাচন করুন
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    সিলেক্ট করা কালার অনুযায়ী পুরো অ্যাপের প্রধান বাটন ও লোগো পরিবর্তিত হবে
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPaletteModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* List of 10 Curated Palettes */}
+            <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
+              {palettes.map((p, idx) => {
+                const isSelected = p.id === accentPalette.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setAccentPaletteId(p.id);
+                    }}
+                    className={`w-full p-3 rounded-2xl border text-left flex items-center justify-between gap-3 transition-all cursor-pointer ${
+                      isSelected
+                        ? 'border-transparent shadow-sm ring-2 ring-offset-2 dark:ring-offset-[#121622]'
+                        : 'border-slate-200 dark:border-white/[0.06] hover:bg-slate-50 dark:hover:bg-white/[0.04]'
+                    }`}
+                    style={isSelected ? { borderColor: p.hex, backgroundColor: `${p.hex}18` } : undefined}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span
+                        className="w-6 h-6 rounded-full ring-2 ring-white/60 shadow-sm shrink-0 flex items-center justify-center"
+                        style={{ backgroundColor: p.hex }}
+                      >
+                        {isSelected && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white truncate">
+                            {idx + 1}. {p.nameBn}
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            {p.hex}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                          {p.name}
+                        </p>
+                      </div>
+                    </div>
+
+                    {isSelected && (
+                      <span 
+                        className="text-xs font-bold px-2 py-0.5 rounded-full text-white shrink-0"
+                        style={{ backgroundColor: p.hex }}
+                      >
+                        Active
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 dark:border-white/[0.06] flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowPaletteModal(false)}
+                className="px-5 py-2 rounded-xl text-white font-bold text-xs shadow-xs cursor-pointer"
+                style={{ backgroundColor: accentPalette.hex }}
+              >
+                সম্পন্ন (Done)
+              </button>
             </div>
           </div>
         </div>

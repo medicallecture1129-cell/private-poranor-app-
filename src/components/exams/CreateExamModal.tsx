@@ -3,6 +3,7 @@ import { Course, Question, Exam } from '../../types';
 import { createExam } from '../../services/db';
 import { parseBulkMCQText } from '../../utils/mcqParser';
 import { useToast } from '../../context/ToastContext';
+import { ModernSelect } from '../ui/ModernSelect';
 import { X, Plus, Trash2, Sparkles, FileText, CheckCircle2, AlertCircle, Check, HelpCircle } from 'lucide-react';
 
 interface CreateExamModalProps {
@@ -266,22 +267,22 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                Target Course / Batch
+                Target Course / Batch (কোর্স / ব্যাচ)
               </label>
-              <select
+              <ModernSelect
                 value={selectedCourseId}
-                onChange={(e) => setSelectedCourseId(e.target.value)}
-                className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {defaultCourseList.map(c => (
-                  <option key={c.id} value={c.id}>{c.name} {c.batch ? `(${c.batch})` : ''}</option>
-                ))}
-              </select>
+                onChange={setSelectedCourseId}
+                options={defaultCourseList.map(c => ({
+                  value: c.id,
+                  label: c.name,
+                  badge: c.batch
+                }))}
+              />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                Exam Title *
+                Exam Title (পরীক্ষার নাম) *
               </label>
               <input
                 type="text"
@@ -289,13 +290,13 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g. Model Test 01 - Physics & Vectors"
-                className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-white/[0.1] bg-white dark:bg-[#121622] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]"
               />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                Exam Duration (Minutes)
+                Exam Duration (পরীক্ষার সময়কাল - মিনিটে)
               </label>
               <input
                 type="number"
@@ -303,13 +304,13 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                 required
                 value={durationMinutes}
                 onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-white/[0.1] bg-white dark:bg-[#121622] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]"
               />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                Total Marks
+                Total Marks (মোট মার্কস)
               </label>
               <input
                 type="number"
@@ -317,13 +318,13 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                 required
                 value={totalMarks}
                 onChange={(e) => setTotalMarks(Number(e.target.value))}
-                className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-white/[0.1] bg-white dark:bg-[#121622] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]"
               />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                Pass Mark
+                Pass Mark (পাস মার্ক)
               </label>
               <input
                 type="number"
@@ -331,24 +332,44 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                 required
                 value={passMark}
                 onChange={(e) => setPassMark(Number(e.target.value))}
-                className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#121622] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]"
               />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                Negative Marking Penalty
+                Negative Marking (নেগেটিভ মার্কিং)
               </label>
-              <select
-                value={negativeMarkPercentage}
-                onChange={(e) => setNegativeMarkPercentage(Number(e.target.value))}
-                className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value={0}>0% (No negative marking)</option>
-                <option value={0.25}>25% (-0.25 mark per wrong answer)</option>
-                <option value={0.33}>33.3% (-0.33 mark per wrong answer)</option>
-                <option value={0.50}>50% (-0.50 mark per wrong answer)</option>
-              </select>
+              <ModernSelect
+                value={String(negativeMarkPercentage)}
+                onChange={(v) => setNegativeMarkPercentage(Number(v))}
+                options={[
+                  { value: '0', label: '0% (কোনো নেগেটিভ মার্কিং নেই)' },
+                  { value: '0.25', label: '25% (-0.25 কর্তন প্রতি ভুল উত্তরে)' },
+                  { value: '0.33', label: '33.3% (-0.33 কর্তন প্রতি ভুল উত্তরে)' },
+                  { value: '0.50', label: '50% (-0.50 কর্তন প্রতি ভুল উত্তরে)' },
+                ]}
+              />
+            </div>
+          </div>
+
+          {/* Real-time Marks & Negative Marking Summary Banner (Requirement 1) */}
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/[0.08] text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>
+                মোট প্রশ্ন সংখ্যা: <strong className="font-mono">{questions.length}</strong>
+              </span>
+              <span className="text-slate-400">|</span>
+              <span>
+                প্রতি প্রশ্নে বরাদ্দ: <strong className="font-mono text-theme-primary">
+                  {questions.length > 0 ? (totalMarks / questions.length).toFixed(2) : (totalMarks > 0 ? totalMarks : '1.00')}
+                </strong> মার্ক
+              </span>
+            </div>
+
+            <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+              নেগেটিভ মার্কিং: {negativeMarkPercentage > 0 ? `${(negativeMarkPercentage * 100).toFixed(0)}% (${questions.length > 0 ? ((totalMarks / questions.length) * negativeMarkPercentage).toFixed(2) : '0.25'} মার্ক)` : 'নেই (0%)'}
             </div>
           </div>
 
@@ -740,7 +761,7 @@ Ans: B`}
               type="button"
               onClick={() => handleSubmitExam()}
               disabled={isSubmitting}
-              className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-md hover:shadow-lg disabled:opacity-50 cursor-pointer transition-all flex items-center gap-1.5"
+              className="px-6 py-2.5 rounded-xl btn-theme-primary text-xs sm:text-sm font-bold shadow-md hover:shadow-lg disabled:opacity-50 cursor-pointer transition-all flex items-center gap-1.5"
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>{isSubmitting ? 'Publishing...' : 'Publish Exam'}</span>

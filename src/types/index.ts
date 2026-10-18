@@ -101,7 +101,8 @@ export interface Exam {
   resultPublishTime: number; // ms timestamp
   questions: Question[];
   createdAt: number;
-  isActive?: boolean; // Admin can toggle exam ON / OFF
+  isActive?: boolean; // Admin can toggle exam ON / OFF (Active / Inactive)
+  isPractice?: boolean; // True if converted to practice or explicitly in practice section
 }
 
 export interface StudentAnswer {

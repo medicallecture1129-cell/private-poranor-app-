@@ -130,7 +130,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ courses }) => {
       <div className="w-full max-w-md bg-white dark:bg-[#121622] border border-slate-200/90 dark:border-white/[0.08] rounded-3xl shadow-lg dark:shadow-2xl p-6 sm:p-8">
         {/* Portal Header */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-600 text-white shadow-lg mb-3">
+          <div 
+            className="inline-flex items-center justify-center w-14 h-14 rounded-2xl text-white shadow-lg mb-3"
+            style={{ backgroundColor: 'var(--theme-primary)' }}
+          >
             <GraduationCap className="w-8 h-8" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
@@ -239,7 +242,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ courses }) => {
             <button
               type="submit"
               disabled={teacherLoading}
-              className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+              className="w-full py-2.5 rounded-xl btn-theme-primary font-semibold text-sm shadow-sm disabled:opacity-50 cursor-pointer"
             >
               {teacherLoading ? 'Authenticating...' : 'Sign In as Teacher'}
             </button>
@@ -293,7 +296,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ courses }) => {
 
                 <button
                   type="submit"
-                  className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors shadow-sm cursor-pointer"
+                  className="w-full py-2.5 rounded-xl btn-theme-primary font-semibold text-sm shadow-sm cursor-pointer"
                 >
                   Verify Email & Continue
                 </button>
@@ -356,7 +359,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ courses }) => {
                 <button
                   type="submit"
                   disabled={studentLoading}
-                  className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                  className="w-full py-2.5 rounded-xl btn-theme-primary font-semibold text-sm shadow-sm disabled:opacity-50 cursor-pointer"
                 >
                   {studentLoading ? 'Signing In...' : 'Sign In'}
                 </button>
@@ -470,7 +473,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ courses }) => {
                 <button
                   type="submit"
                   disabled={studentLoading}
-                  className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                  className="w-full py-2.5 rounded-xl btn-theme-primary font-semibold text-sm shadow-sm disabled:opacity-50 cursor-pointer"
                 >
                   {studentLoading ? 'Creating Account...' : 'Complete Profile & Enter'}
                 </button>

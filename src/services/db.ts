@@ -508,6 +508,8 @@ export const createExam = async (examData: Omit<Exam, 'id' | 'createdAt'>): Prom
     endTime: Number(examData.endTime) || (Date.now() + 4 * 60 * 60 * 1000),
     resultPublishTime: Number(examData.resultPublishTime) || (Date.now() + 5 * 60 * 60 * 1000),
     questions: sanitizedQuestions,
+    isActive: examData.isActive !== false,
+    isPractice: Boolean(examData.isPractice) || false,
     createdAt: Date.now()
   };
 
@@ -533,6 +535,7 @@ export const updateExam = async (examId: string, updates: Partial<Exam>): Promis
   if (updates.endTime !== undefined) cleanUpdates.endTime = Number(updates.endTime);
   if (updates.resultPublishTime !== undefined) cleanUpdates.resultPublishTime = Number(updates.resultPublishTime);
   if (updates.isActive !== undefined) cleanUpdates.isActive = Boolean(updates.isActive);
+  if (updates.isPractice !== undefined) cleanUpdates.isPractice = Boolean(updates.isPractice);
   if (updates.questions) {
     cleanUpdates.questions = updates.questions.map((q, idx) => ({
       id: q.id || `q_${Date.now()}_${idx}`,

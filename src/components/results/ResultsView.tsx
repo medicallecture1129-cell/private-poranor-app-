@@ -5,6 +5,7 @@ import { exportLeaderboardPDF, exportAnswerScriptPDF, exportStudentSummaryPDF } 
 import { getSynchronizedScore } from '../../utils/scoreSync';
 import { StudentProfileModal } from '../StudentProfileModal';
 import { useToast } from '../../context/ToastContext';
+import { ModernSelect } from '../ui/ModernSelect';
 import { 
   Trophy, 
   Search, 
@@ -243,48 +244,45 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
       {activeSubTab === 'leaderboard' && (
         <div className="space-y-6">
           {/* Step 1 & Step 2 Selectors: Default has no exam or course selected */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
+          <div className="bg-white dark:bg-[#121622] border border-slate-200 dark:border-white/[0.08] rounded-3xl p-5 shadow-xs grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                Step 1: Select Course
+                Step 1: Select Course (কোর্স নির্বাচন করুন)
               </label>
-              <select
+              <ModernSelect
                 value={selectedCourseId}
-                onChange={(e) => {
-                  const newCid = e.target.value;
+                onChange={(newCid) => {
                   setSelectedCourseId(newCid);
                   setSelectedExamId('');
                 }}
-                className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-              >
-                <option value="">-- Choose a Course --</option>
-                {courses.map(c => (
-                  <option key={c.id} value={c.id}>{c.name} ({c.batch})</option>
-                ))}
-              </select>
+                placeholder="-- Choose a Course --"
+                options={[
+                  { value: '', label: '-- Choose a Course --' },
+                  ...courses.map(c => ({ value: c.id, label: c.name, badge: c.batch }))
+                ]}
+              />
             </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                Step 2: Select Exam
+                Step 2: Select Exam (এক্সাম নির্বাচন করুন)
               </label>
-              <select
+              <ModernSelect
                 value={selectedExamId}
-                onChange={(e) => setSelectedExamId(e.target.value)}
+                onChange={setSelectedExamId}
                 disabled={!selectedCourseId || courseExams.length === 0}
-                className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 font-medium"
-              >
-                <option value="">
-                  {!selectedCourseId 
+                placeholder={
+                  !selectedCourseId 
                     ? '-- Select a course first --' 
                     : courseExams.length === 0 
                     ? '-- No exams in this course --' 
-                    : '-- Choose an Exam --'}
-                </option>
-                {courseExams.map(ex => (
-                  <option key={ex.id} value={ex.id}>{ex.title}</option>
-                ))}
-              </select>
+                    : '-- Choose an Exam --'
+                }
+                options={[
+                  { value: '', label: '-- Choose an Exam --' },
+                  ...courseExams.map(ex => ({ value: ex.id, label: ex.title }))
+                ]}
+              />
             </div>
 
             {/* Filter by Name / College inside Leaderboard */}
