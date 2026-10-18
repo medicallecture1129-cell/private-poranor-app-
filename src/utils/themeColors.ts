@@ -13,6 +13,12 @@ export interface ColorHSL {
   l: number;
 }
 
+export interface ColorHSV {
+  h: number; // 0 - 360
+  s: number; // 0 - 100
+  v: number; // 0 - 100
+}
+
 export interface ColorRGB {
   r: number;
   g: number;
@@ -106,6 +112,66 @@ export function hslToHex(h: number, s: number, l: number): string {
   const b = Math.round(hue2rgb(p, q, hNorm - 1 / 3) * 255);
 
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
+export function hsvToRgb(h: number, s: number, v: number): ColorRGB {
+  const sNorm = Math.max(0, Math.min(100, s)) / 100;
+  const vNorm = Math.max(0, Math.min(100, v)) / 100;
+  const c = vNorm * sNorm;
+  const hPrime = ((h % 360) + 360) % 360 / 60;
+  const x = c * (1 - Math.abs((hPrime % 2) - 1));
+  const m = vNorm - c;
+
+  let r1 = 0, g1 = 0, b1 = 0;
+  if (hPrime >= 0 && hPrime < 1) { r1 = c; g1 = x; b1 = 0; }
+  else if (hPrime >= 1 && hPrime < 2) { r1 = x; g1 = c; b1 = 0; }
+  else if (hPrime >= 2 && hPrime < 3) { r1 = 0; g1 = c; b1 = x; }
+  else if (hPrime >= 3 && hPrime < 4) { r1 = 0; g1 = x; b1 = c; }
+  else if (hPrime >= 4 && hPrime < 5) { r1 = x; g1 = 0; b1 = c; }
+  else if (hPrime >= 5 && hPrime < 6) { r1 = c; g1 = 0; b1 = x; }
+
+  return {
+    r: Math.round((r1 + m) * 255),
+    g: Math.round((g1 + m) * 255),
+    b: Math.round((b1 + m) * 255),
+  };
+}
+
+export function hsvToHex(h: number, s: number, v: number): string {
+  const rgb = hsvToRgb(h, s, v);
+  const rHex = rgb.r.toString(16).padStart(2, '0');
+  const gHex = rgb.g.toString(16).padStart(2, '0');
+  const bHex = rgb.b.toString(16).padStart(2, '0');
+  return `#${rHex}${gHex}${bHex}`;
+}
+
+export function hexToHsv(hex: string): ColorHSV {
+  const rgb = hexToRgb(hex);
+  const r = rgb.r / 255;
+  const g = rgb.g / 255;
+  const b = rgb.b / 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+
+  let h = 0;
+  if (delta !== 0) {
+    if (max === r) {
+      h = ((g - b) / delta) % 6;
+    } else if (max === g) {
+      h = (b - r) / delta + 2;
+    } else {
+      h = (r - g) / delta + 4;
+    }
+    h = Math.round(h * 60);
+    if (h < 0) h += 360;
+  }
+
+  const s = max === 0 ? 0 : Math.round((delta / max) * 100);
+  const v = Math.round(max * 100);
+
+  return { h, s, v };
 }
 
 export interface CustomColors {
