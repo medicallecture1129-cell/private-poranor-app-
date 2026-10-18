@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Course, StudentUser } from '../../types';
 import { updateCourseAllowedEmails, registerOrUpdateStudent } from '../../services/db';
-import { Search, UserPlus, Trash2, Mail, CheckCircle2, Clock, School, Phone, UserCheck, Shield } from 'lucide-react';
+import { Search, UserPlus, Trash2, Mail, CheckCircle2, Clock, School, Phone, UserCheck, Shield, UserCircle } from 'lucide-react';
+import { StudentProfileModal } from '../StudentProfileModal';
 
 interface CourseMembersProps {
   course: Course;
@@ -12,6 +13,7 @@ interface CourseMembersProps {
 export const CourseMembers: React.FC<CourseMembersProps> = ({ course, students }) => {
   const { role } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
+  const [inspectStudent, setInspectStudent] = useState<StudentUser | null>(null);
   
   // Admin add emails state
   const [emailInput, setEmailInput] = useState('');
@@ -142,9 +144,21 @@ export const CourseMembers: React.FC<CourseMembersProps> = ({ course, students }
                     {member.name.slice(0, 1).toUpperCase()}
                   </div>
                   <div>
-                    <h5 className="font-semibold text-sm text-slate-900 dark:text-white">
-                      {member.name}
-                    </h5>
+                    <div className="flex items-center gap-2">
+                      <h5 className="font-semibold text-sm text-slate-900 dark:text-white">
+                        {member.name}
+                      </h5>
+                      <button
+                        onClick={() => {
+                          window.history.pushState({ modal: 'studentProfile' }, '');
+                          setInspectStudent(member);
+                        }}
+                        className="p-1 rounded-md text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                        title={role === 'admin' ? "শিক্ষার্থীর তথ্য দেখুন" : "সহপাঠীর প্রোফাইল কার্ড"}
+                      >
+                        <UserCircle className="w-3.5 h-3.5 text-blue-500" />
+                      </button>
+                    </div>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                       <span className="flex items-center gap-1">
                         <School className="w-3.5 h-3.5" />
@@ -299,6 +313,15 @@ export const CourseMembers: React.FC<CourseMembersProps> = ({ course, students }
             </div>
           </div>
         </div>
+      )}
+
+      {/* STUDENT PROFILE MODAL */}
+      {inspectStudent && (
+        <StudentProfileModal
+          student={inspectStudent}
+          courses={[course]}
+          onClose={() => setInspectStudent(null)}
+        />
       )}
     </div>
   );

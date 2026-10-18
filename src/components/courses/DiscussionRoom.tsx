@@ -20,8 +20,10 @@ import {
   Crop,
   X, 
   Check, 
-  Maximize2 
+  Maximize2,
+  UserCircle
 } from 'lucide-react';
+import { StudentProfileModal } from '../StudentProfileModal';
 
 interface DiscussionRoomProps {
   courseId: string;
@@ -33,6 +35,7 @@ export const DiscussionRoom: React.FC<DiscussionRoomProps> = ({ courseId }) => {
   const { success: toastSuccess, error: toastError } = useToast();
 
   const [messages, setMessages] = useState<DiscussionMessage[]>([]);
+  const [inspectStudentProfile, setInspectStudentProfile] = useState<{ name: string; college?: string; email?: string } | null>(null);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
 
@@ -558,9 +561,24 @@ export const DiscussionRoom: React.FC<DiscussionRoomProps> = ({ courseId }) => {
                       {/* Sender Info */}
                       {!isMe && (
                         <div className="flex items-center gap-1.5 mb-1">
-                          <span className="text-xs font-semibold text-blue-500 dark:text-blue-400">
-                            {msg.senderName}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs font-semibold text-blue-500 dark:text-blue-400">
+                              {msg.senderName}
+                            </span>
+                            <button
+                              onClick={() => {
+                                window.history.pushState({ modal: 'profile' }, '');
+                                setInspectStudentProfile({
+                                  name: msg.senderName,
+                                  college: msg.senderCollege
+                                });
+                              }}
+                              className="p-0.5 text-slate-400 hover:text-blue-500 rounded transition-colors cursor-pointer"
+                              title={role === 'admin' ? "শিক্ষার্থীর তথ্য দেখুন" : "প্রোফাইল কার্ড"}
+                            >
+                              <UserCircle className="w-3.5 h-3.5 text-blue-500/80 hover:text-blue-500" />
+                            </button>
+                          </div>
                           {msg.senderRole === 'admin' ? (
                             <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-300 font-bold">
                               Teacher
@@ -1050,6 +1068,14 @@ export const DiscussionRoom: React.FC<DiscussionRoomProps> = ({ courseId }) => {
             className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
           />
         </div>
+      )}
+
+      {/* Student Profile Modal */}
+      {inspectStudentProfile && (
+        <StudentProfileModal
+          student={inspectStudentProfile}
+          onClose={() => setInspectStudentProfile(null)}
+        />
       )}
     </div>
   );

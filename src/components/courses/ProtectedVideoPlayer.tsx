@@ -10,7 +10,6 @@ import {
   RotateCcw,
   RotateCw,
   Gauge, 
-  Settings,
   GraduationCap,
   Sun,
   ArrowLeft,
@@ -39,6 +38,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<any>(null);
   const hideControlsTimerRef = useRef<any>(null);
+  
+  // Touch gesture tracking for brightness (left) and volume (right)
   const touchStartRef = useRef<{ x: number; y: number; time: number; brightness: number; volume: number }>({
     x: 0,
     y: 0,
@@ -54,18 +55,17 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(100);
-  const [brightness, setBrightness] = useState(1); // 0.3 to 1.5
+  const [brightness, setBrightness] = useState(1); // 0.25 to 1.5
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
-  const [quality, setQuality] = useState<string>('Auto');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
-  const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [isApiReady, setIsApiReady] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
 
   // Gesture indicators
   const [skipFeedback, setSkipFeedback] = useState<{ side: 'left' | 'right'; text: string } | null>(null);
   const [gestureFeedback, setGestureFeedback] = useState<{ type: 'brightness' | 'volume'; value: number } | null>(null);
+  const [playFeedback, setPlayFeedback] = useState<'play' | 'pause' | null>(null);
 
   // Extract YouTube ID
   const getYouTubeId = (rawUrl: string): string | null => {
@@ -79,6 +79,21 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   };
 
   const videoId = getYouTubeId(url);
+
+  // Listen to popstate / hardware back button to close speed menu or player
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      if (showSpeedMenu) {
+        e.preventDefault();
+        setShowSpeedMenu(false);
+      } else if (onClose) {
+        onClose();
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [showSpeedMenu, onClose]);
 
   // Load YouTube IFrame API script
   useEffect(() => {
@@ -96,12 +111,14 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
   }, []);
 
-  // Initialize player with uncropped standard aspect ratio
+  // Initialize YouTube player with uncropped standard 100% width and height
   useEffect(() => {
     if (!isApiReady || !videoId) return;
 
     playerRef.current = new window.YT.Player('yt-portal-player-frame', {
       videoId: videoId,
+      width: '100%',
+      height: '100%',
       playerVars: {
         controls: 0,
         modestbranding: 1,
@@ -135,7 +152,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         const dur = playerRef.current.getDuration() || 0;
         if (dur > 0) setDuration(dur);
       }
-    }, 400);
+    }, 350);
 
     const handleFullscreenChange = () => {
       const isNowFullscreen = !!(
@@ -160,12 +177,17 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       } else if (e.key === 'ArrowRight' || e.key === 'l') {
         e.preventDefault();
         handleSkipForward();
-      } else if (e.key === 'm') {
-        e.preventDefault();
-        toggleMute();
       } else if (e.key === 'f') {
         e.preventDefault();
         toggleFullscreen();
+      } else if (e.key === 'Escape') {
+        if (showSpeedMenu) {
+          setShowSpeedMenu(false);
+        } else if (isFullscreen) {
+          toggleFullscreen();
+        } else if (onClose) {
+          onClose();
+        }
       }
     };
 
@@ -176,58 +198,69 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
       window.removeEventListener('keydown', handleKeyDown);
-      if (playerRef.current && playerRef.current.destroy) {
-        playerRef.current.destroy();
-      }
+      try {
+        if (playerRef.current && playerRef.current.destroy) {
+          playerRef.current.destroy();
+        }
+      } catch {}
     };
   }, [isApiReady, videoId]);
 
-  const handleUserActivity = () => {
-    setControlsVisible(true);
-    if (hideControlsTimerRef.current) {
-      clearTimeout(hideControlsTimerRef.current);
-    }
-    if (isPlaying && !showSpeedMenu && !showQualityMenu) {
+  // Autohide controls after inactivity
+  const resetHideTimer = () => {
+    if (hideControlsTimerRef.current) clearTimeout(hideControlsTimerRef.current);
+    if (isPlaying) {
       hideControlsTimerRef.current = setTimeout(() => {
         setControlsVisible(false);
       }, 3500);
     }
   };
 
+  const handleUserActivity = () => {
+    setControlsVisible(true);
+    resetHideTimer();
+  };
+
+  // Play / Pause toggle with smooth feedback
   const togglePlay = () => {
     if (!playerRef.current) return;
     if (isPlaying) {
       playerRef.current.pauseVideo();
       setIsPlaying(false);
+      setPlayFeedback('pause');
       setControlsVisible(true);
     } else {
       playerRef.current.playVideo();
       setIsPlaying(true);
-      handleUserActivity();
+      setPlayFeedback('play');
+      resetHideTimer();
     }
+    setTimeout(() => setPlayFeedback(null), 600);
   };
 
+  // 10s Skip Backward
   const handleSkipBackward = () => {
-    if (!playerRef.current || !playerRef.current.seekTo) return;
+    if (!playerRef.current || !playerRef.current.getCurrentTime) return;
     const newTime = Math.max(0, currentTime - 10);
-    setCurrentTime(newTime);
     playerRef.current.seekTo(newTime, true);
+    setCurrentTime(newTime);
     setSkipFeedback({ side: 'left', text: '-10s' });
-    setTimeout(() => setSkipFeedback(null), 600);
+    setTimeout(() => setSkipFeedback(null), 700);
     handleUserActivity();
   };
 
+  // 10s Skip Forward
   const handleSkipForward = () => {
-    if (!playerRef.current || !playerRef.current.seekTo) return;
+    if (!playerRef.current || !playerRef.current.getCurrentTime) return;
     const newTime = Math.min(duration, currentTime + 10);
-    setCurrentTime(newTime);
     playerRef.current.seekTo(newTime, true);
+    setCurrentTime(newTime);
     setSkipFeedback({ side: 'right', text: '+10s' });
-    setTimeout(() => setSkipFeedback(null), 600);
+    setTimeout(() => setSkipFeedback(null), 700);
     handleUserActivity();
   };
 
-  // Touch Swipe for Brightness (Left Side) & Volume (Right Side)
+  // Touch Gesture Handling: Vertical swipe for Brightness (Left) and Volume (Right)
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 1) {
       const touch = e.touches[0];
@@ -242,8 +275,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         volume: volume
       };
       isDraggingRef.current = false;
+      handleUserActivity();
     }
-    handleUserActivity();
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -257,18 +290,19 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       const deltaY = touchStartRef.current.y - currentY; // Up is positive
       const deltaX = Math.abs(currentX - touchStartRef.current.x);
 
-      // If vertical drag is more prominent than horizontal
-      if (Math.abs(deltaY) > 15 && Math.abs(deltaY) > deltaX) {
+      // Vertical drag check
+      if (Math.abs(deltaY) > 12 && Math.abs(deltaY) > deltaX) {
         isDraggingRef.current = true;
-        const isLeftSide = touchStartRef.current.x < rect.width * 0.5;
+        const isLeftSide = touchStartRef.current.x < rect.width * 0.48;
 
         if (isLeftSide) {
-          // Brightness Control (0.3 to 1.5)
-          const newBrightness = Math.min(1.5, Math.max(0.3, touchStartRef.current.brightness + (deltaY / rect.height) * 1.2));
+          // Brightness Control (0.25 to 1.5)
+          const newBrightness = Math.min(1.5, Math.max(0.25, touchStartRef.current.brightness + (deltaY / rect.height) * 1.3));
           setBrightness(newBrightness);
+          const percent = Math.round(((newBrightness - 0.25) / 1.25) * 100);
           setGestureFeedback({
             type: 'brightness',
-            value: Math.round(((newBrightness - 0.3) / 1.2) * 100)
+            value: percent
           });
         } else {
           // Volume Control (0 to 100)
@@ -320,7 +354,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       }
       lastTapRef.current = { time: 0, x: 0 };
     } else {
-      // Single tap: toggle pause/start directly and toggle controls
+      // Single tap: toggle pause/play smoothly!
       lastTapRef.current = { time: now, x: tapX };
       togglePlay();
     }
@@ -346,7 +380,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   };
 
   const handleSetSpeed = (speed: number) => {
-    const clamped = Math.round(Math.min(5, Math.max(0.25, speed)) * 100) / 100;
+    // 0.25 to 5.0 with 0.01 precision
+    const clamped = Math.round(Math.min(5.0, Math.max(0.25, speed)) * 100) / 100;
     setPlaybackSpeed(clamped);
     if (playerRef.current && playerRef.current.setPlaybackRate) {
       playerRef.current.setPlaybackRate(clamped);
@@ -384,14 +419,14 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   };
 
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center ${isFullscreen ? 'p-0 bg-black' : 'p-2 sm:p-4 bg-black/95 backdrop-blur-md'}`}>
+    <div className={`fixed inset-0 z-50 flex items-center justify-center ${isFullscreen ? 'p-0 bg-black' : 'p-0 sm:p-4 bg-black/95 backdrop-blur-md'}`}>
       <div 
         ref={containerRef}
         onMouseMove={handleUserActivity}
-        className={`relative w-full bg-black flex flex-col select-none overflow-hidden ${
+        className={`relative w-full max-w-full bg-black flex flex-col select-none overflow-hidden ${
           isFullscreen 
             ? 'fixed inset-0 w-screen h-screen max-w-none rounded-none z-[9999]' 
-            : 'max-w-5xl rounded-2xl border border-slate-800 shadow-2xl max-h-[96vh]'
+            : 'sm:max-w-5xl sm:rounded-2xl border-0 sm:border border-slate-800 shadow-2xl h-full sm:h-auto sm:max-h-[96vh]'
         }`}
         onContextMenu={(e) => e.preventDefault()}
       >
@@ -430,17 +465,17 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           </div>
         </div>
 
-        {/* Video Canvas Container (Applied brightness filter) */}
+        {/* Video Canvas Container (16:9 aspect ratio, 100% width, no mobile cut-off) */}
         <div 
-          className="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden"
+          className="relative w-full aspect-video max-w-full bg-black flex items-center justify-center overflow-hidden"
           style={{ filter: `brightness(${brightness})` }}
         >
-          {/* YouTube iFrame holder */}
-          <div className="w-full h-full pointer-events-none select-none flex items-center justify-center">
-            <div id="yt-portal-player-frame" className="w-full h-full" />
+          {/* YouTube iFrame holder - absolute fill to guarantee 100% mobile fit */}
+          <div className="absolute inset-0 w-full h-full pointer-events-none select-none">
+            <div id="yt-portal-player-frame" className="w-full h-full absolute inset-0" />
           </div>
 
-          {/* Interactive Screen Layer (Handles tap-to-pause and swipe brightness/volume) */}
+          {/* Interactive Screen Layer (Single tap: play/pause; Double tap: 10s skip; Swipe: Brightness/Volume) */}
           <div 
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
@@ -449,71 +484,85 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             className="absolute inset-0 z-10 cursor-pointer"
           />
 
-          {/* Double-tap feedback (-10s / +10s) */}
-          {skipFeedback && (
-            <div 
-              className={`absolute top-1/2 -translate-y-1/2 ${skipFeedback.side === 'left' ? 'left-8 sm:left-16' : 'right-8 sm:right-16'} z-20 pointer-events-none flex flex-col items-center justify-center w-20 h-20 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/20 animate-in zoom-in-75 duration-150`}
-            >
-              {skipFeedback.side === 'left' ? <RotateCcw className="w-6 h-6 mb-1 text-white" /> : <RotateCw className="w-6 h-6 mb-1 text-white" />}
-              <span className="text-xs font-bold">{skipFeedback.text}</span>
+          {/* Smooth Play / Pause Pulse feedback on tap (no center button clutter) */}
+          {playFeedback && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+              <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-md text-white flex items-center justify-center shadow-2xl animate-ping duration-300">
+                {playFeedback === 'play' ? (
+                  <Play className="w-8 h-8 fill-white ml-1" />
+                ) : (
+                  <Pause className="w-8 h-8 fill-white" />
+                )}
+              </div>
             </div>
           )}
 
-          {/* Gesture feedback (Brightness & Volume overlay) */}
-          {gestureFeedback && (
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none flex items-center gap-3 px-5 py-3 rounded-2xl bg-black/80 backdrop-blur-md text-white border border-white/20 shadow-2xl">
-              {gestureFeedback.type === 'brightness' ? (
-                <Sun className="w-6 h-6 text-amber-400" />
-              ) : (
-                <Volume2 className="w-6 h-6 text-blue-400" />
-              )}
-              <div className="flex flex-col">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  {gestureFeedback.type === 'brightness' ? 'Brightness' : 'Volume'}
-                </span>
-                <span className="text-sm font-black">{gestureFeedback.value}%</span>
+          {/* Left / Right 10s Skip Animation Overlays */}
+          {skipFeedback && (
+            <div 
+              className={`absolute top-0 bottom-0 z-20 w-1/3 flex items-center justify-center pointer-events-none ${
+                skipFeedback.side === 'left' ? 'left-0 bg-gradient-to-r from-blue-600/30 to-transparent' : 'right-0 bg-gradient-to-l from-blue-600/30 to-transparent'
+              }`}
+            >
+              <div className="flex flex-col items-center text-white bg-black/70 px-4 py-3 rounded-2xl backdrop-blur-md shadow-2xl animate-pulse">
+                {skipFeedback.side === 'left' ? <RotateCcw className="w-6 h-6 mb-1 text-blue-400" /> : <RotateCw className="w-6 h-6 mb-1 text-blue-400" />}
+                <span className="text-xs font-bold font-mono">{skipFeedback.text}</span>
               </div>
+            </div>
+          )}
+
+          {/* Gesture HUD Feedback: Brightness (Left Swipe) & Volume (Right Swipe) */}
+          {gestureFeedback && (
+            <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-black/80 backdrop-blur-md text-white shadow-2xl pointer-events-none border border-white/10">
+              {gestureFeedback.type === 'brightness' ? (
+                <>
+                  <Sun className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-bold font-mono">Brightness: {gestureFeedback.value}%</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 className="w-4 h-4 text-blue-400" />
+                  <span className="text-xs font-bold font-mono">Volume: {gestureFeedback.value}%</span>
+                </>
+              )}
             </div>
           )}
         </div>
 
-        {/* Bottom Floating Control Bar */}
+        {/* Bottom Control Bar */}
         <div 
-          className={`z-30 transition-all duration-300 ${
-            isFullscreen 
-              ? `absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/95 via-black/80 to-transparent px-4 pb-6 pt-8 ${
-                  controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full pointer-events-none'
-                }`
-              : 'bg-slate-900 border-t border-slate-800 px-4 py-3'
+          className={`z-30 px-3 sm:px-4 py-2 bg-gradient-to-t from-black/95 via-black/80 to-transparent text-white transition-all duration-300 ${
+            controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
           }`}
         >
-          {/* Progress Timeline Slider */}
-          <div className="relative group/timeline flex items-center mb-2.5">
+          {/* Seek Progress Bar */}
+          <div className="relative flex items-center w-full mb-1 group">
             <input
               type="range"
               min={0}
               max={duration || 100}
               value={currentTime}
               onChange={handleSeek}
-              className="w-full h-1.5 bg-slate-700/80 rounded-lg appearance-none cursor-pointer accent-blue-600 hover:h-2.5 transition-all"
+              className="w-full h-1.5 bg-slate-700/80 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:h-2 transition-all"
             />
           </div>
 
-          <div className="flex items-center justify-between gap-2 sm:gap-4 text-white">
-            {/* Left Controls: Play/Pause, Skip buttons & Timestamp */}
-            <div className="flex items-center gap-2 sm:gap-3">
+          {/* Controls Row */}
+          <div className="flex items-center justify-between gap-2">
+            {/* Left Controls: Play/Pause, 10s back, 10s forward, Timestamp */}
+            <div className="flex items-center gap-1 sm:gap-2">
               <button
                 onClick={togglePlay}
-                className="p-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-transform hover:scale-105 cursor-pointer shadow-xs"
+                className="p-1.5 text-white hover:text-blue-400 transition-colors cursor-pointer"
                 title={isPlaying ? 'Pause' : 'Play'}
               >
-                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
+                {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
               </button>
 
               <button
                 onClick={handleSkipBackward}
                 className="p-1.5 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                title="Rewind 10s"
+                title="Backward 10s"
               >
                 <RotateCcw className="w-4 h-4" />
               </button>
@@ -547,8 +596,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               {/* Playback Speed Button (Opens Screenshot 2 Speed Drawer) */}
               <button
                 onClick={() => {
+                  window.history.pushState({ modal: 'speedMenu' }, '');
                   setShowSpeedMenu(true);
-                  setShowQualityMenu(false);
                 }}
                 className="px-2.5 py-1 rounded-lg text-xs font-bold text-slate-200 bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer flex items-center gap-1 border border-slate-700/60"
                 title="Playback Speed"
@@ -569,11 +618,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           </div>
         </div>
 
-        {/* PLAYBACK SPEED OVERLAY MODAL (EXACT MATCH WITH SCREENSHOT 2) */}
+        {/* PLAYBACK SPEED OVERLAY MODAL (EXACT 100% MATCH WITH SCREENSHOT 2) */}
         {showSpeedMenu && (
-          <div className="absolute inset-0 z-40 bg-black/85 backdrop-blur-md flex flex-col justify-end sm:justify-center p-4 sm:p-6 animate-in fade-in duration-150">
+          <div className="absolute inset-0 z-40 bg-black/85 backdrop-blur-md flex flex-col justify-end sm:justify-center p-3 sm:p-6 animate-in fade-in duration-150">
             <div className="w-full max-w-sm mx-auto bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl text-white space-y-5">
-              {/* Header with back arrow */}
+              {/* Header with back arrow matching Screenshot 2 */}
               <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
                 <button
                   onClick={() => setShowSpeedMenu(false)}
@@ -622,7 +671,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 </div>
 
                 <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono">
-                  <span>0.25x</span>
+                  <span>0.05x</span>
                   <span>5.0x</span>
                 </div>
               </div>
@@ -631,8 +680,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               <div className="grid grid-cols-4 gap-2">
                 {[
                   0.50, 0.75, 1.0, 1.25,
-                  1.50, 1.75, 2.0, 2.75,
-                  3.0, 5.0
+                  1.50, 1.75, 2.0, 3.0,
+                  5.0, 2.75
                 ].map((s) => {
                   const isActive = Math.abs(playbackSpeed - s) < 0.005;
                   return (

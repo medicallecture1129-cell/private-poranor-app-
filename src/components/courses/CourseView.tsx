@@ -785,7 +785,7 @@ export const CourseView: React.FC<CourseViewProps> = ({ course, students, onBack
 
                         {/* Delete & Rename buttons clearly visible for touch screens */}
                         {role === 'admin' && (
-                          <div className="flex items-center gap-1 opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1 shrink-0 ml-2">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -854,7 +854,7 @@ export const CourseView: React.FC<CourseViewProps> = ({ course, students, onBack
 
                         {/* Delete & Rename buttons clearly visible for touch screens */}
                         {role === 'admin' && (
-                          <div className="flex items-center gap-1 opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1 shrink-0 ml-2">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();

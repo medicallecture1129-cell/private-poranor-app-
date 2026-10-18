@@ -29,6 +29,30 @@ const MainApp: React.FC = () => {
   const [exams, setExams] = useState<Exam[]>([]);
   const [submissions, setSubmissions] = useState<ExamSubmission[]>([]);
 
+  // Initialize browser history base entry to enable native back navigation
+  useEffect(() => {
+    try {
+      if (!window.history.state) {
+        window.history.replaceState({ root: true, tab: 'courses' }, '');
+      }
+    } catch {}
+  }, []);
+
+  // Hardware back button / popstate handler for 1-step backward navigation
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      // If inside a selected course, exit course to course list
+      if (selectedCourse) {
+        setSelectedCourse(null);
+      } else if (activeTab !== 'courses') {
+        setActiveTab('courses');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [selectedCourse, activeTab]);
+
   // Real-time Firestore subscriptions (100% cloud-synced, NO mock data)
   useEffect(() => {
     const unsubCourses = subscribeCourses(
@@ -89,7 +113,7 @@ const MainApp: React.FC = () => {
   // If not logged in, display Login Page
   if (!user) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-black text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors">
+      <div className="min-h-screen bg-slate-50 dark:bg-black text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors overflow-x-hidden">
         <Navbar />
         <main className="flex-1">
           <LoginPage courses={courses} />
@@ -99,7 +123,7 @@ const MainApp: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-black text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors">
+    <div className="min-h-screen bg-slate-50 dark:bg-black text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors overflow-x-hidden">
       <Navbar />
 
       <main className="flex-1">
@@ -109,13 +133,22 @@ const MainApp: React.FC = () => {
             <CourseView
               course={selectedCourse}
               students={students}
-              onBack={() => setSelectedCourse(null)}
+              onBack={() => {
+                if (window.history.length > 1) {
+                  window.history.back();
+                } else {
+                  setSelectedCourse(null);
+                }
+              }}
             />
           ) : (
             <CourseList
               courses={courses}
               students={students}
-              onSelectCourse={(course) => setSelectedCourse(course)}
+              onSelectCourse={(course) => {
+                window.history.pushState({ view: 'course', courseId: course.id }, '');
+                setSelectedCourse(course);
+              }}
             />
           )
         )}
@@ -149,6 +182,9 @@ const MainApp: React.FC = () => {
       <BottomNav
         activeTab={activeTab}
         setActiveTab={(tab) => {
+          if (tab !== activeTab) {
+            window.history.pushState({ view: 'tab', tab }, '');
+          }
           setActiveTab(tab);
           if (tab !== 'courses') {
             setSelectedCourse(null);

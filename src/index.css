@@ -6,29 +6,69 @@
   html, body {
     overscroll-behavior: none;
     overscroll-behavior-y: none;
+    overscroll-behavior-x: none;
     -webkit-overflow-scrolling: touch;
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    margin: 0;
+    padding: 0;
+    height: 100%;
   }
 
-  /* Enhanced light-mode contrast so cards, modals, borders and text animations are crisp */
+  #root {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    overscroll-behavior: none;
+    overscroll-behavior-y: none;
+  }
+
+  /* Enhanced light-mode contrast: Distinct cards, badges, and borders */
   body:not(.dark) {
-    background-color: #f8fafc;
+    background-color: #f1f5f9;
     color: #0f172a;
   }
 
-  /* Crisp card contrast in light mode */
+  /* Crisp light mode cards with elevated separation */
   body:not(.dark) .bg-white {
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
     box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.06);
-    border-color: #e2e8f0;
+  }
+
+  /* High contrast badges & borders in light mode so animations/text pop */
+  body:not(.dark) .border-slate-200 {
+    border-color: #cbd5e1 !important;
+  }
+
+  body:not(.dark) .bg-slate-50 {
+    background-color: #e2e8f0 !important;
+  }
+
+  body:not(.dark) .bg-slate-100 {
+    background-color: #cbd5e1 !important;
+  }
+
+  /* Prevent iframe cut-off for YouTube */
+  #yt-portal-player-frame, 
+  iframe#yt-portal-player-frame {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    border: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
   }
 }
 
-/* Custom sleek scrollbar for chats and tables */
+/* Custom sleek scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {

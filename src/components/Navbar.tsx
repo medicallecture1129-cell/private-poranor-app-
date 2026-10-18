@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme, AVAILABLE_THEMES } from '../context/ThemeContext';
 import { subscribePortalSettings, DEFAULT_PORTAL_SETTINGS } from '../services/db';
 import { PortalSettings } from '../types';
 import { 
@@ -75,9 +75,20 @@ export const Navbar: React.FC = () => {
         console.warn('Install prompt error:', err);
       }
     } else {
+      window.history.pushState({ modal: 'installGuide' }, '');
       setShowInstallGuide(true);
     }
   };
+
+  // Close modals on hardware back button
+  useEffect(() => {
+    const handlePopState = () => {
+      if (showProfileModal) setShowProfileModal(false);
+      if (showInstallGuide) setShowInstallGuide(false);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [showProfileModal, showInstallGuide]);
 
   return (
     <>
@@ -138,7 +149,10 @@ export const Navbar: React.FC = () => {
               <div className="flex items-center gap-2 pl-2 sm:pl-3 border-l border-slate-200 dark:border-slate-800">
                 {/* Clickable Profile Card */}
                 <button
-                  onClick={() => setShowProfileModal(true)}
+                  onClick={() => {
+                    window.history.pushState({ modal: 'profile' }, '');
+                    setShowProfileModal(true);
+                  }}
                   className="flex items-center gap-2.5 p-1 -m-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors cursor-pointer text-left"
                   title="আপনার প্রোফাইল ও থিম সেটিংস দেখুন"
                 >
@@ -283,26 +297,19 @@ export const Navbar: React.FC = () => {
                   </button>
                 </div>
 
-                {/* Color themes */}
+                {/* Color themes (9 distinct options) */}
                 <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { id: 'default', name: 'Classic Blue', bg: 'bg-blue-600' },
-                    { id: 'ocean', name: 'Ocean Cyan', bg: 'bg-cyan-600' },
-                    { id: 'emerald', name: 'Emerald', bg: 'bg-emerald-600' },
-                    { id: 'purple', name: 'Royal Purple', bg: 'bg-purple-600' },
-                    { id: 'amber', name: 'Amber Warm', bg: 'bg-amber-600' },
-                    { id: 'crimson', name: 'Crimson Rose', bg: 'bg-rose-600' },
-                  ].map((t) => (
+                  {AVAILABLE_THEMES.map((t) => (
                     <button
                       key={t.id}
-                      onClick={() => setColorTheme(t.id as any)}
+                      onClick={() => setColorTheme(t.id)}
                       className={`p-2 rounded-xl border text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
                         colorTheme === t.id
                           ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 shadow-xs'
                           : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
                       }`}
                     >
-                      <span className={`w-3.5 h-3.5 rounded-full ${t.bg} shrink-0`} />
+                      <span className={`w-3.5 h-3.5 rounded-full ${t.bgClass} shrink-0`} />
                       <span className="truncate">{t.name}</span>
                     </button>
                   ))}

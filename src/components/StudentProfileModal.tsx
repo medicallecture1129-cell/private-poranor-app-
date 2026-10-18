@@ -30,6 +30,15 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
   const { role } = useAuth();
   const isAdmin = role === 'admin';
 
+  // Handle hardware / browser back button to close modal
+  React.useEffect(() => {
+    const handlePopState = () => {
+      onClose();
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [onClose]);
+
   // Submissions by this student
   const studentSubs = student.email 
     ? submissions.filter(s => s.studentEmail?.toLowerCase() === student.email?.toLowerCase())
