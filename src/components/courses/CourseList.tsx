@@ -112,8 +112,9 @@ export const CourseList: React.FC<CourseListProps> = ({ courses, students, onSel
               <div
                 key={course.id}
                 onClick={() => onSelectCourse(course)}
-                className="group relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-500/60 dark:hover:border-blue-500/60 rounded-2xl p-5 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between"
+                className="group relative bg-white/95 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 card-theme-interactive rounded-2xl p-5 shadow-xs hover:shadow-xl cursor-pointer flex flex-col justify-between overflow-hidden"
               >
+                <div className="card-glow-line" />
                 <div>
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <span className="text-xs px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-bold border border-blue-200 dark:border-blue-900/50">

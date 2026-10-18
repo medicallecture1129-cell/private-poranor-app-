@@ -887,18 +887,19 @@ export const CourseView: React.FC<CourseViewProps> = ({
                           window.history.pushState({ type: 'folder', id: folder.id }, '');
                           setCurrentFolderId(folder.id);
                         }}
-                        className="group p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-500/50 dark:hover:border-blue-500/50 rounded-2xl transition-all shadow-xs hover:shadow-md cursor-pointer flex items-center justify-between"
+                        className="group relative p-4 bg-white/95 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 card-theme-interactive rounded-2xl shadow-xs hover:shadow-xl cursor-pointer flex items-center justify-between overflow-hidden"
                       >
+                        <div className="card-glow-line" />
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                            <FolderIcon className="w-5 h-5 fill-current opacity-80" />
+                          <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300 shadow-xs">
+                            <FolderIcon className="w-5 h-5 fill-current opacity-85" />
                           </div>
                           <div className="min-w-0">
-                            <h4 className="font-semibold text-sm text-slate-900 dark:text-white truncate">
+                            <h4 className="font-semibold text-sm text-slate-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                               {folder.name}
                             </h4>
                             <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                              Folder
+                              ফোল্ডার • ব্রাউজ করতে ট্যাপ করুন
                             </span>
                           </div>
                         </div>
@@ -912,14 +913,14 @@ export const CourseView: React.FC<CourseViewProps> = ({
                                 setRenameTargetFolder(folder);
                                 setRenameFolderNameVal(folder.name);
                               }}
-                              className="p-1.5 text-slate-400 hover:text-blue-500 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              className="p-1.5 text-slate-400 hover:text-blue-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                               title="Rename Folder"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={(e) => handleDeleteFolder(folder, e)}
-                              className="p-1.5 text-slate-400 hover:text-red-500 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                               title="Delete Folder"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -971,18 +972,19 @@ export const CourseView: React.FC<CourseViewProps> = ({
                           window.history.pushState({ type: 'class', id: cClass.id }, '');
                           setCurrentClass(cClass);
                         }}
-                        className="group p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-500/60 dark:hover:border-blue-500/60 rounded-2xl transition-all shadow-xs hover:shadow-md cursor-pointer flex items-center justify-between"
+                        className="group relative p-4 bg-white/95 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 card-theme-interactive rounded-2xl shadow-xs hover:shadow-xl cursor-pointer flex items-center justify-between overflow-hidden"
                       >
+                        <div className="card-glow-line" />
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300 shadow-xs">
                             <GraduationCap className="w-5 h-5" />
                           </div>
                           <div className="min-w-0">
-                            <h4 className="font-semibold text-sm text-slate-900 dark:text-white truncate">
+                            <h4 className="font-semibold text-sm text-slate-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                               {cClass.title}
                             </h4>
                             <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                              by {cClass.instructor || 'Dr Tofael Ahmed'} • Enter <ChevronRight className="w-3 h-3 text-blue-500" />
+                              by {cClass.instructor || 'Dr Tofael Ahmed'} • <span className="font-semibold text-blue-600 dark:text-blue-400">প্রবেশ করুন</span> <ChevronRight className="w-3 h-3 text-blue-500 group-hover:translate-x-1 transition-transform" />
                             </span>
                           </div>
                         </div>
@@ -997,14 +999,14 @@ export const CourseView: React.FC<CourseViewProps> = ({
                                 setRenameClassTitleVal(cClass.title);
                                 setRenameClassInstructorVal(cClass.instructor || 'Dr Tofael Ahmed');
                               }}
-                              className="p-1.5 text-slate-400 hover:text-blue-500 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              className="p-1.5 text-slate-400 hover:text-blue-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                               title="Rename Class"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={(e) => handleDeleteClass(cClass, e)}
-                              className="p-1.5 text-slate-400 hover:text-red-500 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                               title="Delete Class"
                             >
                               <Trash2 className="w-3.5 h-3.5" />

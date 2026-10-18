@@ -13,10 +13,11 @@
 
 @layer base {
   * {
-    transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    transition: background-color 0.35s cubic-bezier(0.4, 0, 0.2, 1),
                 border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
                 color 0.25s ease,
-                box-shadow 0.3s ease;
+                box-shadow 0.35s ease,
+                transform 0.25s ease;
   }
 
   html, body {
@@ -41,23 +42,26 @@
   }
 
   /* =========================================================================
-     LIGHT MODE: Radiant, Clean, Elevated with Subtle Theme Ambient Aura
+     LIGHT MODE: Crisp Pure White base with uniform delicate Theme Gradient Vibe
      ========================================================================= */
   body:not(.dark) {
-    background-color: #f8fafc;
-    background-image: 
-      radial-gradient(at 8% 10%, rgba(var(--theme-primary-rgb), 0.08) 0px, transparent 40%),
-      radial-gradient(at 92% 85%, rgba(var(--theme-primary-rgb), 0.06) 0px, transparent 45%),
-      radial-gradient(at 50% 25%, rgba(255, 255, 255, 0.8) 0px, transparent 65%);
+    background-color: #ffffff;
+    background-image: linear-gradient(
+      140deg, 
+      rgba(var(--theme-primary-rgb), 0.05) 0%, 
+      #ffffff 35%, 
+      rgba(var(--theme-primary-rgb), 0.06) 75%, 
+      #fafbfc 100%
+    );
     background-attachment: fixed;
     color: #0f172a;
   }
 
   body:not(.dark) .bg-white {
-    background-color: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(8px);
+    background-color: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(12px);
     border-color: #e2e8f0;
-    box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
+    box-shadow: 0 2px 12px -2px rgba(15, 23, 42, 0.06), 0 1px 3px 0 rgba(15, 23, 42, 0.04);
   }
 
   body:not(.dark) .border-slate-200 {
@@ -65,29 +69,32 @@
   }
 
   /* =========================================================================
-     DARK MODE: Cosmic Twilight with Atmospheric Theme Glow (Not Dull Black!)
+     DARK MODE: Deep Dark Canvas base with uniform atmospheric Theme Gradient Vibe
      ========================================================================= */
   body.dark {
-    background-color: #070b14;
-    background-image: 
-      radial-gradient(at 6% 8%, rgba(var(--theme-primary-rgb), 0.18) 0px, transparent 45%),
-      radial-gradient(at 94% 88%, rgba(var(--theme-primary-rgb), 0.14) 0px, transparent 50%),
-      radial-gradient(at 50% 45%, rgba(15, 23, 42, 0.5) 0px, transparent 70%);
+    background-color: #070a12;
+    background-image: linear-gradient(
+      145deg, 
+      #05080f 0%, 
+      rgba(var(--theme-primary-rgb), 0.11) 40%, 
+      #080c16 80%, 
+      rgba(var(--theme-primary-rgb), 0.09) 100%
+    );
     background-attachment: fixed;
     color: #f1f5f9;
   }
 
   body.dark .bg-white,
   body.dark .bg-slate-900 {
-    background-color: rgba(15, 23, 42, 0.82) !important;
-    backdrop-filter: blur(14px);
-    border-color: rgba(51, 65, 85, 0.6) !important;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 0 1px 1px rgba(255, 255, 255, 0.04);
+    background-color: rgba(13, 19, 33, 0.88) !important;
+    backdrop-filter: blur(16px);
+    border-color: rgba(51, 65, 85, 0.55) !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 1px 1px rgba(255, 255, 255, 0.05);
   }
 
   body.dark .bg-slate-50,
   body.dark .bg-slate-800 {
-    background-color: rgba(30, 41, 59, 0.7) !important;
+    background-color: rgba(26, 36, 56, 0.75) !important;
   }
 
   body.dark .border-slate-800,
@@ -138,13 +145,55 @@ button.bg-blue-600:hover,
   --tw-ring-color: var(--theme-primary-border) !important;
 }
 
-/* Theme Glow & Card Accents */
-.theme-glow-card {
-  box-shadow: 0 8px 30px -4px var(--theme-primary-glow) !important;
+/* =========================================================================
+   INTERACTIVE FOLDER & CARD ANIMATIONS (Light & Dark Mode)
+   ========================================================================= */
+.card-theme-interactive {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.theme-accent-gradient {
-  background: linear-gradient(135deg, var(--theme-primary), var(--theme-primary-hover)) !important;
+.card-theme-interactive:hover {
+  transform: translateY(-3px);
+  border-color: var(--theme-primary) !important;
+  box-shadow: 0 12px 28px -4px var(--theme-primary-glow), 0 0 0 1px var(--theme-primary-border) !important;
+}
+
+/* Glowing Accent Line on Top of Cards */
+.card-glow-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--theme-primary), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.group:hover .card-glow-line {
+  opacity: 1;
+}
+
+/* Text & Title Theme Highlight */
+.heading-theme-accent {
+  position: relative;
+  display: inline-block;
+}
+
+.heading-theme-accent::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  width: 24px;
+  height: 2.5px;
+  border-radius: 9999px;
+  background-color: var(--theme-primary);
+  transition: width 0.3s ease;
+}
+
+.group:hover .heading-theme-accent::after {
+  width: 48px;
 }
 
 /* Responsive YouTube Video Frame */
@@ -191,20 +240,4 @@ button.bg-blue-600:hover,
 
 .dark ::-webkit-scrollbar-thumb:hover {
   background: var(--theme-primary);
-}
-
-/* Pulse animation for theme preview orb */
-@keyframes themeAura {
-  0%, 100% {
-    transform: scale(1) translate(0px, 0px);
-    opacity: 0.6;
-  }
-  50% {
-    transform: scale(1.08) translate(10px, -10px);
-    opacity: 0.85;
-  }
-}
-
-.animate-theme-aura {
-  animation: themeAura 8s ease-in-out infinite;
 }

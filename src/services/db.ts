@@ -269,15 +269,17 @@ export const createClass = async (
   folderId?: string | null,
   instructor?: string
 ): Promise<CourseClass> => {
-  const classData: Omit<CourseClass, 'id'> = {
+  const classData: Record<string, any> = {
     courseId,
     title: title.trim(),
     folderId: folderId || null,
-    instructor: (instructor || '').trim() || undefined,
     createdAt: Date.now()
   };
+  if (instructor && instructor.trim()) {
+    classData.instructor = instructor.trim();
+  }
   const docRef = await addDoc(collection(db, 'classes'), classData);
-  return { id: docRef.id, ...classData };
+  return { id: docRef.id, ...classData } as CourseClass;
 };
 
 export const updateClassTitle = async (classId: string, newTitle: string, newInstructor?: string): Promise<void> => {
@@ -285,7 +287,9 @@ export const updateClassTitle = async (classId: string, newTitle: string, newIns
     title: newTitle.trim()
   };
   if (newInstructor !== undefined) {
-    updates.instructor = newInstructor.trim();
+    if (newInstructor.trim()) {
+      updates.instructor = newInstructor.trim();
+    }
   }
   await updateDoc(doc(db, 'classes', classId), updates);
 };
@@ -336,19 +340,25 @@ export const createResource = async (
   category?: 'lecture' | 'practice' | 'solution' | 'marked_book',
   instructor?: string
 ): Promise<MediaResource> => {
-  const resourceData: Omit<MediaResource, 'id'> = {
+  const resourceData: Record<string, any> = {
     courseId,
     title: title.trim(),
     type,
     url: url.trim(),
     folderId: folderId || null,
     classId: classId || null,
-    category: category || (type === 'pdf' ? 'lecture' : undefined),
-    instructor: (instructor || '').trim() || undefined,
     createdAt: Date.now()
   };
+
+  if (type === 'pdf') {
+    resourceData.category = category || 'lecture';
+  }
+  if (instructor && instructor.trim()) {
+    resourceData.instructor = instructor.trim();
+  }
+
   const docRef = await addDoc(collection(db, 'resources'), resourceData);
-  return { id: docRef.id, ...resourceData };
+  return { id: docRef.id, ...resourceData } as MediaResource;
 };
 
 export const deleteResource = async (resourceId: string): Promise<void> => {

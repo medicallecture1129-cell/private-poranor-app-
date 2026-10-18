@@ -236,12 +236,13 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
             return (
               <div
                 key={exam.id}
-                className={`group relative bg-white dark:bg-slate-900 border rounded-2xl p-5 shadow-xs hover:shadow-lg transition-all flex flex-col justify-between ${
+                className={`group relative bg-white/95 dark:bg-slate-900/90 border card-theme-interactive rounded-2xl p-5 shadow-xs hover:shadow-xl flex flex-col justify-between overflow-hidden ${
                   !isExamActive 
                     ? 'border-amber-300/70 dark:border-amber-900/60 bg-amber-50/10' 
-                    : 'border-slate-200 dark:border-slate-800 hover:border-blue-500/60 dark:hover:border-blue-500/60'
+                    : 'border-slate-200 dark:border-slate-800'
                 }`}
               >
+                <div className="card-glow-line" />
                 <div className="space-y-3">
                   {/* Top Badges & Status */}
                   <div className="flex items-center justify-between gap-2">

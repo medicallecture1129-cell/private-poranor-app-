@@ -130,43 +130,17 @@ const MainApp: React.FC = () => {
   if (!user) {
     return (
       <div className="min-h-screen text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-all duration-300 overflow-x-hidden relative">
-        {/* Background Ambient Vibe Orbs */}
-        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-          <div 
-            className="absolute -top-40 -left-40 w-96 sm:w-[500px] h-96 sm:h-[500px] rounded-full blur-3xl opacity-20 dark:opacity-25 animate-theme-aura transition-all duration-700"
-            style={{ backgroundColor: 'var(--theme-primary)' }}
-          />
-          <div 
-            className="absolute -bottom-40 -right-40 w-96 sm:w-[500px] h-96 sm:h-[500px] rounded-full blur-3xl opacity-15 dark:opacity-20 animate-theme-aura transition-all duration-700"
-            style={{ backgroundColor: 'var(--theme-primary)' }}
-          />
-        </div>
-        <div className="relative z-10 flex flex-col min-h-screen">
-          <Navbar />
-          <main className="flex-1">
-            <LoginPage courses={courses} />
-          </main>
-        </div>
+        <Navbar />
+        <main className="flex-1">
+          <LoginPage courses={courses} />
+        </main>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-all duration-300 overflow-x-hidden relative">
-      {/* Background Ambient Vibe Orbs */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div 
-          className="absolute -top-40 -left-40 w-96 sm:w-[500px] h-96 sm:h-[500px] rounded-full blur-3xl opacity-20 dark:opacity-25 animate-theme-aura transition-all duration-700"
-          style={{ backgroundColor: 'var(--theme-primary)' }}
-        />
-        <div 
-          className="absolute -bottom-40 -right-40 w-96 sm:w-[500px] h-96 sm:h-[500px] rounded-full blur-3xl opacity-15 dark:opacity-20 animate-theme-aura transition-all duration-700"
-          style={{ backgroundColor: 'var(--theme-primary)' }}
-        />
-      </div>
-
-      <div className="relative z-10 flex flex-col min-h-screen">
-        <Navbar />
+      <Navbar />
 
         <main className="flex-1">
         {/* TAB 1: COURSES */}
@@ -236,7 +210,6 @@ const MainApp: React.FC = () => {
           }
         }}
       />
-      </div>
     </div>
   );
 };
