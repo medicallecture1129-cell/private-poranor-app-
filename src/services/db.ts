@@ -461,10 +461,34 @@ export const subscribeExams = (
 };
 
 export const createExam = async (examData: Omit<Exam, 'id' | 'createdAt'>): Promise<Exam> => {
+  const sanitizedQuestions = (examData.questions || []).map((q, idx) => ({
+    id: q.id || `q_${Date.now()}_${idx}`,
+    text: String(q.text || '').trim(),
+    options: (q.options || []).map((o, optIdx) => ({
+      id: String(o.id || ['A', 'B', 'C', 'D'][optIdx] || 'A'),
+      text: String(o.text || '').trim()
+    })),
+    correctOption: String(q.correctOption || 'A').toUpperCase(),
+    explanation: String(q.explanation || '').trim()
+  }));
+
   const newExam: Omit<Exam, 'id'> = {
-    ...examData,
+    courseId: String(examData.courseId || 'general'),
+    courseName: String(examData.courseName || 'General Exam'),
+    title: String(examData.title || '').trim(),
+    durationMinutes: Number(examData.durationMinutes) || 30,
+    totalMarks: Number(examData.totalMarks) || 25,
+    totalQuestions: sanitizedQuestions.length,
+    passMark: Number(examData.passMark) || 10,
+    negativeMarkPercentage: Number(examData.negativeMarkPercentage) || 0,
+    instructions: String(examData.instructions || '').trim(),
+    startTime: Number(examData.startTime) || Date.now(),
+    endTime: Number(examData.endTime) || (Date.now() + 4 * 60 * 60 * 1000),
+    resultPublishTime: Number(examData.resultPublishTime) || (Date.now() + 5 * 60 * 60 * 1000),
+    questions: sanitizedQuestions,
     createdAt: Date.now()
   };
+
   const docRef = await addDoc(collection(db, 'exams'), newExam);
   return { id: docRef.id, ...newExam };
 };

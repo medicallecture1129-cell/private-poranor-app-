@@ -273,20 +273,27 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
                     onClick={() => handleSelectOption(currQuestion.id, opt.id)}
                     className={`p-3.5 rounded-xl border text-sm transition-all cursor-pointer flex items-center gap-3 ${
                       isSelected
-                        ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/50 text-blue-900 dark:text-white font-medium ring-1 ring-blue-500'
+                        ? 'border-blue-600 bg-blue-50/80 dark:bg-blue-950/50 text-blue-900 dark:text-white font-medium ring-2 ring-blue-500/30 shadow-xs'
                         : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-200 bg-slate-50/50 dark:bg-slate-800/30'
                     }`}
                   >
                     <div
-                      className={`w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center shrink-0 transition-colors ${
+                      className={`w-8 h-8 rounded-xl text-xs font-bold flex items-center justify-center shrink-0 transition-all ${
                         isSelected
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                          ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400/30'
+                          : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                       }`}
                     >
                       {opt.id}
                     </div>
                     <span className="flex-1 leading-snug">{opt.text}</span>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                      isSelected 
+                        ? 'border-blue-600 bg-blue-600 text-white' 
+                        : 'border-slate-300 dark:border-slate-600'
+                    }`}>
+                      {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                    </div>
                   </div>
                 );
               })}

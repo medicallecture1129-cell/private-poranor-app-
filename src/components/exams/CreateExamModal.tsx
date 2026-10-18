@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Course, Question, Exam } from '../../types';
 import { createExam } from '../../services/db';
 import { parseBulkMCQText } from '../../utils/mcqParser';
 import { useToast } from '../../context/ToastContext';
-import { X, Plus, Trash2, Sparkles, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Plus, Trash2, Sparkles, FileText, CheckCircle2, AlertCircle, Check, HelpCircle } from 'lucide-react';
 
 interface CreateExamModalProps {
   courses: Course[];
@@ -17,7 +17,13 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
   onExamCreated
 }) => {
   const { success: toastSuccess, error: toastError } = useToast();
-  const [selectedCourseId, setSelectedCourseId] = useState(courses[0]?.id || '');
+
+  // If no courses exist, provide fallback general course
+  const defaultCourseList = courses.length > 0 
+    ? courses 
+    : [{ id: 'general', name: 'General Batch (সকল ব্যাচ)', batch: 'All Students', allowedEmails: [], createdAt: Date.now() }];
+
+  const [selectedCourseId, setSelectedCourseId] = useState(defaultCourseList[0]?.id || 'general');
   const [title, setTitle] = useState('');
   const [durationMinutes, setDurationMinutes] = useState(30);
   const [totalMarks, setTotalMarks] = useState(25);
@@ -61,27 +67,47 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
 
-  const handleAddSingleQuestion = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currQText.trim() || !optA.trim() || !optB.trim() || !optC.trim() || !optD.trim()) {
-      alert('Please fill out the question and all 4 options.');
-      return;
+  useEffect(() => {
+    if (!selectedCourseId && defaultCourseList.length > 0) {
+      setSelectedCourseId(defaultCourseList[0].id);
+    }
+  }, [defaultCourseList, selectedCourseId]);
+
+  const handleAddSingleQuestion = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setErrorNotice(null);
+
+    const qText = currQText.trim();
+    if (!qText) {
+      const msg = 'Please enter the question statement text.';
+      setErrorNotice(msg);
+      toastError(msg);
+      return false;
+    }
+
+    if (!optA.trim() || !optB.trim()) {
+      const msg = 'Please fill in at least Option A and Option B.';
+      setErrorNotice(msg);
+      toastError(msg);
+      return false;
     }
 
     const newQ: Question = {
       id: 'q_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-      text: currQText.trim(),
+      text: qText,
       options: [
         { id: 'A', text: optA.trim() },
         { id: 'B', text: optB.trim() },
-        { id: 'C', text: optC.trim() },
-        { id: 'D', text: optD.trim() }
+        { id: 'C', text: optC.trim() || 'Option C' },
+        { id: 'D', text: optD.trim() || 'Option D' }
       ],
       correctOption: correctOpt,
-      explanation: currExpl.trim() || undefined
+      explanation: currExpl.trim() || ''
     };
 
     setQuestions(prev => [...prev, newQ]);
+    toastSuccess(`Question #${questions.length + 1} added.`);
+
     // Reset inputs
     setCurrQText('');
     setOptA('');
@@ -89,6 +115,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
     setOptC('');
     setOptD('');
     setCurrExpl('');
+    return true;
   };
 
   const handleParseBulk = () => {
@@ -105,6 +132,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
     }
 
     setQuestions(prev => [...prev, ...parsed]);
+    toastSuccess(`Imported ${parsed.length} questions successfully.`);
     setBulkText('');
     setQuestionTab('single');
   };
@@ -113,31 +141,61 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
     setQuestions(prev => prev.filter((_, i) => i !== idx));
   };
 
-  const handleSubmitExam = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmitExam = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setErrorNotice(null);
 
     if (!title.trim()) {
-      setErrorNotice('Please provide an exam title.');
-      return;
-    }
-    if (questions.length === 0) {
-      setErrorNotice('Please add at least one question to the exam.');
+      const msg = 'Please provide an exam title (পরীক্ষার নাম লিখুন).';
+      setErrorNotice(msg);
+      toastError(msg);
       return;
     }
 
-    const selectedCourse = courses.find(c => c.id === selectedCourseId);
-    if (!selectedCourse) {
-      setErrorNotice('Please select a valid course.');
+    // Auto-bundle in-progress single question if user typed text but forgot to click "+ Add Question"
+    let readyQuestions = [...questions];
+    if (currQText.trim()) {
+      if (optA.trim() || optB.trim()) {
+        const autoQ: Question = {
+          id: 'q_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+          text: currQText.trim(),
+          options: [
+            { id: 'A', text: optA.trim() || 'Option A' },
+            { id: 'B', text: optB.trim() || 'Option B' },
+            { id: 'C', text: optC.trim() || 'Option C' },
+            { id: 'D', text: optD.trim() || 'Option D' }
+          ],
+          correctOption: correctOpt,
+          explanation: currExpl.trim() || ''
+        };
+        readyQuestions.push(autoQ);
+        setQuestions(readyQuestions);
+        setCurrQText('');
+        setOptA('');
+        setOptB('');
+        setOptC('');
+        setOptD('');
+        setCurrExpl('');
+      }
+    }
+
+    if (readyQuestions.length === 0) {
+      const msg = 'অনুগ্রহ করে কমপক্ষে ১টি প্রশ্ন যোগ করুন। প্রশ্ন ও অপশন লিখে "+ Add Question to Exam" বাটনে ক্লিক করুন।';
+      setErrorNotice(msg);
+      toastError(msg);
       return;
     }
+
+    const selectedCourse = defaultCourseList.find(c => c.id === selectedCourseId) || defaultCourseList[0];
 
     const startMs = new Date(startTimeInput).getTime();
     const endMs = new Date(endTimeInput).getTime();
     const pubMs = new Date(publishTimeInput).getTime();
 
     if (endMs <= startMs) {
-      setErrorNotice('End time must be after Start time.');
+      const msg = 'End time must be after Start time (পরীক্ষা শেষের সময় শুরুর সময়ের পরে হতে হবে)।';
+      setErrorNotice(msg);
+      toastError(msg);
       return;
     }
 
@@ -147,23 +205,23 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
         courseId: selectedCourse.id,
         courseName: selectedCourse.name,
         title: title.trim(),
-        durationMinutes: Number(durationMinutes),
-        totalMarks: Number(totalMarks),
-        totalQuestions: questions.length,
-        passMark: Number(passMark),
-        negativeMarkPercentage: Number(negativeMarkPercentage),
+        durationMinutes: Number(durationMinutes) || 30,
+        totalMarks: Number(totalMarks) || readyQuestions.length,
+        totalQuestions: readyQuestions.length,
+        passMark: Number(passMark) || 1,
+        negativeMarkPercentage: Number(negativeMarkPercentage) || 0,
         instructions: instructions.trim(),
         startTime: startMs,
         endTime: endMs,
         resultPublishTime: pubMs,
-        questions
+        questions: readyQuestions
       });
 
-      toastSuccess(`Exam "${created.title}" created successfully.`);
+      toastSuccess(`Exam "${created.title}" published successfully!`);
       onExamCreated(created);
       onClose();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to create exam';
+      const msg = err instanceof Error ? err.message : 'Failed to publish exam';
       setErrorNotice(msg);
       toastError(msg);
     } finally {
@@ -172,15 +230,18 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/75 backdrop-blur-sm overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-sm overflow-y-auto">
       <div className="w-full max-w-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 flex items-center justify-between">
           <div>
-            <h3 className="font-bold text-base text-slate-900 dark:text-white">
-              Create New Exam
+            <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+              <span>Create New Exam</span>
+              <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 text-[11px] font-semibold border border-blue-200 dark:border-blue-800">
+                Live & Practice
+              </span>
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Set schedules, negative marking, question banks, and result publishing time
             </p>
           </div>
@@ -195,9 +256,9 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
         {/* Form Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {errorNotice && (
-            <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-xs text-red-700 dark:text-red-300 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{errorNotice}</span>
+            <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-xs sm:text-sm text-red-700 dark:text-red-300 flex items-start gap-2.5 animate-in fade-in duration-200">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span className="font-medium">{errorNotice}</span>
             </div>
           )}
 
@@ -205,29 +266,29 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                Target Course
+                Target Course / Batch
               </label>
               <select
                 value={selectedCourseId}
                 onChange={(e) => setSelectedCourseId(e.target.value)}
                 className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                {courses.map(c => (
-                  <option key={c.id} value={c.id}>{c.name} ({c.batch})</option>
+                {defaultCourseList.map(c => (
+                  <option key={c.id} value={c.id}>{c.name} {c.batch ? `(${c.batch})` : ''}</option>
                 ))}
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                Exam Title
+                Exam Title *
               </label>
               <input
                 type="text"
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Model Test 01 - Mechanics & Vectors"
+                placeholder="e.g. Model Test 01 - Physics & Vectors"
                 className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -298,45 +359,45 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                  Live Start Time
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                  Start Date & Time (Live Begins)
                 </label>
                 <input
                   type="datetime-local"
                   required
                   value={startTimeInput}
                   onChange={(e) => setStartTimeInput(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                  className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                  Live End Time
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                  End Date & Time (Live Closes)
                 </label>
                 <input
                   type="datetime-local"
                   required
                   value={endTimeInput}
                   onChange={(e) => setEndTimeInput(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                  className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                  Leaderboard Publish Time
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                  Result Publish Date & Time
                 </label>
                 <input
                   type="datetime-local"
                   required
                   value={publishTimeInput}
                   onChange={(e) => setPublishTimeInput(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                  className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 />
               </div>
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            <p className="text-[11px] text-slate-500">
               Students can start live exam between Start and End time. After End Time passes, the exam shifts automatically to Practice mode.
             </p>
           </div>
@@ -358,8 +419,11 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
           <div className="border-t border-slate-200 dark:border-slate-800 pt-5 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="font-bold text-sm text-slate-900 dark:text-white">
-                  Questions Bank ({questions.length})
+                <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                  <span>Questions Bank</span>
+                  <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 text-xs font-bold">
+                    {questions.length} ready
+                  </span>
                 </h4>
                 <p className="text-xs text-slate-500">
                   Add questions one-by-one or import in bulk using formatted text
@@ -395,9 +459,9 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
 
             {/* TAB: SINGLE MCQ ADDITION */}
             {questionTab === 'single' && (
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3.5">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     Question Statement
                   </label>
                   <input
@@ -405,37 +469,67 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                     value={currQText}
                     onChange={(e) => setCurrQText(e.target.value)}
                     placeholder="Enter question text..."
-                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                    className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {(['A', 'B', 'C', 'D'] as const).map((optKey) => {
-                    const val = optKey === 'A' ? optA : optKey === 'B' ? optB : optKey === 'C' ? optC : optD;
-                    const setter = optKey === 'A' ? setOptA : optKey === 'B' ? setOptB : optKey === 'C' ? setOptC : setOptD;
+                {/* MCQ Options with Modern Sleek Badge Buttons (Replaced raw radio bullets) */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Options & Correct Answer
+                    </label>
+                    <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5 text-emerald-500" />
+                      Click letter badge to set correct answer
+                    </span>
+                  </div>
 
-                    return (
-                      <div key={optKey} className="flex items-center gap-2">
-                        <label className="flex items-center gap-1 text-xs font-bold text-slate-700 dark:text-slate-300 w-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {(['A', 'B', 'C', 'D'] as const).map((optKey) => {
+                      const val = optKey === 'A' ? optA : optKey === 'B' ? optB : optKey === 'C' ? optC : optD;
+                      const setter = optKey === 'A' ? setOptA : optKey === 'B' ? setOptB : optKey === 'C' ? setOptC : setOptD;
+                      const isCorrect = correctOpt === optKey;
+
+                      return (
+                        <div 
+                          key={optKey} 
+                          className={`flex items-center gap-2 p-1.5 rounded-xl border transition-all ${
+                            isCorrect 
+                              ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 ring-1 ring-emerald-500/40 shadow-xs' 
+                              : 'border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800/80 hover:border-slate-300 dark:hover:border-slate-600'
+                          }`}
+                        >
+                          {/* Tactile modern option button with check indicator */}
+                          <button
+                            type="button"
+                            onClick={() => setCorrectOpt(optKey)}
+                            className={`h-9 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                              isCorrect
+                                ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400/40'
+                                : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                            }`}
+                            title={`Click to mark option ${optKey} as correct`}
+                          >
+                            <span>{optKey}</span>
+                            {isCorrect ? (
+                              <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+                            ) : (
+                              <span className="text-[10px] opacity-40 font-normal">Set</span>
+                            )}
+                          </button>
+
                           <input
-                            type="radio"
-                            name="correctOpt"
-                            checked={correctOpt === optKey}
-                            onChange={() => setCorrectOpt(optKey)}
-                            className="text-blue-600"
+                            type="text"
+                            value={val}
+                            onChange={(e) => setter(e.target.value)}
+                            placeholder={`Option ${optKey} text...`}
+                            className="flex-1 px-2.5 py-1.5 text-xs sm:text-sm bg-transparent text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none"
                           />
-                          {optKey}
-                        </label>
-                        <input
-                          type="text"
-                          value={val}
-                          onChange={(e) => setter(e.target.value)}
-                          placeholder={`Option ${optKey}`}
-                          className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                        />
-                      </div>
-                    );
-                  })}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div>
@@ -447,17 +541,17 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                     value={currExpl}
                     onChange={(e) => setCurrExpl(e.target.value)}
                     placeholder="Why this answer is correct..."
-                    className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                   />
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex justify-end pt-1">
                   <button
                     type="button"
-                    onClick={handleAddSingleQuestion}
-                    className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                    onClick={() => handleAddSingleQuestion()}
+                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus className="w-4 h-4" />
                     <span>Add Question to Exam</span>
                   </button>
                 </div>
@@ -469,57 +563,74 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
               <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Paste Raw MCQs Text
+                    Paste Raw MCQs (e.g., from Word, PDF, or ChatGPT)
                   </span>
-                  <span className="text-[11px] text-slate-500">
-                    Supports Q1. Option A, B, C, D, Ans: B, Explanation: ...
+                  <span className="text-[11px] text-blue-600 dark:text-blue-400">
+                    Auto-detects numbering, 4 options & answers
                   </span>
                 </div>
 
-                {bulkError && (
-                  <div className="text-xs text-red-600 dark:text-red-400">
-                    {bulkError}
-                  </div>
-                )}
-
                 <textarea
-                  rows={6}
+                  rows={8}
                   value={bulkText}
                   onChange={(e) => setBulkText(e.target.value)}
-                  placeholder={`1. What is the SI unit of electric current?&#10;A) Volt&#10;B) Ampere&#10;C) Ohm&#10;D) Watt&#10;Ans: B&#10;Explanation: Ampere is the base unit of electric current in SI.`}
-                  className="w-full px-3.5 py-2.5 text-xs font-mono rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder={`1. What is the unit of electric current?
+A) Volt
+B) Ampere
+C) Ohm
+D) Watt
+Ans: B
+Explanation: Ampere is the SI unit of electric current.
+
+2. Which organelle produces ATP?
+A) Nucleus
+B) Mitochondria
+C) Ribosome
+D) Vacuole
+Ans: B`}
+                  className="w-full p-3 font-mono text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+
+                {bulkError && (
+                  <p className="text-xs text-red-500 font-medium">
+                    {bulkError}
+                  </p>
+                )}
 
                 <div className="flex justify-end">
                   <button
                     type="button"
                     onClick={handleParseBulk}
-                    className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer"
                   >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Parse & Populate Questions</span>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Parse & Add All Questions</span>
                   </button>
                 </div>
               </div>
             )}
 
-            {/* LIST OF ADDED QUESTIONS */}
+            {/* LIST OF CURRENTLY ADDED QUESTIONS */}
             {questions.length > 0 && (
-              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              <div className="space-y-2 pt-2">
+                <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Ready Questions ({questions.length})
+                </h5>
+
                 {questions.map((q, idx) => (
                   <div
                     key={q.id || idx}
-                    className="p-3 rounded-xl bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-start justify-between gap-3 text-xs"
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 flex items-start justify-between gap-3 text-xs"
                   >
-                    <div className="space-y-1">
+                    <div className="space-y-1.5 flex-1 min-w-0">
                       <div className="font-semibold text-slate-900 dark:text-white">
                         {idx + 1}. {q.text}
                       </div>
-                      <div className="grid grid-cols-2 gap-x-4 text-slate-600 dark:text-slate-300 text-[11px]">
-                        {q.options.map(opt => (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 text-[11px] text-slate-600 dark:text-slate-300">
+                        {q.options.map((opt) => (
                           <span
                             key={opt.id}
-                            className={opt.id === q.correctOption ? 'text-emerald-600 dark:text-emerald-400 font-bold' : ''}
+                            className={`px-1.5 py-0.5 rounded ${opt.id === q.correctOption ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-300 dark:border-emerald-800' : ''}`}
                           >
                             {opt.id}) {opt.text}
                           </span>
@@ -535,7 +646,8 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                     <button
                       type="button"
                       onClick={() => handleRemoveQuestion(idx)}
-                      className="text-slate-400 hover:text-red-500 p-1 cursor-pointer shrink-0"
+                      className="text-slate-400 hover:text-red-500 p-1 cursor-pointer shrink-0 transition-colors"
+                      title="Remove question"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -547,10 +659,21 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 flex items-center justify-between">
-          <span className="text-xs text-slate-500">
-            {questions.length} Question{questions.length === 1 ? '' : 's'} Ready
-          </span>
+        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+              questions.length > 0 || currQText.trim()
+                ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
+                : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+            }`}>
+              {questions.length + (currQText.trim() ? 1 : 0)} Question{questions.length === 1 && !currQText.trim() ? '' : 's'} Ready
+            </span>
+            {currQText.trim() && (
+              <span className="text-[11px] text-blue-600 dark:text-blue-400 hidden sm:inline">
+                (Current question will be auto-saved)
+              </span>
+            )}
+          </div>
 
           <div className="flex items-center gap-2">
             <button
@@ -562,11 +685,12 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
             </button>
             <button
               type="button"
-              onClick={handleSubmitExam}
-              disabled={isSubmitting || questions.length === 0}
-              className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm disabled:opacity-50 cursor-pointer"
+              onClick={() => handleSubmitExam()}
+              disabled={isSubmitting}
+              className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-md hover:shadow-lg disabled:opacity-50 cursor-pointer transition-all flex items-center gap-1.5"
             >
-              {isSubmitting ? 'Publishing...' : 'Publish Exam'}
+              <CheckCircle2 className="w-4 h-4" />
+              <span>{isSubmitting ? 'Publishing...' : 'Publish Exam'}</span>
             </button>
           </div>
         </div>
