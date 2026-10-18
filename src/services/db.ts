@@ -497,6 +497,36 @@ export const deleteExam = async (examId: string): Promise<void> => {
   await deleteDoc(doc(db, 'exams', examId));
 };
 
+export const updateExam = async (examId: string, updates: Partial<Exam>): Promise<void> => {
+  const cleanUpdates: Record<string, any> = {};
+  if (updates.title !== undefined) cleanUpdates.title = String(updates.title).trim();
+  if (updates.courseId !== undefined) cleanUpdates.courseId = updates.courseId;
+  if (updates.courseName !== undefined) cleanUpdates.courseName = updates.courseName;
+  if (updates.durationMinutes !== undefined) cleanUpdates.durationMinutes = Number(updates.durationMinutes);
+  if (updates.totalMarks !== undefined) cleanUpdates.totalMarks = Number(updates.totalMarks);
+  if (updates.passMark !== undefined) cleanUpdates.passMark = Number(updates.passMark);
+  if (updates.negativeMarkPercentage !== undefined) cleanUpdates.negativeMarkPercentage = Number(updates.negativeMarkPercentage);
+  if (updates.instructions !== undefined) cleanUpdates.instructions = String(updates.instructions).trim();
+  if (updates.startTime !== undefined) cleanUpdates.startTime = Number(updates.startTime);
+  if (updates.endTime !== undefined) cleanUpdates.endTime = Number(updates.endTime);
+  if (updates.resultPublishTime !== undefined) cleanUpdates.resultPublishTime = Number(updates.resultPublishTime);
+  if (updates.isActive !== undefined) cleanUpdates.isActive = Boolean(updates.isActive);
+  if (updates.questions) {
+    cleanUpdates.questions = updates.questions.map((q, idx) => ({
+      id: q.id || `q_${Date.now()}_${idx}`,
+      text: String(q.text || '').trim(),
+      options: (q.options || []).map((o, optIdx) => ({
+        id: String(o.id || ['A', 'B', 'C', 'D'][optIdx] || 'A'),
+        text: String(o.text || '').trim()
+      })),
+      correctOption: String(q.correctOption || 'A').toUpperCase(),
+      explanation: String(q.explanation || '').trim()
+    }));
+    cleanUpdates.totalQuestions = cleanUpdates.questions.length;
+  }
+  await updateDoc(doc(db, 'exams', examId), cleanUpdates);
+};
+
 // Submissions
 export const subscribeSubmissions = (
   callback: (submissions: ExamSubmission[]) => void,

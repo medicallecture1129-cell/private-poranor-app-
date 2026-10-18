@@ -62,8 +62,12 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   // Check if student is allowed to view results of this exam yet
   const isResultPublished = selectedExam ? (currentTime >= selectedExam.resultPublishTime || role === 'admin') : false;
 
-  // Filter ONLY Live Exam Submissions for the Official Leaderboard
-  const liveSubmissions = submissions.filter(s => s.examId === selectedExamId && s.isLive);
+  // Filter ONLY Live Exam Submissions for the Official Leaderboard (Strictly students only - no admins)
+  const liveSubmissions = submissions.filter(s => {
+    if (s.examId !== selectedExamId || !s.isLive) return false;
+    if (s.studentId?.startsWith('admin_') || s.studentEmail?.toLowerCase().includes('admin@')) return false;
+    return true;
+  });
 
   // Sort by marks desc, then duration asc
   const sortedLiveSubmissions = [...liveSubmissions].sort((a, b) => {

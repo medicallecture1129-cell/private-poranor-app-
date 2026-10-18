@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { subscribePortalSettings, updatePortalSettings } from '../services/db';
 
 type Theme = 'dark' | 'light';
 
@@ -10,44 +9,36 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+const THEME_STORAGE_KEY = 'examportal_device_theme';
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setThemeState] = useState<Theme>('dark');
+  // Device-specific theme preference (each user/device controls their own theme independently)
+  const [theme, setThemeState] = useState<Theme>(() => {
+    try {
+      const saved = localStorage.getItem(THEME_STORAGE_KEY);
+      if (saved === 'light' || saved === 'dark') return saved;
+    } catch {}
+    return 'dark';
+  });
 
-  // Real-time Firestore sync for portal theme customization
-  useEffect(() => {
-    const unsub = subscribePortalSettings((settings) => {
-      if (settings.theme === 'light' || settings.theme === 'dark') {
-        setThemeState(settings.theme);
-      }
-    });
-
-    return () => unsub();
-  }, []);
-
-  // Update HTML class whenever theme changes
+  // Apply HTML dark class
   useEffect(() => {
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {}
   }, [theme]);
 
   const toggleTheme = () => {
-    const newTheme: Theme = theme === 'dark' ? 'light' : 'dark';
-    setThemeState(newTheme);
-    // Persist to Cloud Firestore so all devices and reloads sync seamlessly
-    updatePortalSettings({ theme: newTheme }).catch((err) => {
-      console.warn('Theme Firestore sync warning:', err);
-    });
+    setThemeState(prev => prev === 'dark' ? 'light' : 'dark');
   };
 
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);
-    updatePortalSettings({ theme: newTheme }).catch((err) => {
-      console.warn('Theme Firestore sync warning:', err);
-    });
   };
 
   return (

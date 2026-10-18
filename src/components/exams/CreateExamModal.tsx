@@ -461,17 +461,50 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
             {questionTab === 'single' && (
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3.5">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Question Statement
-                  </label>
-                  <input
-                    type="text"
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Question Statement
+                    </label>
+                    {currQText.includes('\n') && (
+                      <span className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold">
+                        Multi-line text detected
+                      </span>
+                    )}
+                  </div>
+                  <textarea
+                    rows={currQText.includes('\n') ? 3 : 2}
                     value={currQText}
                     onChange={(e) => setCurrQText(e.target.value)}
-                    placeholder="Enter question text..."
+                    placeholder="Enter question text (বা এখানে একাধিক প্রশ্ন পেস্ট করলেও অটো-ডিটেক্ট হবে)..."
                     className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
+
+                {/* Auto-detect if user accidentally pasted multiple MCQs into the single question box! */}
+                {currQText.includes('\n') && parseBulkMCQText(currQText).length > 1 && (
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 animate-in fade-in">
+                    <div className="text-xs text-blue-900 dark:text-blue-300">
+                      ⚡ <strong>{parseBulkMCQText(currQText).length} টি প্রশ্ন পাওয়া গেছে!</strong> আপনি কি এক ক্লিকে সবগুলো আলাদা প্রশ্ন হিসেবে যোগ করতে চান?
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const parsed = parseBulkMCQText(currQText);
+                        setQuestions(prev => [...prev, ...parsed]);
+                        toastSuccess(`${parsed.length}টি প্রশ্ন একসাথে সফলভাবে যুক্ত হয়েছে!`);
+                        setCurrQText('');
+                        setOptA('');
+                        setOptB('');
+                        setOptC('');
+                        setOptD('');
+                        setCurrExpl('');
+                      }}
+                      className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shrink-0 cursor-pointer shadow-xs"
+                    >
+                      সব {parseBulkMCQText(currQText).length}টি প্রশ্ন অ্যাড করুন
+                    </button>
+                  </div>
+                )}
 
                 {/* MCQ Options with Modern Sleek Badge Buttons (Replaced raw radio bullets) */}
                 <div>
@@ -563,11 +596,31 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
               <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Paste Raw MCQs (e.g., from Word, PDF, or ChatGPT)
+                    Paste Raw MCQs (Word / PDF / বাংলা বা ইংরেজি টেক্সট)
                   </span>
-                  <span className="text-[11px] text-blue-600 dark:text-blue-400">
-                    Auto-detects numbering, 4 options & answers
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBulkText(`১. মানবদেহে ক্রোমোজোম সংখ্যা কতটি?
+ক) ৪৪টি
+খ) ৪৬টি
+গ) ৪৮টি
+ঘ) ৫০টি
+উত্তর: খ
+ব্যাখ্যা: মানবদেহে ২৩ জোড়া বা ৪৬টি ক্রোমোজোম থাকে।
+
+২. নিচের কোনটি আলোর বেগ নির্দেশ করে?
+A) 3 x 10^8 m/s
+B) 3 x 10^6 m/s
+C) 3 x 10^4 m/s
+D) 3 x 10^2 m/s
+Ans: A
+ব্যাখ্যা: শূন্য মাধ্যমে আলোর বেগ প্রায় ৩ লক্ষ কিমি/সেকেন্ড।`);
+                    }}
+                    className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
+                  >
+                    নমুনা বাংলা প্রশ্ন লোড করুন
+                  </button>
                 </div>
 
                 <textarea

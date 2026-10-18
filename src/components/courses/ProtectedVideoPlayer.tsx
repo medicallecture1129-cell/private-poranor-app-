@@ -49,7 +49,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [isApiReady, setIsApiReady] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [skipNotice, setSkipNotice] = useState<'-10s' | '+10s' | null>(null);
+  const [skipFeedback, setSkipFeedback] = useState<{ side: 'left' | 'right'; text: string } | null>(null);
 
   // Extract YouTube ID
   const getYouTubeId = (rawUrl: string): string | null => {
@@ -80,19 +80,19 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
   }, []);
 
-  // Initialize player with complete YouTube branding suppression
+  // Initialize player with uncropped standard aspect ratio
   useEffect(() => {
     if (!isApiReady || !videoId) return;
 
     playerRef.current = new window.YT.Player('yt-portal-player-frame', {
       videoId: videoId,
       playerVars: {
-        controls: 0, // hide native YouTube player controls completely
-        modestbranding: 1, // remove YouTube logo
-        rel: 0, // don't show external channel recommendations
-        iv_load_policy: 3, // hide video annotations
-        disablekb: 1, // disable native keyboard shortcuts
-        fs: 0, // hide native fullscreen
+        controls: 0, // hide native controls
+        modestbranding: 1,
+        rel: 0,
+        iv_load_policy: 3,
+        disablekb: 1,
+        fs: 0,
         playsinline: 1,
         origin: window.location.origin
       },
@@ -179,7 +179,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     if (isPlaying) {
       hideControlsTimerRef.current = setTimeout(() => {
         setControlsVisible(false);
-      }, 3500);
+      }, 3000);
     }
   };
 
@@ -202,8 +202,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     const newTime = Math.max(0, currentTime - 10);
     setCurrentTime(newTime);
     playerRef.current.seekTo(newTime, true);
-    setSkipNotice('-10s');
-    setTimeout(() => setSkipNotice(null), 800);
+    setSkipFeedback({ side: 'left', text: '-10s' });
+    setTimeout(() => setSkipFeedback(null), 650);
     handleUserActivity();
   };
 
@@ -213,12 +213,12 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     const newTime = Math.min(duration, currentTime + 10);
     setCurrentTime(newTime);
     playerRef.current.seekTo(newTime, true);
-    setSkipNotice('+10s');
-    setTimeout(() => setSkipNotice(null), 800);
+    setSkipFeedback({ side: 'right', text: '+10s' });
+    setTimeout(() => setSkipFeedback(null), 650);
     handleUserActivity();
   };
 
-  // Screen Double Tap / Click detection for YouTube-style fast skip
+  // YouTube-style double-tap detection on Left / Right of screen
   const handleScreenTouchOrClick = (e: React.MouseEvent | React.TouchEvent) => {
     const now = Date.now();
     const rect = containerRef.current?.getBoundingClientRect();
@@ -232,11 +232,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
 
     const clickPositionX = clientX - rect.left;
-    const isLeftHalf = clickPositionX < rect.width * 0.4;
-    const isRightHalf = clickPositionX > rect.width * 0.6;
+    const isLeftHalf = clickPositionX < rect.width * 0.45;
+    const isRightHalf = clickPositionX > rect.width * 0.55;
 
-    if (now - lastTapRef.current.time < 320) {
-      // Double tap detected
+    if (now - lastTapRef.current.time < 300) {
+      // Double tap detected!
       if (isLeftHalf) {
         handleSkipBackward();
       } else if (isRightHalf) {
@@ -247,7 +247,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       lastTapRef.current = { time: 0, x: 0 };
     } else {
       lastTapRef.current = { time: now, x: clientX };
-      // Single tap: toggle controls visibility
+      // Single tap: toggle controls
       setControlsVisible(prev => !prev);
     }
   };
@@ -288,7 +288,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     setShowQualityMenu(false);
   };
 
-  // Fullscreen toggle with mobile landscape optimization
   const toggleFullscreen = async () => {
     if (!containerRef.current) return;
     try {
@@ -302,7 +301,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           await el.msRequestFullscreen();
         }
         setIsFullscreen(true);
-        // Lock to landscape for smartphones if supported
         if ((screen.orientation as any)?.lock) {
           (screen.orientation as any).lock('landscape').catch(() => {});
         }
@@ -318,7 +316,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         }
       }
     } catch {
-      // Fallback CSS fullscreen toggle
       setIsFullscreen(!isFullscreen);
     }
   };
@@ -335,18 +332,18 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         ref={containerRef}
         onMouseMove={handleUserActivity}
         onTouchStart={handleUserActivity}
-        className={`relative w-full bg-black flex flex-col select-none overflow-hidden transition-all ${
+        className={`relative w-full bg-black flex flex-col select-none overflow-hidden ${
           isFullscreen 
             ? 'fixed inset-0 w-screen h-screen max-w-none rounded-none z-[9999]' 
             : 'max-w-5xl rounded-2xl border border-slate-800 shadow-2xl max-h-[96vh]'
         }`}
         onContextMenu={(e) => e.preventDefault()}
       >
-        {/* Header with Title & Portal Branding */}
+        {/* Header with Title & Portal Branding (Floats in fullscreen) */}
         <div 
-          className={`flex items-center justify-between px-4 py-3 z-30 transition-all duration-300 ${
+          className={`flex items-center justify-between px-4 py-2.5 z-30 transition-all duration-300 ${
             isFullscreen 
-              ? `absolute top-0 inset-x-0 bg-gradient-to-b from-black/90 via-black/50 to-transparent border-none ${
+              ? `absolute top-0 inset-x-0 bg-gradient-to-b from-black/90 via-black/40 to-transparent border-none ${
                   controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-full pointer-events-none'
                 }`
               : 'bg-slate-900 border-b border-slate-800'
@@ -382,63 +379,52 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           </div>
         </div>
 
-        {/* Video Canvas Container */}
+        {/* Video Canvas Container (100% Uncropped, Clean Aspect Ratio) */}
         <div 
-          className={`relative w-full bg-black overflow-hidden flex items-center justify-center group ${
+          className={`relative w-full bg-black overflow-hidden flex items-center justify-center ${
             isFullscreen ? 'h-full flex-1' : 'flex-1 min-h-[300px] aspect-video'
           }`}
         >
-          {/* Iframe wrapper - scaled slightly to crop YouTube channel watermark */}
+          {/* Iframe wrapper - scale 100% with object-contain so NO text/header is ever cropped */}
           <div 
             id="yt-portal-player-frame" 
-            className="w-full h-full pointer-events-none scale-[1.12] origin-center" 
+            className="w-full h-full pointer-events-none object-contain" 
           />
 
-          {/* Screen Interaction Overlay (Tap / Double Tap) */}
+          {/* Interactive Screen Click / Double-tap Overlay */}
           <div 
             onClick={handleScreenTouchOrClick}
             className="absolute inset-0 z-10 cursor-pointer bg-transparent"
           />
 
-          {/* Visual Skip Notification Animation */}
-          {skipNotice && (
-            <div className="absolute inset-0 z-25 flex items-center justify-center pointer-events-none">
-              <div className="px-5 py-3 rounded-2xl bg-black/85 backdrop-blur-md text-white font-bold text-base sm:text-lg flex items-center gap-2 animate-bounce shadow-2xl border border-white/20">
-                {skipNotice === '-10s' ? <RotateCcw className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" /> : <RotateCw className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" />}
-                <span>{skipNotice === '-10s' ? 'Rewind 10s' : 'Forward 10s'}</span>
+          {/* Double Tap Skip Animation - YouTube style left & right ripple */}
+          {skipFeedback && (
+            <div 
+              className={`absolute top-0 bottom-0 z-25 flex items-center justify-center pointer-events-none transition-all duration-300 w-1/3 ${
+                skipFeedback.side === 'left' ? 'left-4' : 'right-4'
+              }`}
+            >
+              <div className="p-4 rounded-full bg-black/75 backdrop-blur-md text-white font-black text-sm sm:text-base flex items-center gap-1.5 shadow-2xl border border-white/20 animate-pulse">
+                {skipFeedback.side === 'left' ? <RotateCcw className="w-5 h-5 text-blue-400" /> : <RotateCw className="w-5 h-5 text-blue-400" />}
+                <span>{skipFeedback.text}</span>
               </div>
             </div>
           )}
 
-          {/* CENTER SCREEN CONTROLS: Left 10s Backward, Center Pause/Start, Right 10s Forward */}
+          {/* Center Play/Pause Indicator (Only shows when paused or controls toggled) */}
           <div 
-            className={`absolute inset-0 z-20 flex items-center justify-center gap-5 sm:gap-12 transition-all duration-300 pointer-events-none ${
-              controlsVisible || !isPlaying ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+            className={`absolute inset-0 z-20 flex items-center justify-center transition-all duration-300 pointer-events-none ${
+              !isPlaying || controlsVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
             }`}
           >
-            {/* Left Side: 10s Backward */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleSkipBackward();
-              }}
-              className="pointer-events-auto w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-black/65 hover:bg-black/85 text-white backdrop-blur-md border border-white/20 flex flex-col items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-2xl cursor-pointer group"
-              title="Rewind 10 Seconds"
-            >
-              <RotateCcw className="w-5 h-5 sm:w-7 sm:h-7 text-white/90 group-hover:-rotate-45 transition-transform" />
-              <span className="text-[10px] sm:text-xs font-black tracking-tight -mt-0.5 sm:-mt-1 text-blue-400">10s</span>
-            </button>
-
-            {/* Center: Play / Pause */}
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 togglePlay();
               }}
-              className="pointer-events-auto w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center shadow-2xl transition-all hover:scale-110 active:scale-95 cursor-pointer ring-4 ring-white/25"
-              title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+              className="pointer-events-auto w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-blue-600/90 hover:bg-blue-600 text-white flex items-center justify-center shadow-2xl transition-all hover:scale-105 active:scale-95 cursor-pointer ring-4 ring-white/20"
+              title={isPlaying ? 'Pause' : 'Play'}
             >
               {isPlaying ? (
                 <Pause className="w-8 h-8 sm:w-10 sm:h-10 fill-current" />
@@ -446,24 +432,10 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-current ml-1" />
               )}
             </button>
-
-            {/* Right Side: 10s Forward */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleSkipForward();
-              }}
-              className="pointer-events-auto w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-black/65 hover:bg-black/85 text-white backdrop-blur-md border border-white/20 flex flex-col items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-2xl cursor-pointer group"
-              title="Forward 10 Seconds"
-            >
-              <RotateCw className="w-5 h-5 sm:w-7 sm:h-7 text-white/90 group-hover:rotate-45 transition-transform" />
-              <span className="text-[10px] sm:text-xs font-black tracking-tight -mt-0.5 sm:-mt-1 text-blue-400">10s</span>
-            </button>
           </div>
         </div>
 
-        {/* BOTTOM VIDEO CONTROLS - Clean bar without separate 10s forward/backward */}
+        {/* BOTTOM VIDEO CONTROLS (No separate 10s forward/backward as requested) */}
         <div 
           onMouseEnter={() => setControlsVisible(true)}
           className={`p-3 space-y-2 z-30 transition-all duration-300 ${
@@ -487,7 +459,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           </div>
 
           <div className="flex items-center justify-between text-xs text-slate-300">
-            {/* Left Controls: Play/Pause, Mute, Timer */}
+            {/* Left Controls: Mini Play/Pause, Mute, Timer */}
             <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={togglePlay}

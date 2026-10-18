@@ -95,6 +95,7 @@ export interface Exam {
   resultPublishTime: number; // ms timestamp
   questions: Question[];
   createdAt: number;
+  isActive?: boolean; // Admin can toggle exam ON / OFF
 }
 
 export interface StudentAnswer {

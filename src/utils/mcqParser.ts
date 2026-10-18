@@ -1,103 +1,145 @@
 import { Question } from '../types';
 
 /**
- * Smart Text Parser for Bulk MCQs
- * Supports formats like:
- * 1. What is the powerhouse of the cell?
- * A) Nucleus
- * B) Mitochondria
- * C) Ribosome
- * D) Golgi apparatus
- * Ans: B
- * Explanation: Mitochondria produces ATP through cellular respiration.
+ * Universal Bengali + English MCQ Bulk Parser
+ * Supports:
+ * - English numbers (1., 2., Q1., 1)) & Bengali numbers (১., ২., ৩., প্রশ্ন ১:)
+ * - Multiple questions separated by blank lines or numbering
+ * - Options in English (A, B, C, D / a, b, c, d / (A), (B))
+ * - Options in Bengali (ক, খ, গ, ঘ / (ক), (খ) / ১, ২, ৩, ৪)
+ * - Answers in English (Ans: B, Answer: B, Correct: B) & Bengali (উত্তর: খ, সঠিক উত্তর: ক, উত্তর- B)
+ * - Explanations in English (Explanation: ..., Solution: ...) & Bengali (ব্যাখ্যা: ..., সমাধান: ...)
  */
 export const parseBulkMCQText = (rawText: string): Question[] => {
   const questions: Question[] = [];
   if (!rawText || !rawText.trim()) return questions;
 
-  // Split raw text into blocks based on numbered questions or double newlines
-  const blocks = rawText
-    .split(/\n(?=(?:Q(?:uestion)?\s*\d+[\.\:]|\d+[\.\)]\s+))/i)
-    .map(b => b.trim())
-    .filter(Boolean);
+  // Bengali numerals to English
+  const bengaliToEnglishDigits: Record<string, string> = {
+    '০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4',
+    '৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9'
+  };
+
+  // Convert Bengali option letter to A/B/C/D
+  const normalizeOptionLetter = (raw: string): string => {
+    const clean = raw.trim().toUpperCase();
+    if (['A', 'B', 'C', 'D'].includes(clean)) return clean;
+    if (clean === 'ক' || clean === '১') return 'A';
+    if (clean === 'খ' || clean === '২') return 'B';
+    if (clean === 'গ' || clean === '৩') return 'C';
+    if (clean === 'ঘ' || clean === '৪') return 'D';
+    return 'A';
+  };
+
+  // Normalize line breaks
+  const normalized = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+
+  // Try splitting by question headers (English: 1., Q1., Question 1. / Bengali: ১., প্রশ্ন ১., ১))
+  // OR double newline blocks
+  let blocks: string[] = [];
+
+  // Match question start boundary:
+  // (newline followed by digit/. or Bengali digit/. or Q/Question/প্রশ্ন followed by digits)
+  const questionBoundaryRegex = /\n+(?=(?:(?:Q(?:uestion)?|প্রশ্ন)\s*[\d০-৯]+[\.\:\)\-]|[\d০-৯]+[\.\:\)\-]\s+))/i;
+  
+  if (questionBoundaryRegex.test(normalized)) {
+    blocks = normalized.split(questionBoundaryRegex);
+  } else {
+    // Fallback: split by empty lines (2 or more newlines)
+    blocks = normalized.split(/\n\s*\n+/);
+  }
+
+  blocks = blocks.map(b => b.trim()).filter(Boolean);
 
   blocks.forEach((block, index) => {
-    const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
-    if (lines.length < 5) return; // Must have at least question line + 4 options
+    const rawLines = block.split('\n').map(l => l.trim()).filter(Boolean);
+    if (rawLines.length === 0) return;
 
-    // Extract Question text
-    const firstLine = lines[0].replace(/^(?:Q(?:uestion)?\s*\d+[\.\:]|\d+[\.\)]\s*)/i, '').trim();
-    let questionText = firstLine;
-
+    let questionText = '';
     const options: { id: string; text: string }[] = [];
     let correctOption = 'A';
     let explanation = '';
 
-    // Regex matchers for options
-    const optionARegex = /^[A|a][\.\)\:\-]\s*(.*)$/;
-    const optionBRegex = /^[B|b][\.\)\:\-]\s*(.*)$/;
-    const optionCRegex = /^[C|c][\.\)\:\-]\s*(.*)$/;
-    const optionDRegex = /^[D|d][\.\)\:\-]\s*(.*)$/;
-    const ansRegex = /^(?:Ans(?:wer)?|Correct(?:\s*Ans(?:wer)?)?)\s*[\:\-\=]\s*([A-Da-d])/i;
-    const explRegex = /^(?:Explanation|Solution|Exp|Soln)\s*[\:\-\=]\s*(.*)$/i;
+    // Regex for matching option lines:
+    // English: A), A., (A), A -, a), a.
+    // Bengali: ক), ক., (ক), ক -, খ), গ), ঘ)
+    const optionLineRegex = /^[\(\[\{]?([A-Da-dক-ঘ১-৪])[\)\]\}\.\:\-]\s*(.*)$/;
+    // Regex for matching answer lines:
+    const ansLineRegex = /^(?:Ans(?:wer)?|Correct(?:\s*Ans(?:wer)?)?|উত্তর|সঠিক\s*উত্তর)\s*[\:\-\=–]\s*[\(\[\{]?([A-Da-dক-ঘ১-৪])[\)\]\}]?/i;
+    // Regex for matching explanation lines:
+    const explLineRegex = /^(?:Explanation|Solution|Exp|Soln|ব্যাখ্যা|সমাধান)\s*[\:\-\=–]\s*(.*)$/i;
 
     let readingQuestion = true;
+    let readingExplanation = false;
 
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i];
+    // Clean initial question header (e.g., "1. ", "প্রশ্ন ১: ") from line 0
+    let firstLine = rawLines[0].replace(/^(?:(?:Q(?:uestion)?|প্রশ্ন)\s*[\d০-৯]+[\.\:\)\-]|[\d০-৯]+[\.\:\)\-]\s*)/i, '').trim();
+    if (!firstLine && rawLines.length > 1) {
+      firstLine = rawLines[1];
+    }
+    questionText = firstLine;
 
-      const matchA = line.match(optionARegex);
-      const matchB = line.match(optionBRegex);
-      const matchC = line.match(optionCRegex);
-      const matchD = line.match(optionDRegex);
-      const matchAns = line.match(ansRegex);
-      const matchExpl = line.match(explRegex);
+    for (let i = 1; i < rawLines.length; i++) {
+      const line = rawLines[i];
 
-      if (matchA) {
+      const matchAns = line.match(ansLineRegex);
+      const matchExpl = line.match(explLineRegex);
+      const matchOpt = line.match(optionLineRegex);
+
+      if (matchAns) {
         readingQuestion = false;
-        options.push({ id: 'A', text: matchA[1].trim() });
-      } else if (matchB) {
-        readingQuestion = false;
-        options.push({ id: 'B', text: matchB[1].trim() });
-      } else if (matchC) {
-        readingQuestion = false;
-        options.push({ id: 'C', text: matchC[1].trim() });
-      } else if (matchD) {
-        readingQuestion = false;
-        options.push({ id: 'D', text: matchD[1].trim() });
-      } else if (matchAns) {
-        readingQuestion = false;
-        correctOption = matchAns[1].toUpperCase();
+        readingExplanation = false;
+        correctOption = normalizeOptionLetter(matchAns[1]);
       } else if (matchExpl) {
         readingQuestion = false;
+        readingExplanation = true;
         explanation = matchExpl[1].trim();
+      } else if (matchOpt && options.length < 4) {
+        readingQuestion = false;
+        readingExplanation = false;
+        const letter = normalizeOptionLetter(matchOpt[1]);
+        const optText = matchOpt[2].trim();
+        // Determine option id sequentially if matched is already present
+        const expectedId = ['A', 'B', 'C', 'D'][options.length] || 'A';
+        const finalId = ['A', 'B', 'C', 'D'].includes(letter) && !options.some(o => o.id === letter)
+          ? letter
+          : expectedId;
+
+        options.push({
+          id: finalId,
+          text: optText || `Option ${finalId}`
+        });
       } else {
-        if (readingQuestion) {
+        if (readingQuestion && options.length === 0) {
           questionText += ' ' + line;
-        } else if (explanation) {
+        } else if (readingExplanation) {
           explanation += ' ' + line;
+        } else if (options.length > 0 && options.length <= 4) {
+          // Additional line of previous option
+          options[options.length - 1].text += ' ' + line;
         }
       }
     }
 
-    // Default 4 fallback options if missing
-    if (options.length < 4) {
-      const ids = ['A', 'B', 'C', 'D'];
-      while (options.length < 4) {
-        options.push({
-          id: ids[options.length],
-          text: `Option ${ids[options.length]}`
-        });
-      }
+    // Ensure we have 4 options
+    const requiredOptionIds = ['A', 'B', 'C', 'D'];
+    while (options.length < 4) {
+      const missingId = requiredOptionIds[options.length];
+      options.push({
+        id: missingId,
+        text: `Option ${missingId}`
+      });
     }
 
-    questions.push({
-      id: `q_${Date.now()}_${index}`,
-      text: questionText || `Question ${index + 1}`,
-      options: options.slice(0, 4),
-      correctOption: ['A', 'B', 'C', 'D'].includes(correctOption) ? correctOption : 'A',
-      explanation: explanation || undefined
-    });
+    if (questionText.trim()) {
+      questions.push({
+        id: `q_${Date.now()}_${index}_${Math.random().toString(36).substring(2, 6)}`,
+        text: questionText.trim(),
+        options: options.slice(0, 4),
+        correctOption,
+        explanation: explanation.trim()
+      });
+    }
   });
 
   return questions;

@@ -417,86 +417,229 @@ export const CourseView: React.FC<CourseViewProps> = ({ course, students, onBack
 
           {/* VIEW: INSIDE A CLASS */}
           {currentClass ? (
-            <div className="space-y-4">
-              <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+            <div className="space-y-6">
+              {/* Class Header Banner */}
+              <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
                     <GraduationCap className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                      {currentClass.title}
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Class Video Lecture & Class Notes PDF
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-base sm:text-lg text-slate-900 dark:text-white">
+                        {currentClass.title}
+                      </h3>
+                      {role === 'admin' && (
+                        <button
+                          onClick={() => {
+                            setRenameTargetClass(currentClass);
+                            setRenameClassTitleVal(currentClass.title);
+                          }}
+                          className="p-1 text-slate-400 hover:text-blue-500 rounded"
+                          title="Rename Class"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {resources.filter(r => r.classId === currentClass.id && r.type === 'video').length} Videos • {resources.filter(r => r.classId === currentClass.id && r.type === 'pdf').length} PDF Lecture Notes
                     </p>
                   </div>
                 </div>
 
-                <button
-                  onClick={() => setCurrentClass(null)}
-                  className="px-3 py-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
-                >
-                  Back to Classes
-                </button>
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  {role === 'admin' && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setResourceType('video');
+                          setShowAddResourceModal(true);
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+                      >
+                        <Video className="w-3.5 h-3.5" />
+                        <span>+ Add Video</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setResourceType('pdf');
+                          setShowAddResourceModal(true);
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>+ Add PDF</span>
+                      </button>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => setCurrentClass(null)}
+                    className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800 rounded-xl cursor-pointer"
+                  >
+                    Back to Classes
+                  </button>
+                </div>
               </div>
 
-              {/* Class Materials Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {currentClassMaterials.map((res) => (
-                  <div
-                    key={res.id}
-                    onClick={() => {
-                      if (res.type === 'video') {
-                        setActiveVideo({ title: res.title, url: res.url });
-                      } else {
-                        setActivePdf({ title: res.title, url: res.url });
-                      }
-                    }}
-                    className="group p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-500/60 dark:hover:border-blue-500/60 rounded-2xl transition-all shadow-xs hover:shadow-md cursor-pointer flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <div
-                        className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
-                          res.type === 'video'
-                            ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400'
-                            : 'bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400'
-                        }`}
-                      >
-                        {res.type === 'video' ? <Play className="w-6 h-6 fill-current" /> : <FileText className="w-6 h-6" />}
-                      </div>
-                      <div className="min-w-0">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                          {res.type === 'video' ? 'Class Video' : 'Class Note'}
-                        </span>
-                        <h4 className="font-bold text-sm text-slate-900 dark:text-white truncate">
-                          {res.title}
-                        </h4>
-                      </div>
-                    </div>
+              {/* SECTION 1 (TOP): CLASS VIDEOS */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <Video className="w-4 h-4 text-blue-500" />
+                    <span>Class Video Lectures ({currentClassMaterials.filter(r => r.type === 'video').length})</span>
+                  </h4>
+                  {role === 'admin' && (
+                    <button
+                      onClick={() => {
+                        setResourceType('video');
+                        setShowAddResourceModal(true);
+                      }}
+                      className="text-xs text-blue-600 dark:text-blue-400 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Video</span>
+                    </button>
+                  )}
+                </div>
 
+                {currentClassMaterials.filter(r => r.type === 'video').length === 0 ? (
+                  <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-center text-slate-400">
+                    <Video className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-700" />
+                    <p className="text-xs font-medium">No video lectures added yet for this class.</p>
                     {role === 'admin' && (
                       <button
-                        onClick={(e) => handleDeleteResource(res, e)}
-                        className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-opacity cursor-pointer"
-                        title="Delete Material"
+                        onClick={() => {
+                          setResourceType('video');
+                          setShowAddResourceModal(true);
+                        }}
+                        className="mt-2 text-xs text-blue-600 dark:text-blue-400 font-semibold underline cursor-pointer"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        + Add First Video Lecture
                       </button>
                     )}
                   </div>
-                ))}
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {currentClassMaterials.filter(r => r.type === 'video').map((res) => (
+                      <div
+                        key={res.id}
+                        onClick={() => setActiveVideo({ title: res.title, url: res.url })}
+                        className="group p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-500/60 dark:hover:border-blue-500/60 rounded-2xl transition-all shadow-xs hover:shadow-md cursor-pointer flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                            <Play className="w-5 h-5 fill-current ml-0.5" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                              Video Lecture
+                            </span>
+                            <h4 className="font-bold text-sm text-slate-900 dark:text-white truncate">
+                              {res.title}
+                            </h4>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 group-hover:underline hidden sm:inline">
+                            Watch
+                          </span>
+                          {role === 'admin' && (
+                            <button
+                              onClick={(e) => handleDeleteResource(res, e)}
+                              className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              title="Delete Video"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {currentClassMaterials.length === 0 && (
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center text-slate-400">
-                  <BookOpen className="w-10 h-10 mx-auto mb-2 text-slate-300 dark:text-slate-700" />
-                  <p className="text-sm font-medium">No materials added to this class yet.</p>
+              {/* SECTION 2 (BOTTOM): CLASS PDFS */}
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-rose-500" />
+                    <span>Class Notes & PDFs ({currentClassMaterials.filter(r => r.type === 'pdf').length})</span>
+                  </h4>
                   {role === 'admin' && (
-                    <p className="text-xs text-slate-500 mt-1">Click "Add Material" above to upload your Class Video and Class Note.</p>
+                    <button
+                      onClick={() => {
+                        setResourceType('pdf');
+                        setShowAddResourceModal(true);
+                      }}
+                      className="text-xs text-rose-600 dark:text-rose-400 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add PDF</span>
+                    </button>
                   )}
                 </div>
-              )}
+
+                {currentClassMaterials.filter(r => r.type === 'pdf').length === 0 ? (
+                  <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-center text-slate-400">
+                    <FileText className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-700" />
+                    <p className="text-xs font-medium">No PDF lecture sheets added yet for this class.</p>
+                    {role === 'admin' && (
+                      <button
+                        onClick={() => {
+                          setResourceType('pdf');
+                          setShowAddResourceModal(true);
+                        }}
+                        className="mt-2 text-xs text-rose-600 dark:text-rose-400 font-semibold underline cursor-pointer"
+                      >
+                        + Add First PDF Lecture Note
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {currentClassMaterials.filter(r => r.type === 'pdf').map((res) => (
+                      <div
+                        key={res.id}
+                        onClick={() => setActivePdf({ title: res.title, url: res.url })}
+                        className="group p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-rose-500/60 dark:hover:border-rose-500/60 rounded-2xl transition-all shadow-xs hover:shadow-md cursor-pointer flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className="w-11 h-11 rounded-xl bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                            <FileText className="w-5 h-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                              PDF Note / Sheet
+                            </span>
+                            <h4 className="font-bold text-sm text-slate-900 dark:text-white truncate">
+                              {res.title}
+                            </h4>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-rose-600 dark:text-rose-400 group-hover:underline hidden sm:inline">
+                            View PDF
+                          </span>
+                          {role === 'admin' && (
+                            <button
+                              onClick={(e) => handleDeleteResource(res, e)}
+                              className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              title="Delete PDF"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             /* VIEW: FOLDERS & CLASSES LIST */
