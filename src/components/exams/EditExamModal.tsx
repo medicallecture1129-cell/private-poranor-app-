@@ -9,6 +9,7 @@ import { X, Plus, Trash2, Sparkles, Check, CheckCircle2, AlertCircle, Save, Powe
 interface EditExamModalProps {
   exam: Exam;
   courses: Course[];
+  isPractice?: boolean;
   onClose: () => void;
   onExamUpdated: (updatedExam: Exam) => void;
 }
@@ -16,10 +17,15 @@ interface EditExamModalProps {
 export const EditExamModal: React.FC<EditExamModalProps> = ({
   exam,
   courses,
+  isPractice,
   onClose,
   onExamUpdated
 }) => {
   const { success: toastSuccess, error: toastError } = useToast();
+
+  const isPracticeExam = isPractice !== undefined 
+    ? isPractice 
+    : (exam.isPractice === true || exam.endTime <= Date.now());
 
   const [title, setTitle] = useState(exam.title);
   const [courseId, setCourseId] = useState(exam.courseId);
@@ -112,15 +118,6 @@ export const EditExamModal: React.FC<EditExamModalProps> = ({
       return;
     }
 
-    const startMs = new Date(startTimeInput).getTime();
-    const endMs = new Date(endTimeInput).getTime();
-    const pubMs = new Date(publishTimeInput).getTime();
-
-    if (endMs <= startMs) {
-      toastError('End time must be after Start time');
-      return;
-    }
-
     const selectedCourse = courses.find(c => c.id === courseId);
 
     setIsSaving(true);
@@ -134,12 +131,25 @@ export const EditExamModal: React.FC<EditExamModalProps> = ({
         passMark: Number(passMark),
         negativeMarkPercentage: Number(negativeMarkPercentage),
         instructions: instructions.trim(),
-        startTime: startMs,
-        endTime: endMs,
-        resultPublishTime: pubMs,
         isActive,
         questions
       };
+
+      if (!isPracticeExam) {
+        const startMs = new Date(startTimeInput).getTime();
+        const endMs = new Date(endTimeInput).getTime();
+        const pubMs = new Date(publishTimeInput).getTime();
+
+        if (endMs <= startMs) {
+          toastError('End time must be after Start time');
+          setIsSaving(false);
+          return;
+        }
+
+        updates.startTime = startMs;
+        updates.endTime = endMs;
+        updates.resultPublishTime = pubMs;
+      }
 
       await updateExam(exam.id, updates);
       toastSuccess('Exam updated successfully');
@@ -161,13 +171,22 @@ export const EditExamModal: React.FC<EditExamModalProps> = ({
             <div>
               <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
                 <span>Manage & Edit Exam</span>
+                {isPracticeExam && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-950/70 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                    Practice Test
+                  </span>
+                )}
                 <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
                   isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
                 }`}>
-                  {isActive ? 'Active (ON)' : 'Paused (OFF)'}
+                  {isActive ? 'Active (ON)' : 'Inactive (OFF)'}
                 </span>
               </h3>
-              <p className="text-xs text-slate-500">Edit exam timings, toggle active status, and modify questions</p>
+              <p className="text-xs text-slate-500">
+                {isPracticeExam 
+                  ? 'Edit questions, duration, negative marking, and active status' 
+                  : 'Edit exam schedule, negative marking, and modify questions'}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg">
@@ -183,7 +202,7 @@ export const EditExamModal: React.FC<EditExamModalProps> = ({
               activeTab === 'details' ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-900'
             }`}
           >
-            Exam Schedule & Settings
+            {isPracticeExam ? 'Exam Settings & Marks' : 'Exam Schedule & Settings'}
           </button>
           <button
             onClick={() => setActiveTab('questions')}
@@ -321,89 +340,51 @@ export const EditExamModal: React.FC<EditExamModalProps> = ({
                 </span>
               </div>
 
-              {/* Time Configuration & Make Live Again */}
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700/60 pb-2.5">
-                  <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                      <span>Exam Timing & Live Schedule (Re-open Live Window)</span>
-                    </h4>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      Set a new schedule to re-open the exam for live test-takers. Submissions will be ranked on the leaderboard.
-                    </p>
+              {/* Time Configuration - Only for Live Exams; omitted for Practice Exams */}
+              {!isPracticeExam && (
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700/60 pb-2.5">
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        <span>Live Exam Schedule & Result Publishing</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Update the live testing window and scheduled result publishing time.
+                      </p>
+                    </div>
                   </div>
 
-                  {/* Quick Preset Buttons */}
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const now = Date.now();
-                        setStartTimeInput(formatForInput(now));
-                        setEndTimeInput(formatForInput(now + 2 * 60 * 60 * 1000));
-                        setPublishTimeInput(formatForInput(now + 3 * 60 * 60 * 1000));
-                      }}
-                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-blue-100 hover:bg-blue-200 dark:bg-blue-950/70 dark:hover:bg-blue-900 text-blue-700 dark:text-blue-300 transition-colors"
-                    >
-                      +2 Hours Live
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const now = Date.now();
-                        setStartTimeInput(formatForInput(now));
-                        setEndTimeInput(formatForInput(now + 4 * 60 * 60 * 1000));
-                        setPublishTimeInput(formatForInput(now + 5 * 60 * 60 * 1000));
-                      }}
-                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/70 dark:hover:bg-rose-900 text-rose-700 dark:text-rose-300 transition-colors"
-                    >
-                      +4 Hours Live
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const now = Date.now();
-                        setStartTimeInput(formatForInput(now));
-                        setEndTimeInput(formatForInput(now + 24 * 60 * 60 * 1000));
-                        setPublishTimeInput(formatForInput(now + 25 * 60 * 60 * 1000));
-                      }}
-                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/70 dark:hover:bg-emerald-900 text-emerald-700 dark:text-emerald-300 transition-colors"
-                    >
-                      24 Hours Live
-                    </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-500 mb-1">Start Time (Live Begins)</label>
+                      <input
+                        type="datetime-local"
+                        value={startTimeInput}
+                        onChange={(e) => setStartTimeInput(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-500 mb-1">End Time (Live Closes)</label>
+                      <input
+                        type="datetime-local"
+                        value={endTimeInput}
+                        onChange={(e) => setEndTimeInput(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-500 mb-1">Result Publish Time</label>
+                      <input
+                        type="datetime-local"
+                        value={publishTimeInput}
+                        onChange={(e) => setPublishTimeInput(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                      />
+                    </div>
                   </div>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">Start Time (Live Begins)</label>
-                    <input
-                      type="datetime-local"
-                      value={startTimeInput}
-                      onChange={(e) => setStartTimeInput(e.target.value)}
-                      className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">End Time (Live Closes)</label>
-                    <input
-                      type="datetime-local"
-                      value={endTimeInput}
-                      onChange={(e) => setEndTimeInput(e.target.value)}
-                      className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">Result Publish Time</label>
-                    <input
-                      type="datetime-local"
-                      value={publishTimeInput}
-                      onChange={(e) => setPublishTimeInput(e.target.value)}
-                      className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                    />
-                  </div>
-                </div>
-              </div>
+              )}
 
               {/* Instructions */}
               <div>

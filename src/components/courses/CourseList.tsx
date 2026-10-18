@@ -83,7 +83,7 @@ export const CourseList: React.FC<CourseListProps> = ({ courses, students, onSel
         {role === 'admin' && (
           <button
             onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm shadow-sm transition-colors cursor-pointer self-start sm:self-auto"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl btn-theme-primary font-semibold text-xs sm:text-sm shadow-sm cursor-pointer self-start sm:self-auto"
           >
             <Plus className="w-4 h-4" />
             <span>Add Course</span>
@@ -93,7 +93,7 @@ export const CourseList: React.FC<CourseListProps> = ({ courses, students, onSel
 
       {/* Courses Grid */}
       {visibleCourses.length === 0 ? (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center text-slate-400">
+        <div className="bg-white dark:bg-[#121622] border border-slate-200 dark:border-white/[0.08] rounded-2xl p-12 text-center text-slate-400">
           <BookOpen className="w-12 h-12 mx-auto mb-3 text-slate-300 dark:text-slate-700" />
           <h4 className="font-semibold text-slate-700 dark:text-slate-300 text-base">
             No courses found
@@ -112,12 +112,12 @@ export const CourseList: React.FC<CourseListProps> = ({ courses, students, onSel
               <div
                 key={course.id}
                 onClick={() => onSelectCourse(course)}
-                className="group relative bg-white/95 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 card-theme-interactive rounded-2xl p-5 shadow-xs hover:shadow-xl cursor-pointer flex flex-col justify-between overflow-hidden"
+                className="group relative bg-white/95 dark:bg-[#121622] border border-slate-200 dark:border-white/[0.08] card-theme-interactive rounded-2xl p-5 shadow-xs hover:shadow-xl cursor-pointer flex flex-col justify-between overflow-hidden"
               >
                 <div className="card-glow-line" />
                 <div>
                   <div className="flex items-start justify-between gap-3 mb-3">
-                    <span className="text-xs px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-bold border border-blue-200 dark:border-blue-900/50">
+                    <span className="text-xs px-2.5 py-1 rounded-lg badge-theme font-bold">
                       {course.batch}
                     </span>
 
@@ -132,18 +132,23 @@ export const CourseList: React.FC<CourseListProps> = ({ courses, students, onSel
                     )}
                   </div>
 
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1">
+                  <h3 
+                    className="text-lg font-bold text-slate-900 dark:text-white transition-colors line-clamp-1"
+                  >
                     {course.name}
                   </h3>
                 </div>
 
-                <div className="pt-5 mt-5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+                <div className="pt-5 mt-5 border-t border-slate-100 dark:border-white/[0.06] flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
                     <Users className="w-4 h-4 text-slate-400" />
                     <span>{enrolledCount} Total Member{enrolledCount === 1 ? '' : 's'}</span>
                   </div>
 
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 group-hover:translate-x-1 transition-transform">
+                  <span 
+                    className="inline-flex items-center gap-1 text-xs font-semibold group-hover:translate-x-1 transition-transform"
+                    style={{ color: 'var(--theme-primary)' }}
+                  >
                     Enter <ArrowRight className="w-3.5 h-3.5" />
                   </span>
                 </div>
@@ -201,7 +206,7 @@ export const CourseList: React.FC<CourseListProps> = ({ courses, students, onSel
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs disabled:opacity-50 cursor-pointer"
+                  className="px-5 py-2 rounded-xl btn-theme-primary font-semibold text-xs shadow-xs disabled:opacity-50 cursor-pointer"
                 >
                   {isSubmitting ? 'Creating...' : 'Create Course'}
                 </button>

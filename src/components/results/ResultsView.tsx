@@ -200,7 +200,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
             <span>Results & Performance</span>
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full badge-theme">
               {role === 'admin' ? 'Admin Control' : 'Student Portal'}
             </span>
           </h2>
@@ -212,27 +212,27 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
         </div>
 
         {/* Tab switch: 1. Exam Leaderboard, 2. Student Summary Report */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl self-start sm:self-auto border border-slate-200 dark:border-slate-700 shadow-xs">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-[#121622] rounded-xl self-start sm:self-auto border border-slate-200 dark:border-white/[0.08] shadow-xs">
           <button
             onClick={() => setActiveSubTab('leaderboard')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeSubTab === 'leaderboard'
-                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs'
+                ? 'btn-theme-primary shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <Trophy className="w-4 h-4 text-amber-500" />
+            <Trophy className="w-4 h-4 text-amber-400" />
             <span>1. Exam Leaderboard</span>
           </button>
           <button
             onClick={() => setActiveSubTab('student_history')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeSubTab === 'student_history'
-                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs'
+                ? 'btn-theme-primary shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <FileText className="w-4 h-4 text-blue-500" />
+            <FileText className="w-4 h-4" />
             <span>2. Student Summary Report</span>
           </button>
         </div>

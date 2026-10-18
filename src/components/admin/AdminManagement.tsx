@@ -131,12 +131,12 @@ export const AdminManagement: React.FC = () => {
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800 rounded-xl self-start sm:self-auto border border-slate-200 dark:border-slate-700">
+        <div className="flex items-center p-1 bg-slate-100 dark:bg-[#121622] rounded-xl self-start sm:self-auto border border-slate-200 dark:border-white/[0.08]">
           <button
             onClick={() => setActiveAdminTab('admins')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeAdminTab === 'admins'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                ? 'btn-theme-primary shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -146,7 +146,7 @@ export const AdminManagement: React.FC = () => {
             onClick={() => setActiveAdminTab('settings')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeAdminTab === 'settings'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                ? 'btn-theme-primary shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -156,9 +156,12 @@ export const AdminManagement: React.FC = () => {
       </div>
 
       {/* Cloud Firestore Status Banner */}
-      <div className="p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+      <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#121622] border border-slate-200 dark:border-white/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
+          <div 
+            className="w-8 h-8 rounded-xl text-white flex items-center justify-center shrink-0 shadow-xs"
+            style={{ backgroundColor: 'var(--theme-primary)' }}
+          >
             <Cloud className="w-4 h-4" />
           </div>
           <div>

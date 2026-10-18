@@ -200,7 +200,7 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
             <span>Examinations</span>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 dark:bg-white/[0.08] text-theme-primary">
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold badge-theme">
               {availableExams.length} Total
             </span>
           </h2>
@@ -528,6 +528,7 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
         <EditExamModal
           exam={editingExam}
           courses={courses}
+          isPractice={activeSegment === 'practice' || editingExam.isPractice === true || editingExam.endTime <= currentTime}
           onClose={() => setEditingExam(null)}
           onExamUpdated={() => setEditingExam(null)}
         />

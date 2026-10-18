@@ -491,7 +491,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
 
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs px-2.5 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-900">
+              <span className="text-xs px-2.5 py-0.5 rounded-md badge-theme font-bold">
                 {course.batch}
               </span>
               <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
@@ -505,12 +505,12 @@ export const CourseView: React.FC<CourseViewProps> = ({
         </div>
 
         {/* Tab Selector: Content, Members, Discussion */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl self-start sm:self-auto border border-slate-200 dark:border-slate-700">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-[#121622] rounded-xl self-start sm:self-auto border border-slate-200 dark:border-white/[0.08]">
           <button
             onClick={() => setActiveTab('content')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'content'
-                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs'
+                ? 'btn-theme-primary shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -522,7 +522,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
             onClick={() => setActiveTab('members')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'members'
-                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs'
+                ? 'btn-theme-primary shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -534,7 +534,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
             onClick={() => setActiveTab('discussion')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'discussion'
-                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs'
+                ? 'btn-theme-primary shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -932,7 +932,7 @@ export const CourseView: React.FC<CourseViewProps> = ({
 
                   <button
                     onClick={() => setShowAddClassModal(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm shadow-xs transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl btn-theme-primary font-semibold text-xs sm:text-sm shadow-xs cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Add Class</span>

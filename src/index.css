@@ -2,22 +2,14 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Root fallback variables; dynamically replaced at runtime by ThemeContext */
 :root {
   --theme-primary: #2563eb;
   --theme-primary-rgb: 37, 99, 235;
   --theme-primary-hover: #1d4ed8;
-  --theme-primary-glow: rgba(37, 99, 235, 0.20);
-  --theme-primary-light: rgba(37, 99, 235, 0.08);
-  --theme-primary-border: rgba(37, 99, 235, 0.22);
-}
-
-.dark {
-  --theme-primary: #2563eb;
-  --theme-primary-rgb: 37, 99, 235;
-  --theme-primary-hover: #1d4ed8;
-  --theme-primary-glow: rgba(37, 99, 235, 0.32);
-  --theme-primary-light: rgba(37, 99, 235, 0.12);
-  --theme-primary-border: rgba(37, 99, 235, 0.28);
+  --theme-primary-glow: rgba(37, 99, 235, 0.25);
+  --theme-primary-light: rgba(37, 99, 235, 0.10);
+  --theme-primary-border: rgba(37, 99, 235, 0.25);
 }
 
 @layer base {
@@ -36,7 +28,8 @@
     padding: 0;
     background-color: #f8fafc;
     background-image: 
-      radial-gradient(ellipse 85% 55% at 50% -8%, rgba(var(--theme-primary-rgb), 0.04) 0%, transparent 65%),
+      radial-gradient(ellipse 85% 55% at 50% -8%, rgba(var(--theme-primary-rgb), 0.08) 0%, transparent 65%),
+      radial-gradient(circle at 100% 100%, rgba(var(--theme-primary-rgb), 0.05) 0%, transparent 50%),
       linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
     background-attachment: fixed;
     color: #1e293b;
@@ -47,16 +40,16 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Refined Dark Mode - Deep subtle contrast (#0c1017 to #0f1420) with Ambient Glow */
+  /* Refined Dark Mode - Atmospheric dark background with vivid Palette Accent Glow */
   html.dark,
   body.dark,
   .dark body {
-    background-color: #0c1017 !important;
+    background-color: #0b0e17 !important;
     background-image: 
-      radial-gradient(ellipse 90% 60% at 50% -10%, rgba(var(--theme-primary-rgb), 0.09) 0%, transparent 70%),
-      radial-gradient(circle at 100% 100%, rgba(var(--theme-primary-rgb), 0.04) 0%, transparent 50%),
-      radial-gradient(circle at 0% 50%, rgba(var(--theme-primary-rgb), 0.03) 0%, transparent 45%),
-      linear-gradient(180deg, #090d14 0%, #0c1017 100%) !important;
+      radial-gradient(ellipse 90% 55% at 50% -6%, rgba(var(--theme-primary-rgb), 0.26) 0%, transparent 65%),
+      radial-gradient(circle at 100% 100%, rgba(var(--theme-primary-rgb), 0.15) 0%, transparent 55%),
+      radial-gradient(circle at 0% 50%, rgba(var(--theme-primary-rgb), 0.12) 0%, transparent 50%),
+      linear-gradient(180deg, #090c14 0%, #0b0f19 100%) !important;
     background-attachment: fixed;
     color: #f1f5f9 !important;
   }
@@ -90,10 +83,17 @@
 
 .btn-theme-primary:hover {
   background-color: var(--theme-primary-hover) !important;
-  box-shadow: 0 6px 18px -3px var(--theme-primary-glow) !important;
+  box-shadow: 0 6px 20px -2px var(--theme-primary-glow) !important;
 }
 
-/* Custom Interactive Cards: Subtle contrast between background and card surface */
+/* Dynamic Badge and Pill Utilities */
+.badge-theme {
+  background-color: var(--theme-primary-light) !important;
+  color: var(--theme-primary) !important;
+  border: 1px solid var(--theme-primary-border) !important;
+}
+
+/* Custom Interactive Cards: Distinct contrast & colorful top rim in Dark Mode */
 .card-theme-interactive {
   transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -103,19 +103,20 @@
 
 .card-theme-interactive:hover {
   transform: translateY(-2px);
-  border-color: rgba(var(--theme-primary-rgb), 0.4);
-  box-shadow: 0 10px 22px -4px var(--theme-primary-glow), 0 0 0 1px var(--theme-primary-border);
+  border-color: rgba(var(--theme-primary-rgb), 0.5);
+  box-shadow: 0 10px 24px -4px var(--theme-primary-glow), 0 0 0 1px var(--theme-primary-border);
 }
 
 .dark .card-theme-interactive {
-  background-color: rgba(18, 22, 33, 0.94) !important;
-  border-color: rgba(255, 255, 255, 0.07) !important;
+  background-color: rgba(16, 20, 31, 0.95) !important;
+  border-color: rgba(var(--theme-primary-rgb), 0.22) !important;
+  box-shadow: 0 4px 20px -2px rgba(var(--theme-primary-rgb), 0.08);
 }
 
 .dark .card-theme-interactive:hover {
   transform: translateY(-2px);
-  border-color: rgba(var(--theme-primary-rgb), 0.45) !important;
-  box-shadow: 0 12px 26px -5px var(--theme-primary-glow), 0 0 0 1px var(--theme-primary-border) !important;
+  border-color: rgba(var(--theme-primary-rgb), 0.65) !important;
+  box-shadow: 0 12px 30px -4px var(--theme-primary-glow), 0 0 0 1px var(--theme-primary-border) !important;
 }
 
 .card-glow-line {
@@ -125,14 +126,18 @@
   right: 0;
   height: 2px;
   background: linear-gradient(90deg, transparent, var(--theme-primary), transparent);
-  opacity: 0;
+  opacity: 0.2;
   transition: opacity 0.3s ease;
   pointer-events: none;
 }
 
+.dark .card-glow-line {
+  opacity: 0.45;
+}
+
 .group:hover .card-glow-line,
 .card-theme-interactive:hover .card-glow-line {
-  opacity: 1;
+  opacity: 1 !important;
 }
 
 .theme-folder-icon {

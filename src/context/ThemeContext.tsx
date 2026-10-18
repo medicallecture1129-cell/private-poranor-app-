@@ -123,9 +123,18 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       root.style.setProperty('--theme-primary', currentPalette.hex);
       root.style.setProperty('--theme-primary-rgb', rgb);
       root.style.setProperty('--theme-primary-hover', currentPalette.hoverHex);
-      root.style.setProperty('--theme-primary-glow', `rgba(${rgb}, ${isDark ? 0.32 : 0.20})`);
-      root.style.setProperty('--theme-primary-light', `rgba(${rgb}, ${isDark ? 0.12 : 0.08})`);
-      root.style.setProperty('--theme-primary-border', `rgba(${rgb}, ${isDark ? 0.28 : 0.22})`);
+      root.style.setProperty('--theme-primary-glow', `rgba(${rgb}, ${isDark ? 0.48 : 0.22})`);
+      root.style.setProperty('--theme-primary-light', `rgba(${rgb}, ${isDark ? 0.22 : 0.09})`);
+      root.style.setProperty('--theme-primary-border', `rgba(${rgb}, ${isDark ? 0.42 : 0.24})`);
+
+      if (document.body) {
+        document.body.style.setProperty('--theme-primary', currentPalette.hex);
+        document.body.style.setProperty('--theme-primary-rgb', rgb);
+        document.body.style.setProperty('--theme-primary-hover', currentPalette.hoverHex);
+        document.body.style.setProperty('--theme-primary-glow', `rgba(${rgb}, ${isDark ? 0.48 : 0.22})`);
+        document.body.style.setProperty('--theme-primary-light', `rgba(${rgb}, ${isDark ? 0.22 : 0.09})`);
+        document.body.style.setProperty('--theme-primary-border', `rgba(${rgb}, ${isDark ? 0.42 : 0.24})`);
+      }
 
       try {
         localStorage.setItem('examportal_theme_preference', preference);
