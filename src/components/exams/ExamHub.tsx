@@ -10,6 +10,7 @@ import { OmrGeneratorModal } from './OmrGeneratorModal';
 import { OmrScannerModal } from './OmrScannerModal';
 import { OfflineLeaderboardModal } from './OfflineLeaderboardModal';
 import MedicalOMRApp from './MedicalOMRApp';
+import { OfflineOmrManager } from './OfflineOmrManager';
 import { deleteExam, updateExam } from '../../services/db';
 import { useToast } from '../../context/ToastContext';
 import { ModernSelect } from '../ui/ModernSelect';
@@ -66,6 +67,7 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
   const [omrScannerExam, setOmrScannerExam] = useState<Exam | null>(null);
   const [offlineLeaderboardExam, setOfflineLeaderboardExam] = useState<Exam | null>(null);
   const [showMedicalOMRApp, setShowMedicalOMRApp] = useState<boolean>(false);
+  const [showOfflineOmrManager, setShowOfflineOmrManager] = useState<boolean>(false);
 
   // Re-live Exam Modal State
   const [reLiveTargetExam, setReLiveTargetExam] = useState<Exam | null>(null);
@@ -227,6 +229,10 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
     ...courses.map(c => ({ value: c.id, label: c.name, badge: c.batch }))
   ];
 
+  if (showOfflineOmrManager) {
+    return <OfflineOmrManager onBack={() => setShowOfflineOmrManager(false)} />;
+  }
+
   if (showMedicalOMRApp) {
     return <MedicalOMRApp onBack={() => setShowMedicalOMRApp(false)} />;
   }
@@ -250,6 +256,16 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          {/* EdTech Offline Exam & OMR Manager Button */}
+          <button
+            onClick={() => setShowOfflineOmrManager(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-950/40 cursor-pointer transition-all border border-emerald-400/30"
+            title="মাস্টার প্রশ্ন ইনপুট ও ইউনিক ওএমআর সেট (Set A-T) জেনারেটর"
+          >
+            <Layers className="w-4 h-4 text-amber-300" />
+            <span>ইউনিক ওএমআর ও সেট ম্যানেজার</span>
+          </button>
+
           {/* Medical OMR Portal Button */}
           <button
             onClick={() => setShowMedicalOMRApp(true)}
@@ -257,7 +273,7 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
             title="মেডিকেল স্ট্যান্ডার্ড ওএমআর প্রিন্ট, বাল্ক প্রশ্ন ইনপুট ও ক্যামেরা স্ক্যানার পোর্টাল"
           >
             <Award className="w-4 h-4 text-amber-300" />
-            <span>মেডিকেল ওএমআর ও কোশ্চেন পোর্টাল</span>
+            <span>মেডিকেল ওএমআর পোর্টাল</span>
           </button>
 
           {role === 'admin' && (

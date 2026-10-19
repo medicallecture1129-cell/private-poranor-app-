@@ -4,6 +4,8 @@ import {
   Users, Award, RefreshCw, Download, QrCode, Play, AlertTriangle, Plus, Clipboard, Layers, Save, BookOpen, ArrowLeft 
 } from 'lucide-react';
 
+import { OfflineOmrManager } from './OfflineOmrManager';
+
 interface QuestionItem {
   id: number;
   question: string;
@@ -47,10 +49,11 @@ interface EvaluationResult {
 
 interface MedicalOMRAppProps {
   onBack?: () => void;
+  defaultTab?: 'manager' | 'dashboard' | 'questions' | 'generator' | 'scanner';
 }
 
-export default function MedicalOMRApp({ onBack }: MedicalOMRAppProps) {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'questions' | 'generator' | 'scanner'>('dashboard');
+export default function MedicalOMRApp({ onBack, defaultTab = 'manager' }: MedicalOMRAppProps) {
+  const [activeTab, setActiveTab] = useState<'manager' | 'dashboard' | 'questions' | 'generator' | 'scanner'>(defaultTab);
   
   // Exam Details Config
   const [examMeta, setExamMeta] = useState({
@@ -477,26 +480,33 @@ export default function MedicalOMRApp({ onBack }: MedicalOMRAppProps) {
         </div>
         <div className="flex flex-wrap gap-2">
           <button 
+            onClick={() => setActiveTab('manager')} 
+            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-1.5 ${activeTab === 'manager' ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md' : 'bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 hover:bg-emerald-900/40'}`}
+          >
+            <Layers className="w-3.5 h-3.5 text-amber-300" />
+            <span>ইউনিক ওএমআর ও সেট ম্যানেজার</span>
+          </button>
+          <button 
             onClick={() => setActiveTab('dashboard')} 
-            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors cursor-pointer ${activeTab === 'dashboard' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors cursor-pointer ${activeTab === 'dashboard' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300'}`}
           >
             ড্যাশবোর্ড
           </button>
           <button 
             onClick={() => setActiveTab('questions')} 
-            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors cursor-pointer ${activeTab === 'questions' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors cursor-pointer ${activeTab === 'questions' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300'}`}
           >
             প্রশ্ন ইনপুট
           </button>
           <button 
             onClick={() => setActiveTab('generator')} 
-            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors cursor-pointer ${activeTab === 'generator' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors cursor-pointer ${activeTab === 'generator' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300'}`}
           >
             প্রশ্নপত্র ও ওএমআর প্রিন্ট
           </button>
           <button 
             onClick={() => setActiveTab('scanner')} 
-            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors cursor-pointer ${activeTab === 'scanner' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors cursor-pointer ${activeTab === 'scanner' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300'}`}
           >
             ক্যামেরা স্ক্যানার
           </button>
@@ -506,6 +516,13 @@ export default function MedicalOMRApp({ onBack }: MedicalOMRAppProps) {
       {/* Main Container */}
       <main className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
         
+        {/* UNIQUE OMR & SETS MANAGER TAB */}
+        {activeTab === 'manager' && (
+          <div className="bg-slate-900 text-slate-100 p-4 sm:p-6 rounded-2xl shadow-xl border border-slate-800">
+            <OfflineOmrManager />
+          </div>
+        )}
+
         {/* DASHBOARD TAB */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
