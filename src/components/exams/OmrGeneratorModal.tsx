@@ -73,8 +73,40 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
     const setsMap: Record<string, OfflineExamSet> = {};
     const codes: string[] = [];
 
-    if (exam.offlineSets && exam.offlineSets.length > 0) {
-      exam.offlineSets.forEach((s) => {
+    // Support both offlineSets and (exam as any).sets (created via OfflineOmrManager)
+    const rawSets = (exam.offlineSets && exam.offlineSets.length > 0)
+      ? exam.offlineSets
+      : (exam as any).sets && (exam as any).sets.length > 0
+      ? (exam as any).sets.map((s: any) => ({
+          setCode: s.setCode || s.setName || 'A',
+          qrData: s.qrData || `OMR:${exam.id}:${s.setCode || 'A'}`,
+          questions: (s.questions || []).map((q: any, qIdx: number) => ({
+            questionNumber: q.qNo || q.questionNumber || (qIdx + 1),
+            masterQuestionId: `mq_${qIdx + 1}`,
+            text: q.questionText || q.text || `Question ${qIdx + 1}`,
+            options: Array.isArray(q.options)
+              ? q.options.map((opt: any, oIdx: number) => ({
+                  id: String.fromCharCode(65 + oIdx),
+                  text: typeof opt === 'string' ? opt : (opt.text || String(opt))
+                }))
+              : [],
+            correctOption: typeof q.correctAnswer === 'number'
+              ? String.fromCharCode(65 + q.correctAnswer)
+              : String(q.correctOption || 'A').toUpperCase()
+          })),
+          answerKey: s.answerKey || {},
+          createdAt: s.createdAt || Date.now()
+        }))
+      : [];
+
+    if (rawSets.length > 0) {
+      rawSets.forEach((s: OfflineExamSet) => {
+        if (!s.answerKey || Object.keys(s.answerKey).length === 0) {
+          s.answerKey = {};
+          s.questions.forEach((q) => {
+            s.answerKey[q.questionNumber] = q.correctOption;
+          });
+        }
         setsMap[s.setCode] = s;
         codes.push(s.setCode);
       });

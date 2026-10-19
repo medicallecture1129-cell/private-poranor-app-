@@ -2,14 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Exam, Course, ExamSubmission, StudentUser } from '../../types';
 import { CreateExamModal } from './CreateExamModal';
-import { CreateOfflineExamModal } from './CreateOfflineExamModal';
 import { EditExamModal } from './EditExamModal';
 import { ExamRunner } from './ExamRunner';
 import { PracticeResultModal } from './PracticeResultModal';
 import { OmrGeneratorModal } from './OmrGeneratorModal';
 import { OmrScannerModal } from './OmrScannerModal';
 import { OfflineLeaderboardModal } from './OfflineLeaderboardModal';
-import MedicalOMRApp from './MedicalOMRApp';
 import { OfflineOmrManager } from './OfflineOmrManager';
 import { deleteExam, updateExam } from '../../services/db';
 import { useToast } from '../../context/ToastContext';
@@ -45,9 +43,16 @@ interface ExamHubProps {
   courses: Course[];
   submissions: ExamSubmission[];
   students?: StudentUser[];
+  registerBackHandler?: (fn: (() => boolean) | null) => void;
 }
 
-export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, students = [] }) => {
+export const ExamHub: React.FC<ExamHubProps> = ({ 
+  exams, 
+  courses, 
+  submissions, 
+  students = [],
+  registerBackHandler
+}) => {
   const { user, role } = useAuth();
   const { success: toastSuccess, error: toastError } = useToast();
 
@@ -57,7 +62,6 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
 
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showCreateOfflineModal, setShowCreateOfflineModal] = useState(false);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
   const [activeExamRunning, setActiveExamRunning] = useState<{ exam: Exam; isLive: boolean } | null>(null);
   const [practiceResultData, setPracticeResultData] = useState<{ exam: Exam; submission: ExamSubmission } | null>(null);
@@ -66,8 +70,73 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
   const [omrGeneratorExam, setOmrGeneratorExam] = useState<Exam | null>(null);
   const [omrScannerExam, setOmrScannerExam] = useState<Exam | null>(null);
   const [offlineLeaderboardExam, setOfflineLeaderboardExam] = useState<Exam | null>(null);
-  const [showMedicalOMRApp, setShowMedicalOMRApp] = useState<boolean>(false);
   const [showOfflineOmrManager, setShowOfflineOmrManager] = useState<boolean>(false);
+
+  // 1-step backward handler registration for native back button / popstate
+  useEffect(() => {
+    if (registerBackHandler) {
+      registerBackHandler(() => {
+        if (showOfflineOmrManager) {
+          setShowOfflineOmrManager(false);
+          return true;
+        }
+        if (activeExamRunning) {
+          setActiveExamRunning(null);
+          return true;
+        }
+        if (practiceResultData) {
+          setPracticeResultData(null);
+          return true;
+        }
+        if (omrGeneratorExam) {
+          setOmrGeneratorExam(null);
+          return true;
+        }
+        if (omrScannerExam) {
+          setOmrScannerExam(null);
+          return true;
+        }
+        if (offlineLeaderboardExam) {
+          setOfflineLeaderboardExam(null);
+          return true;
+        }
+        if (editingExam) {
+          setEditingExam(null);
+          return true;
+        }
+        if (showCreateModal) {
+          setShowCreateModal(false);
+          return true;
+        }
+        if (activeSegment !== 'live') {
+          setActiveSegment('live');
+          return true;
+        }
+        return false;
+      });
+    }
+    return () => {
+      if (registerBackHandler) registerBackHandler(null);
+    };
+  }, [
+    registerBackHandler,
+    showOfflineOmrManager,
+    activeExamRunning,
+    practiceResultData,
+    omrGeneratorExam,
+    omrScannerExam,
+    offlineLeaderboardExam,
+    editingExam,
+    showCreateModal,
+    activeSegment
+  ]);
+
+  const handleOpenOfflineOmrManager = () => {
+    try {
+      window.history.pushState({ view: 'offlineOmrManager' }, '');
+    } catch {}
+    setShowOfflineOmrManager(true);
+  };
 
   // Re-live Exam Modal State
   const [reLiveTargetExam, setReLiveTargetExam] = useState<Exam | null>(null);
@@ -180,7 +249,12 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
     return exam.isPractice === true || (exam.endTime > 0 && now >= exam.endTime);
   };
 
-  const offlineExams = availableExams.filter(e => e.isOffline === true || e.examType === 'offline');
+  const offlineExams = availableExams.filter(e => 
+    e.isOffline === true || 
+    e.examType === 'offline' || 
+    ((e as any).sets && (e as any).sets.length > 0) || 
+    ((e as any).masterQuestions && (e as any).masterQuestions.length > 0)
+  );
   const liveExams = availableExams.filter(e => !e.isOffline && e.examType !== 'offline' && !isExamInPracticeMode(e, currentTime));
   const practiceExams = availableExams.filter(e => !e.isOffline && e.examType !== 'offline' && isExamInPracticeMode(e, currentTime));
 
@@ -230,11 +304,17 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
   ];
 
   if (showOfflineOmrManager) {
-    return <OfflineOmrManager onBack={() => setShowOfflineOmrManager(false)} />;
-  }
-
-  if (showMedicalOMRApp) {
-    return <MedicalOMRApp onBack={() => setShowMedicalOMRApp(false)} />;
+    return (
+      <OfflineOmrManager
+        onBack={() => {
+          if (window.history.state?.view === 'offlineOmrManager') {
+            window.history.back();
+          } else {
+            setShowOfflineOmrManager(false);
+          }
+        }}
+      />
+    );
   }
 
   return (
@@ -250,7 +330,7 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             {role === 'admin'
-              ? 'Admin Dashboard: Manage live schedules, offline exams & 4-column OMR sheets, camera evaluation, and leaderboards'
+              ? 'Admin Dashboard: Manage live schedules, offline exams & OMR sets, evaluation, and leaderboards'
               : 'Official Exams: Live tests, offline model tests with smart OMR verification, and combined merit lists'}
           </p>
         </div>
@@ -258,22 +338,12 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
         <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
           {/* EdTech Offline Exam & OMR Manager Button */}
           <button
-            onClick={() => setShowOfflineOmrManager(true)}
+            onClick={handleOpenOfflineOmrManager}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-950/40 cursor-pointer transition-all border border-emerald-400/30"
             title="মাস্টার প্রশ্ন ইনপুট ও ইউনিক ওএমআর সেট (Set A-T) জেনারেটর"
           >
             <Layers className="w-4 h-4 text-amber-300" />
             <span>ইউনিক ওএমআর ও সেট ম্যানেজার</span>
-          </button>
-
-          {/* Medical OMR Portal Button */}
-          <button
-            onClick={() => setShowMedicalOMRApp(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 hover:from-indigo-500 hover:to-purple-600 text-white font-bold text-xs sm:text-sm shadow-md shadow-indigo-950/40 cursor-pointer transition-all border border-indigo-400/30"
-            title="মেডিকেল স্ট্যান্ডার্ড ওএমআর প্রিন্ট, বাল্ক প্রশ্ন ইনপুট ও ক্যামেরা স্ক্যানার পোর্টাল"
-          >
-            <Award className="w-4 h-4 text-amber-300" />
-            <span>মেডিকেল ওএমআর পোর্টাল</span>
           </button>
 
           {role === 'admin' && (
@@ -285,15 +355,6 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
               >
                 <Scan className="w-4 h-4" />
                 <span>QR ও ওএমআর স্ক্যানার</span>
-              </button>
-
-              <button
-                onClick={() => setShowCreateOfflineModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm shadow-sm cursor-pointer transition-colors"
-                title="নতুন অফলাইন পরীক্ষা ও ওএমআর তৈরি করুন"
-              >
-                <Printer className="w-4 h-4" />
-                <span>নতুন অফলাইন এক্সাম</span>
               </button>
 
               <button
@@ -391,12 +452,12 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
 
         {activeSegment === 'offline' && role === 'admin' && (
           <button
-            onClick={() => setShowCreateOfflineModal(true)}
-            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md shadow-blue-900/30 transition-all cursor-pointer shrink-0"
-            title="নতুন অফলাইন এক্সাম যোগ করুন"
+            onClick={handleOpenOfflineOmrManager}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md shadow-emerald-950/40 transition-all cursor-pointer shrink-0"
+            title="মাস্টার প্রশ্ন ইনপুট ও ইউনিক ওএমআর সেট ম্যানেজার"
           >
-            <Plus className="w-4 h-4" />
-            <span>Add Exam (অফলাইন এক্সাম যোগ করুন)</span>
+            <Layers className="w-4 h-4 text-amber-300" />
+            <span>মাস্টার প্রশ্ন ও ইউনিক সেট ম্যানেজার</span>
           </button>
         )}
 
@@ -445,11 +506,11 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
           {activeSegment === 'offline' && role === 'admin' && (
             <div className="pt-2 flex items-center justify-center gap-3">
               <button
-                onClick={() => setShowCreateOfflineModal(true)}
-                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-2 cursor-pointer shadow-md shadow-blue-600/30 transition-all"
+                onClick={handleOpenOfflineOmrManager}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-2 cursor-pointer shadow-md shadow-emerald-950/40 transition-all"
               >
-                <Printer className="w-4 h-4" />
-                <span>নতুন অফলাইন এক্সাম তৈরি করুন</span>
+                <Layers className="w-4 h-4 text-amber-300" />
+                <span>মাস্টার প্রশ্ন ও ইউনিক সেট তৈরি করুন</span>
               </button>
             </div>
           )}
@@ -532,19 +593,19 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
                     <div>
                       <span className="text-[10px] text-slate-400">Duration</span>
                       <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {exam.durationMinutes}m
+                        {exam.durationMinutes || 60}m
                       </p>
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-400">Questions</span>
                       <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {exam.questions.length}
+                        {exam.questions?.length ?? (exam as any).masterQuestions?.length ?? exam.totalQuestions ?? ((exam as any).sets?.[0]?.questions?.length) ?? 0}
                       </p>
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-400">Marks</span>
                       <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {exam.totalMarks}
+                        {exam.totalMarks || (exam.totalQuestions ? exam.totalQuestions * 1 : 25)}
                       </p>
                     </div>
                   </div>
@@ -964,17 +1025,7 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
         />
       )}
 
-      {/* Dedicated Offline Exam Creation Modal */}
-      {showCreateOfflineModal && (
-        <CreateOfflineExamModal
-          courses={courses}
-          isOpen={showCreateOfflineModal}
-          onClose={() => setShowCreateOfflineModal(false)}
-          onExamCreated={(newExam) => {
-            setActiveSegment('offline');
-          }}
-        />
-      )}
+
 
       {/* Offline Exam Combined Merit List / Leaderboard Modal */}
       {offlineLeaderboardExam && (

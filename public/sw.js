@@ -54,6 +54,7 @@ self.addEventListener('fetch', (event) => {
     url.includes('/@fs/') ||
     url.includes('/src/') ||
     url.includes('/node_modules/') ||
+    url.includes('/api/') ||
     url.includes('hot-update') ||
     url.includes('firestore.googleapis.com') ||
     url.includes('googleapis.com') ||
