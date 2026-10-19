@@ -88,7 +88,8 @@ export const OfflineLeaderboardModal: React.FC<OfflineLeaderboardModalProps> = (
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Leaderboard_${exam.title.replace(/\s+/g, '_')}.csv`;
+    const safeTitle = (exam.title || (exam as any).examName || 'Offline_Exam').replace(/\s+/g, '_');
+    a.download = `Leaderboard_${safeTitle}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

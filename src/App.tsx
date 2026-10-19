@@ -53,12 +53,12 @@ const MainApp: React.FC = () => {
             return;
           }
         }
-        // If history state specifies another tab, navigate to it; otherwise stay in exams
-        if (e.state && e.state.tab && e.state.tab !== 'exams') {
+        // Only switch tabs if the popped history entry was an explicit tab switch by the user
+        if (e.state && e.state.view === 'tab' && e.state.tab && e.state.tab !== 'exams') {
           setActiveTab(e.state.tab);
           return;
         }
-        // Don't arbitrarily jump to courses when user is in exams
+        // Do NOT jump to courses when user is in exams!
         return;
       }
 
@@ -77,15 +77,12 @@ const MainApp: React.FC = () => {
       }
 
       // 4. If in another tab with explicit history state tab, go to that tab
-      if (e.state && e.state.tab) {
+      if (e.state && e.state.view === 'tab' && e.state.tab) {
         setActiveTab(e.state.tab);
         return;
       }
 
-      if (activeTab !== 'courses') {
-        setActiveTab('courses');
-        return;
-      }
+      // Stay on current tab if no other root action
     };
 
     window.addEventListener('popstate', handlePopState);

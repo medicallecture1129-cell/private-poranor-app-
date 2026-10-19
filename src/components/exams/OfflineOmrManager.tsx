@@ -15,6 +15,8 @@ import {
 import { db } from '../../firebase/config';
 import { useToast } from '../../context/ToastContext';
 import { jsPDF } from 'jspdf';
+import { generateAdmissionStylePDF } from '../../utils/omrPdfGenerator';
+import { Exam, OfflineExamSet } from '../../types';
 
 interface QuestionOption {
   text: string;
@@ -48,8 +50,14 @@ export interface StoredExam {
   courseId: string;
   masterQuestions: any[];
   sets: GeneratedExamSet[];
+  questions?: any[];
+  offlineSets?: any[];
   totalSets?: number;
   totalQuestions?: number;
+  totalMarks?: number;
+  durationMinutes?: number;
+  passMark?: number;
+  negativeMarkPercentage?: number;
   isOffline?: boolean;
   examType?: string;
   isActive?: boolean;
@@ -59,15 +67,20 @@ export interface StoredExam {
 
 interface OfflineOmrManagerProps {
   onBack?: () => void;
+  registerBackHandler?: (fn: (() => boolean) | null) => void;
 }
 
-export const OfflineOmrManager: React.FC<OfflineOmrManagerProps> = ({ onBack }) => {
+export const OfflineOmrManager: React.FC<OfflineOmrManagerProps> = ({ 
+  onBack,
+  registerBackHandler 
+}) => {
   const { success: toastSuccess, error: toastError } = useToast();
 
   const [exams, setExams] = useState<StoredExam[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dbConnected, setDbConnected] = useState(true);
+  const [downloadingSetCode, setDownloadingSetCode] = useState<string | null>(null);
 
   // Form State
   const [examName, setExamName] = useState('');
@@ -91,6 +104,39 @@ export const OfflineOmrManager: React.FC<OfflineOmrManagerProps> = ({ onBack }) 
 
   // Selected set to preview
   const [previewingSet, setPreviewingSet] = useState<{ examName: string; set: GeneratedExamSet } | null>(null);
+
+  // Scroll to top immediately when entering manager so page starts from the top on mobile
+  useEffect(() => {
+    try {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    } catch {
+      window.scrollTo(0, 0);
+    }
+  }, []);
+
+  // 1-step backward navigation handler
+  useEffect(() => {
+    if (registerBackHandler) {
+      registerBackHandler(() => {
+        if (previewingSet) {
+          setPreviewingSet(null);
+          return true;
+        }
+        if (showBulkImport) {
+          setShowBulkImport(false);
+          return true;
+        }
+        if (onBack) {
+          onBack();
+          return true;
+        }
+        return false;
+      });
+    }
+    return () => {
+      if (registerBackHandler) registerBackHandler(null);
+    };
+  }, [registerBackHandler, previewingSet, showBulkImport, onBack]);
 
   // ========================================================
   // 1. REAL-TIME FIREBASE FIRESTORE SUBSCRIPTION (Zero "Failed to fetch")
@@ -346,9 +392,46 @@ export const OfflineOmrManager: React.FC<OfflineOmrManagerProps> = ({ onBack }) 
         courseName: courseName.trim(),
         courseId: 'general',
         masterQuestions: validQuestions,
+        // Also map standard Question[] so all views, modals, and leaderboards read seamlessly
+        questions: validQuestions.map((q, idx) => {
+          const correctIdx = q.options.findIndex(opt => opt.isCorrect);
+          return {
+            id: `q_${idx + 1}`,
+            text: q.questionText,
+            options: q.options.map((opt, oIdx) => ({
+              id: String.fromCharCode(65 + oIdx),
+              text: opt.text
+            })),
+            correctOption: String.fromCharCode(65 + (correctIdx >= 0 ? correctIdx : 0))
+          };
+        }),
         sets: generatedSets,
+        // Standard OfflineExamSet[] for OmrGeneratorModal and offline print engines
+        offlineSets: generatedSets.map((s) => ({
+          setCode: s.setCode,
+          qrData: `OMR:${examId}:${s.setCode}`,
+          questions: s.questions.map((q, qIdx) => ({
+            questionNumber: q.qNo || (qIdx + 1),
+            masterQuestionId: `mq_${qIdx + 1}`,
+            text: q.questionText,
+            options: q.options.map((opt, oIdx) => ({
+              id: String.fromCharCode(65 + oIdx),
+              text: opt
+            })),
+            correctOption: String.fromCharCode(65 + (q.correctAnswer || 0))
+          })),
+          answerKey: s.questions.reduce((acc, q, qIdx) => {
+            acc[q.qNo || (qIdx + 1)] = String.fromCharCode(65 + (q.correctAnswer || 0));
+            return acc;
+          }, {} as Record<number, string>),
+          createdAt: now
+        })),
         totalSets: setsCount,
         totalQuestions: validQuestions.length,
+        totalMarks: validQuestions.length * 1,
+        durationMinutes: 60,
+        passMark: Math.ceil(validQuestions.length * 0.4),
+        negativeMarkPercentage: 0.25,
         isOffline: true,
         examType: 'offline',
         isActive: true,
@@ -423,120 +506,205 @@ export const OfflineOmrManager: React.FC<OfflineOmrManagerProps> = ({ onBack }) 
   };
 
   // ========================================================
-  // 4. CLIENT-SIDE PDF DOWNLOAD FALLBACK (100% Reliable Offline/Online)
+  // 4. CLIENT-SIDE HIGH-RESOLUTION PDF GENERATION (100% Reliable, Zero Blank Tabs)
   // ========================================================
   const handleDownloadSetPdf = async (exam: StoredExam, targetSet: GeneratedExamSet) => {
-    try {
-      // First attempt direct backend download route
-      const pdfUrl = `/api/exams/${exam.examId}/set/${targetSet.setCode}/pdf`;
-      const response = await fetch(pdfUrl, { method: 'HEAD' });
+    setDownloadingSetCode(targetSet.setCode);
+    const safeExamName = (exam.examName || exam.title || 'Offline_Model_Test').trim();
+    const safeCourseName = (exam.courseName || 'General Batch').trim();
+    const setLetter = targetSet.setCode || targetSet.setName?.replace(/Set\s*/i, '') || 'A';
 
-      if (response.ok) {
-        // Trigger browser download directly
-        const link = document.createElement('a');
-        link.href = pdfUrl;
-        link.download = `Exam_${exam.examName.replace(/\s+/g, '_')}_${targetSet.setName}.pdf`;
-        link.target = '_blank';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+    try {
+      // 1. Convert to normalized Exam & OfflineExamSet for admission-grade Bengali PDF generator
+      const normalizedExam: Exam = {
+        id: exam.id,
+        courseId: exam.courseId || 'general',
+        courseName: safeCourseName,
+        title: safeExamName,
+        durationMinutes: 60,
+        totalMarks: exam.totalQuestions || targetSet.questions?.length || 100,
+        totalQuestions: exam.totalQuestions || targetSet.questions?.length || 100,
+        passMark: Math.ceil((targetSet.questions?.length || 100) * 0.4),
+        negativeMarkPercentage: 0.25,
+        startTime: exam.createdAt || Date.now(),
+        endTime: (exam.createdAt || Date.now()) + 3600000,
+        resultPublishTime: (exam.createdAt || Date.now()) + 7200000,
+        questions: (targetSet.questions || []).map((q, idx) => ({
+          id: `q_${q.qNo || idx + 1}`,
+          text: q.questionText,
+          options: (q.options || []).map((optText, oIdx) => ({
+            id: String.fromCharCode(65 + oIdx),
+            text: optText
+          })),
+          correctOption: String.fromCharCode(65 + (q.correctAnswer || 0))
+        })),
+        createdAt: exam.createdAt || Date.now()
+      };
+
+      const normalizedSet: OfflineExamSet = {
+        setCode: setLetter,
+        qrData: `OMR:${exam.id}:${setLetter}`,
+        questions: (targetSet.questions || []).map((q, idx) => ({
+          questionNumber: q.qNo || idx + 1,
+          masterQuestionId: `mq_${idx + 1}`,
+          text: q.questionText,
+          options: (q.options || []).map((optText, oIdx) => ({
+            id: String.fromCharCode(65 + oIdx),
+            text: optText
+          })),
+          correctOption: String.fromCharCode(65 + (q.correctAnswer || 0))
+        })),
+        answerKey: (targetSet.questions || []).reduce((acc, q, idx) => {
+          acc[q.qNo || idx + 1] = String.fromCharCode(65 + (q.correctAnswer || 0));
+          return acc;
+        }, {} as Record<number, string>),
+        createdAt: exam.createdAt || Date.now()
+      };
+
+      // Try generating full-fidelity Admission Style PDF with native Bengali font & 4-column OMR:
+      try {
+        const blob = await generateAdmissionStylePDF(normalizedExam, normalizedSet, {
+          appName: 'মেডিকেল ও বিশ্ববিদ্যালয় ভর্তি পরীক্ষা পোর্টাল'
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Exam_${safeExamName.replace(/[^a-zA-Z0-9_-]/g, '_')}_Set_${setLetter}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        toastSuccess(`সেট "${setLetter}" এর ওএমআর ও প্রশ্নপত্র PDF ডাউনলোড সম্পন্ন হয়েছে!`);
         return;
+      } catch (renderErr) {
+        console.warn('Admission style render fallback to direct jsPDF:', renderErr);
       }
-    } catch (e) {
-      console.debug('Backend PDF streaming unavailable, generating via client-side jsPDF engine...');
-    }
 
-    // Client-side jsPDF generator fallback
-    try {
+      // Safe Fallback: Direct jsPDF document (never opens blank tabs)
       const pdf = new jsPDF({ format: 'a4', unit: 'mm' });
       const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
 
       // PAGE 1: OMR ANSWER SHEET
       pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(14);
-      pdf.text("DOCTORS' CARE ACADEMY - MEDICAL ADMISSION MODEL TEST", pageWidth / 2, 16, { align: 'center' });
+      pdf.setFontSize(13);
+      pdf.setTextColor(20, 30, 60);
+      pdf.text(safeExamName.toUpperCase(), pageWidth / 2, 14, { align: 'center' });
 
       pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(10);
-      pdf.text(`Course: ${exam.courseName} | Exam: ${exam.examName} | Set: ${targetSet.setCode}`, pageWidth / 2, 23, { align: 'center' });
+      pdf.setFontSize(9);
+      pdf.setTextColor(60, 70, 90);
+      pdf.text(`Course: ${safeCourseName}   |   OMR Answer Sheet   |   Set: ${setLetter}`, pageWidth / 2, 20, { align: 'center' });
 
-      // Student info box
-      pdf.setDrawColor(40, 40, 40);
+      pdf.setDrawColor(30, 41, 59);
       pdf.setLineWidth(0.4);
-      pdf.rect(12, 28, pageWidth - 24, 22);
+      pdf.rect(12, 24, pageWidth - 24, 25);
 
       pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(9);
-      pdf.text(`STUDENT ID: [                      ]   |   ROLL NO: [                      ]   |   SET CODE: [ ${targetSet.setCode} ]`, 16, 35);
+      pdf.setFontSize(8.5);
+      pdf.setTextColor(15, 23, 42);
+      pdf.text(`STUDENT ID: [                                    ]   ROLL NO: [                                    ]   SET: [ ${setLetter} ]`, 16, 32);
 
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(7.5);
-      pdf.text('Instructions: 1. Use black ballpoint pen only. 2. Fill the bubbles completely. 3. Negative marking -0.25 per wrong answer.', 16, 42);
-      pdf.text('Nirdeshaboli: 1. Kalo ballpoint kolom bebohar korun. 2. Shothik uttorer britto shompurno bhorat korun.', 16, 46);
+      pdf.setTextColor(71, 85, 105);
+      pdf.text('Instructions: 1. Use black ballpoint pen only. 2. Fill the bubbles completely. 3. Negative marking applies for wrong answers.', 16, 39);
+      pdf.text('Nirdeshaboli: 1. Kalo ballpoint kolom bebohar korun. 2. Shothik uttorer britto shompurno bhorat korun.', 16, 44);
 
-      // OMR Grid Header
       pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(10);
-      pdf.text('OMR Answer Sheet (100 Questions Grid)', pageWidth / 2, 57, { align: 'center' });
+      pdf.setFontSize(9.5);
+      pdf.setTextColor(30, 41, 59);
+      pdf.text(`OMR 100-Question Bubble Grid (Set ${setLetter})`, pageWidth / 2, 54, { align: 'center' });
 
-      // Draw 25 rows x 4 columns = 100 questions grid
-      let startY = 64;
+      let omrY = 61;
       pdf.setFont('courier', 'normal');
       pdf.setFontSize(7.5);
+      pdf.setTextColor(15, 23, 42);
 
-      for (let i = 1; i <= 25; i++) {
-        const col1 = `${String(i).padStart(2, ' ')}. [A] [B] [C] [D]`;
-        const col2 = `${String(i + 25).padStart(2, ' ')}. [A] [B] [C] [D]`;
-        const col3 = `${String(i + 50).padStart(2, ' ')}. [A] [B] [C] [D]`;
-        const col4 = `${String(i + 75).padStart(2, ' ')}. [A] [B] [C] [D]`;
+      const rows = 25;
+      for (let i = 1; i <= rows; i++) {
+        const c1 = `${String(i).padStart(2, ' ')}. [A] [B] [C] [D]`;
+        const c2 = `${String(i + 25).padStart(2, ' ')}. [A] [B] [C] [D]`;
+        const c3 = `${String(i + 50).padStart(2, ' ')}. [A] [B] [C] [D]`;
+        const c4 = `${String(i + 75).padStart(2, ' ')}. [A] [B] [C] [D]`;
 
-        pdf.text(`${col1}   ${col2}   ${col3}   ${col4}`, 14, startY);
-        startY += 5.2;
+        pdf.text(`${c1}     ${c2}     ${c3}     ${c4}`, 14, omrY);
+        omrY += 5.3;
       }
 
-      // PAGE 2: QUESTION PAPER
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(7);
+      pdf.setTextColor(148, 163, 184);
+      pdf.text(`Page 1 of 2  •  Official OMR Sheet  •  Set ${setLetter}  •  ${safeExamName}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
+
+      // PAGE 2+: QUESTION PAPER
       pdf.addPage();
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(13);
-      pdf.text(`Question Paper - ${exam.examName} (${targetSet.setName})`, pageWidth / 2, 16, { align: 'center' });
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(9);
-      pdf.text(`Total Questions: ${targetSet.questions.length} | Set Code: ${targetSet.setCode}`, pageWidth / 2, 22, { align: 'center' });
+      pdf.setTextColor(20, 30, 60);
+      pdf.text(`Question Paper - ${safeExamName}`, pageWidth / 2, 14, { align: 'center' });
 
-      let qY = 30;
-      targetSet.questions.forEach((q) => {
-        if (qY > 270) {
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(9.5);
+      pdf.setTextColor(37, 99, 235);
+      pdf.text(`[ SET CODE: ${setLetter} ]`, pageWidth / 2, 20, { align: 'center' });
+
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(8.5);
+      pdf.setTextColor(100, 116, 139);
+      pdf.text(`Total Questions: ${targetSet.questions?.length || 0}   |   Full Marks: ${exam.totalMarks || (targetSet.questions?.length || 100)}   |   Time: 60 Minutes`, pageWidth / 2, 25, { align: 'center' });
+
+      let qY = 32;
+      (targetSet.questions || []).forEach((q, qIndex) => {
+        if (qY > pageHeight - 25) {
           pdf.addPage();
-          qY = 20;
+          qY = 16;
         }
 
         pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(9);
-        const qLines = pdf.splitTextToSize(`${q.qNo}. ${q.questionText}`, pageWidth - 24);
+        pdf.setFontSize(8.5);
+        pdf.setTextColor(15, 23, 42);
+        const qNum = q.qNo || (qIndex + 1);
+        const qText = `${qNum}. ${q.questionText}`;
+        const qLines = pdf.splitTextToSize(qText, pageWidth - 24);
         pdf.text(qLines, 12, qY);
-        qY += qLines.length * 4.5;
+        qY += qLines.length * 4.2;
 
         pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(8);
-        const optA = q.options[0] || '';
-        const optB = q.options[1] || '';
-        const optC = q.options[2] || '';
-        const optD = q.options[3] || '';
-        const optsText = `   (A) ${optA}    (B) ${optB}    (C) ${optC}    (D) ${optD}`;
-        const optLines = pdf.splitTextToSize(optsText, pageWidth - 24);
-        pdf.text(optLines, 12, qY);
-        qY += optLines.length * 4.5 + 2;
+        pdf.setTextColor(51, 65, 85);
+
+        const opts = q.options || [];
+        const optA = opts[0] || '';
+        const optB = opts[1] || '';
+        const optC = opts[2] || '';
+        const optD = opts[3] || '';
+
+        const optLine1 = `   (A) ${optA}      (B) ${optB}`;
+        const optLine2 = `   (C) ${optC}      (D) ${optD}`;
+
+        const l1 = pdf.splitTextToSize(optLine1, pageWidth - 24);
+        pdf.text(l1, 12, qY);
+        qY += l1.length * 3.8;
+
+        const l2 = pdf.splitTextToSize(optLine2, pageWidth - 24);
+        pdf.text(l2, 12, qY);
+        qY += l2.length * 3.8 + 2.5;
       });
 
-      pdf.save(`Exam_${exam.examName.replace(/\s+/g, '_')}_${targetSet.setName}.pdf`);
-      toastSuccess(`"${targetSet.setName}" এর মেডিকেল ওএমআর ও প্রশ্নপত্র সফলভাবে ডাউনলোড হয়েছে!`);
+      const cleanFileName = `Exam_${safeExamName.replace(/[^a-zA-Z0-9_-]/g, '_')}_Set_${setLetter}.pdf`;
+      pdf.save(cleanFileName);
+      toastSuccess(`সেট "${setLetter}" এর ওএমআর ও প্রশ্নপত্র PDF ডাউনলোড সম্পন্ন হয়েছে!`);
     } catch (pdfErr: any) {
-      toastError('পিডিএফ ডাউনলোড করতে সমস্যা হয়েছে: ' + pdfErr.message);
+      console.error('PDF Generation Error:', pdfErr);
+      toastError('পিডিএফ ডাউনলোড করতে সমস্যা হয়েছে: ' + (pdfErr.message || 'Error'));
+    } finally {
+      setDownloadingSetCode(null);
     }
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+    <div className="max-w-6xl mx-auto px-4 pt-4 pb-52 sm:pb-44 space-y-8 min-h-screen">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-theme-border">
         <div>
@@ -722,13 +890,13 @@ Ans: B"
             </span>
           </div>
 
-          <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+          <div className="space-y-4 pr-1">
             {questions.map((q, qIndex) => (
               <div 
                 key={qIndex} 
-                className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3 relative group hover:border-slate-700 transition-all"
+                className="p-3.5 sm:p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3 relative group hover:border-slate-700 transition-all"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5 sm:gap-3">
                   <span className="w-7 h-7 rounded-lg bg-blue-600/20 text-blue-400 font-bold text-xs flex items-center justify-center shrink-0 border border-blue-500/30">
                     {qIndex + 1}
                   </span>
@@ -754,26 +922,30 @@ Ans: B"
                   </button>
                 </div>
 
-                {/* 4 Options Grid with Correct Answer selection */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-10">
+                {/* 4 Options Grid with Correct Answer selection (Clean without overlapping text) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-0 sm:pl-9">
                   {q.options.map((opt, optIndex) => {
                     const label = String.fromCharCode(65 + optIndex); // A, B, C, D
                     return (
                       <div 
                         key={optIndex}
-                        className={`flex items-center gap-2 p-1.5 px-2.5 rounded-lg border transition-all ${
+                        onClick={() => handleSetCorrectOption(qIndex, optIndex)}
+                        className={`flex items-center gap-2 p-2 px-3 rounded-xl border transition-all cursor-pointer ${
                           opt.isCorrect 
-                            ? 'bg-emerald-950/40 border-emerald-500/50' 
-                            : 'bg-slate-950/50 border-slate-800'
+                            ? 'bg-emerald-950/50 border-emerald-500/60 shadow-xs shadow-emerald-950/50' 
+                            : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
                         }`}
                       >
                         <button
                           type="button"
-                          onClick={() => handleSetCorrectOption(qIndex, optIndex)}
-                          className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 cursor-pointer transition-colors ${
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSetCorrectOption(qIndex, optIndex);
+                          }}
+                          className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-extrabold shrink-0 cursor-pointer transition-all ${
                             opt.isCorrect
-                              ? 'bg-emerald-500 text-white shadow-xs shadow-emerald-500/50'
-                              : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                              ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/50 ring-2 ring-emerald-400/40'
+                              : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
                           }`}
                           title={`Mark ${label} as correct answer`}
                         >
@@ -783,14 +955,13 @@ Ans: B"
                           type="text"
                           placeholder={`Option ${label}`}
                           value={opt.text}
+                          onClick={(e) => e.stopPropagation()}
                           onChange={(e) => handleOptionChange(qIndex, optIndex, e.target.value)}
                           required
-                          className="flex-1 bg-transparent border-0 text-xs text-slate-200 focus:outline-hidden"
+                          className="flex-1 bg-transparent border-0 text-xs sm:text-sm text-slate-200 focus:outline-hidden"
                         />
                         {opt.isCorrect && (
-                          <span className="text-[10px] text-emerald-400 font-semibold px-1 rounded-sm bg-emerald-900/50 shrink-0">
-                            সঠিক উত্তর
-                          </span>
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                         )}
                       </div>
                     );
@@ -920,15 +1091,20 @@ Ans: B"
                             </div>
                           </div>
 
-                          {/* Direct PDF Download with Fallback */}
+                          {/* Direct Client-Side PDF Download */}
                           <button
                             type="button"
+                            disabled={downloadingSetCode === set.setCode}
                             onClick={() => handleDownloadSetPdf(exam, set)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-xs cursor-pointer transition-colors shrink-0"
-                            title="ডাউনলোড ওএমআর শিট ও প্রশ্নপত্র"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-xs cursor-pointer transition-colors shrink-0 disabled:opacity-60"
+                            title="ডাউনলোড ওএমআর শিট ও প্রশ্নপত্র PDF"
                           >
-                            <Download className="w-3.5 h-3.5" />
-                            <span>PDF</span>
+                            {downloadingSetCode === set.setCode ? (
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Download className="w-3.5 h-3.5" />
+                            )}
+                            <span>{downloadingSetCode === set.setCode ? 'PDF...' : 'PDF'}</span>
                           </button>
                         </div>
                       ))}

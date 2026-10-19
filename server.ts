@@ -79,9 +79,14 @@ export interface StoredExam {
   courseId: string;
   masterQuestions: any[];
   sets: GeneratedExamSet[];
+  questions?: any[];
   offlineSets?: any[];
   totalSets?: number;
   totalQuestions?: number;
+  totalMarks?: number;
+  durationMinutes?: number;
+  passMark?: number;
+  negativeMarkPercentage?: number;
   isOffline?: boolean;
   examType?: string;
   isActive?: boolean;
@@ -182,9 +187,45 @@ const handleCreateExam = async (req: Request, res: Response) => {
       courseName: String(courseName).trim(),
       courseId: 'general',
       masterQuestions: questionsList,
+      questions: questionsList.map((q, idx) => {
+        const opts = normalizeOptions(q.options, q.answer ?? q.correctAnswer ?? 0);
+        const correctIdx = opts.findIndex(o => o.isCorrect);
+        return {
+          id: `q_${idx + 1}`,
+          text: q.questionText || q.question || `Question ${idx + 1}`,
+          options: opts.map((opt, oIdx) => ({
+            id: String.fromCharCode(65 + oIdx),
+            text: opt.text
+          })),
+          correctOption: String.fromCharCode(65 + (correctIdx >= 0 ? correctIdx : 0))
+        };
+      }),
       sets: generatedSets,
+      offlineSets: generatedSets.map((s) => ({
+        setCode: s.setCode,
+        qrData: `OMR:${examId}:${s.setCode}`,
+        questions: s.questions.map((q, qIdx) => ({
+          questionNumber: q.qNo || (qIdx + 1),
+          masterQuestionId: `mq_${qIdx + 1}`,
+          text: q.questionText,
+          options: q.options.map((opt, oIdx) => ({
+            id: String.fromCharCode(65 + oIdx),
+            text: opt
+          })),
+          correctOption: String.fromCharCode(65 + (q.correctAnswer || 0))
+        })),
+        answerKey: s.questions.reduce((acc, q, qIdx) => {
+          acc[q.qNo || (qIdx + 1)] = String.fromCharCode(65 + (q.correctAnswer || 0));
+          return acc;
+        }, {} as Record<number, string>),
+        createdAt: now
+      })),
       totalSets: maxSets,
       totalQuestions: questionsList.length,
+      totalMarks: questionsList.length * 1,
+      durationMinutes: 60,
+      passMark: Math.ceil(questionsList.length * 0.4),
+      negativeMarkPercentage: 0.25,
       isOffline: true,
       examType: 'offline',
       isActive: true,
@@ -274,7 +315,7 @@ app.get('/api/exams/:examId/set/:setCode/pdf', async (req: Request, res: Respons
       104
     );
     docPdf.fontSize(7.5).font('Helvetica').text(
-      'নির্দেশাবলি: ১. কালো বলপয়েন্ট কলম ব্যবহার করুন। ২. বৃত্ত সম্পূর্ণ ভরাট করুন। ৩. ভুল উত্তরের জন্য -০.২৫ নম্বর কাটা হবে।',
+      'Nirdeshaboli: 1. Kalo ballpoint pen bebohar korun. 2. Bubble shompurno bhorat korun. 3. Bhul uttorer jonno -0.25 mark kata hobe.',
       40,
       116
     );

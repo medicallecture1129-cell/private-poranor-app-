@@ -241,7 +241,15 @@ export const ExamHub: React.FC<ExamHubProps> = ({
 
   const availableExams = role === 'admin'
     ? exams
-    : exams.filter(e => e.courseId === 'general' || studentEnrolledCourseIds.includes(e.courseId));
+    : exams.filter(e => 
+        e.isOffline === true || 
+        e.examType === 'offline' || 
+        ((e as any).sets && (e as any).sets.length > 0) || 
+        ((e as any).masterQuestions && (e as any).masterQuestions.length > 0) ||
+        e.courseId === 'general' || 
+        !e.courseId || 
+        studentEnrolledCourseIds.includes(e.courseId)
+      );
 
   // Segmentation Logic:
   // Helper to check if an exam has transitioned to Practice mode:
@@ -264,12 +272,22 @@ export const ExamHub: React.FC<ExamHubProps> = ({
     ? practiceExams 
     : offlineExams;
 
-  // Apply Course & Search Filters
+  // Apply Course & Search Filters with safe null/undefined handling
   const filteredExams = currentSegmentExams.filter(e => {
-    const matchCourse = selectedCourseFilter === 'all' || e.courseId === selectedCourseFilter;
-    const matchSearch = e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        (e.courseName && e.courseName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                        (e.subject && e.subject.toLowerCase().includes(searchQuery.toLowerCase()));
+    const title = (e.title || (e as any).examName || '').toLowerCase();
+    const course = (e.courseName || '').toLowerCase();
+    const subject = (e.subject || '').toLowerCase();
+    const query = (searchQuery || '').toLowerCase().trim();
+    
+    const matchCourse = selectedCourseFilter === 'all' || 
+                        e.courseId === selectedCourseFilter ||
+                        (activeSegment === 'offline' && (!e.courseId || e.courseId === 'general'));
+                        
+    const matchSearch = !query || 
+                        title.includes(query) ||
+                        course.includes(query) ||
+                        subject.includes(query);
+                        
     return matchCourse && matchSearch;
   });
 

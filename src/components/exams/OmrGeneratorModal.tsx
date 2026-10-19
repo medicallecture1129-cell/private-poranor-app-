@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import QRCode from 'qrcode';
 import { Exam, OfflineExamSet } from '../../types';
 import { 
@@ -48,6 +48,48 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
 }) => {
   const { success: toastSuccess, error: toastError } = useToast();
 
+  // Normalize exam so title and questions are always safe and defined
+  const normalizedExam = useMemo<Exam>(() => {
+    const qList = (exam.questions && exam.questions.length > 0)
+      ? exam.questions
+      : (exam as any).masterQuestions && (exam as any).masterQuestions.length > 0
+      ? (exam as any).masterQuestions.map((q: any, i: number) => ({
+          id: q.id || `mq_${i + 1}`,
+          text: q.questionText || q.text || `Question ${i + 1}`,
+          options: (q.options || []).map((opt: any, oIdx: number) => ({
+            id: String.fromCharCode(65 + oIdx),
+            text: typeof opt === 'string' ? opt : (opt.text || `Option ${oIdx + 1}`)
+          })),
+          correctOption: typeof q.answer === 'number' 
+            ? String.fromCharCode(65 + q.answer) 
+            : typeof q.correctAnswer === 'number' 
+            ? String.fromCharCode(65 + q.correctAnswer)
+            : String(q.correctOption || 'A').toUpperCase(),
+          explanation: q.explanation || ''
+        }))
+      : (exam as any).sets && (exam as any).sets.length > 0 && (exam as any).sets[0].questions
+      ? (exam as any).sets[0].questions.map((q: any, i: number) => ({
+          id: q.id || `q_${i + 1}`,
+          text: q.questionText || q.text || `Question ${i + 1}`,
+          options: (q.options || []).map((opt: any, oIdx: number) => ({
+            id: String.fromCharCode(65 + oIdx),
+            text: typeof opt === 'string' ? opt : (opt.text || `Option ${oIdx + 1}`)
+          })),
+          correctOption: typeof q.correctAnswer === 'number'
+            ? String.fromCharCode(65 + q.correctAnswer)
+            : String(q.correctOption || 'A').toUpperCase(),
+          explanation: q.explanation || ''
+        }))
+      : [];
+
+    return {
+      ...exam,
+      title: exam.title || (exam as any).examName || 'Offline Exam',
+      courseName: exam.courseName || 'General Batch',
+      questions: qList
+    };
+  }, [exam]);
+
   const [availableSetCodes, setAvailableSetCodes] = useState<string[]>([]);
   const [selectedSetCode, setSelectedSetCode] = useState<string>('');
   const [generatedSets, setGeneratedSets] = useState<Record<string, OfflineExamSet>>({});
@@ -74,12 +116,12 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
     const codes: string[] = [];
 
     // Support both offlineSets and (exam as any).sets (created via OfflineOmrManager)
-    const rawSets = (exam.offlineSets && exam.offlineSets.length > 0)
-      ? exam.offlineSets
-      : (exam as any).sets && (exam as any).sets.length > 0
-      ? (exam as any).sets.map((s: any) => ({
+    const rawSets = (normalizedExam.offlineSets && normalizedExam.offlineSets.length > 0)
+      ? normalizedExam.offlineSets
+      : (normalizedExam as any).sets && (normalizedExam as any).sets.length > 0
+      ? (normalizedExam as any).sets.map((s: any) => ({
           setCode: s.setCode || s.setName || 'A',
-          qrData: s.qrData || `OMR:${exam.id}:${s.setCode || 'A'}`,
+          qrData: s.qrData || `OMR:${normalizedExam.id}:${s.setCode || 'A'}`,
           questions: (s.questions || []).map((q: any, qIdx: number) => ({
             questionNumber: q.qNo || q.questionNumber || (qIdx + 1),
             masterQuestionId: `mq_${qIdx + 1}`,
@@ -140,7 +182,7 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
       return;
     }
 
-    const newSet = generateShuffledSet(exam, nextCode);
+    const newSet = generateShuffledSet(normalizedExam, nextCode);
     const updatedMap = { ...generatedSets, [nextCode]: newSet };
     const updatedCodes = [...availableSetCodes, nextCode];
 
@@ -154,7 +196,7 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
   // Generate batch unique sets in 1-click (e.g. 15 sets as requested)
   const handleGenerateBatch = () => {
     const count = Math.min(Math.max(1, batchCountInput), 100);
-    const newBatch = generateBatchSets(exam, count, 1);
+    const newBatch = generateBatchSets(normalizedExam, count, 1);
 
     const updatedMap: Record<string, OfflineExamSet> = {};
     const updatedCodes: string[] = [];
@@ -199,7 +241,7 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
     const updatedSet: OfflineExamSet = {
       ...oldSet,
       setCode: newName,
-      qrData: `OMR:${exam.id}:${newName}`
+      qrData: `OMR:${normalizedExam.id}:${newName}`
     };
 
     const updatedMap = { ...generatedSets };
@@ -241,7 +283,7 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
     setIsSavingSets(true);
     try {
       const setsList = availableSetCodes.map(c => generatedSets[c]).filter(Boolean);
-      await updateExam(exam.id, { offlineSets: setsList });
+      await updateExam(normalizedExam.id, { offlineSets: setsList });
       if (onSetsUpdated) onSetsUpdated(setsList);
       setHasUnsavedChanges(false);
       toastSuccess(`মোট ${setsList.length}টি ইউনিক কোশ্চেন সেট ক্লাউডে সফলভাবে সেভ হয়েছে!`);
@@ -262,13 +304,13 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
   const handleDownloadAdmissionPDF = async (set: OfflineExamSet) => {
     setIsGeneratingPdf(true);
     try {
-      const blob = await generateAdmissionStylePDF(exam, set, {
+      const blob = await generateAdmissionStylePDF(normalizedExam, set, {
         appName: 'মেডিকেল ও বিশ্ববিদ্যালয় ভর্তি পরীক্ষা পোর্টাল'
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `OMR_${exam.title.replace(/\s+/g, '_')}_${set.setCode}_2Page_8Col.pdf`;
+      a.download = `OMR_${(normalizedExam.title || 'Exam').replace(/\s+/g, '_')}_${set.setCode}_2Page_8Col.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -286,11 +328,11 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
   const handleDownloadSolutionKey = async (set: OfflineExamSet) => {
     setIsGeneratingPdf(true);
     try {
-      const blob = await generateSolutionKeyPDF(exam, set);
+      const blob = await generateSolutionKeyPDF(normalizedExam, set);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Solution_Key_${exam.title.replace(/\s+/g, '_')}_${set.setCode}.pdf`;
+      a.download = `Solution_Key_${(normalizedExam.title || 'Exam').replace(/\s+/g, '_')}_${set.setCode}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -320,10 +362,10 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
                 <span className="px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-[10px] font-extrabold uppercase tracking-wider">
                   ২-পৃষ্ঠার ওএমআর ও কোশ্চেন পেপার
                 </span>
-                <span className="text-xs text-slate-400">• মাস্টার সেট: {exam.questions.length} টি প্রশ্ন</span>
+                <span className="text-xs text-slate-400">• মাস্টার সেট: {normalizedExam.questions?.length || 0} টি প্রশ্ন</span>
               </div>
               <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white mt-0.5">
-                {exam.title}
+                {normalizedExam.title}
               </h2>
             </div>
           </div>
@@ -409,7 +451,7 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
             <FileText className="w-4 h-4" />
             <span>মাস্টার কোশ্চেন ব্যাংক</span>
             <span className="px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-extrabold">
-              {exam.questions.length}
+              {normalizedExam.questions?.length || 0}
             </span>
           </button>
         </div>
@@ -780,14 +822,14 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="px-3 py-1 rounded-xl bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-mono text-xs font-black">
-                    মোট প্রশ্ন: {exam.questions.length} টি
+                    মোট প্রশ্ন: {normalizedExam.questions?.length || 0} টি
                   </span>
                 </div>
               </div>
 
               {/* Master Questions Grid */}
               <div className="space-y-2.5 max-h-[52vh] overflow-y-auto pr-1">
-                {exam.questions.map((q, idx) => (
+                {(normalizedExam.questions || []).map((q, idx) => (
                   <div
                     key={q.id || idx}
                     className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 text-xs shadow-2xs"
