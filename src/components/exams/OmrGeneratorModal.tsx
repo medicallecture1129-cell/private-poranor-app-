@@ -49,7 +49,7 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
   const [generatedSets, setGeneratedSets] = useState<Record<string, OfflineExamSet>>({});
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isSavingSets, setIsSavingSets] = useState(false);
-  const [activeTab, setActiveTab] = useState<'sets_list' | 'preview' | 'answer_key' | 'batch_generate'>('sets_list');
+  const [activeTab, setActiveTab] = useState<'master_set' | 'sets_list' | 'preview' | 'answer_key' | 'batch_generate'>('sets_list');
 
   const [customSetNameInput, setCustomSetNameInput] = useState('');
   const [batchCountInput, setBatchCountInput] = useState<number>(5);
@@ -244,6 +244,21 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
         {/* Tab Selector */}
         <div className="px-6 pt-3 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2 bg-slate-50/50 dark:bg-slate-900/50 overflow-x-auto">
           <button
+            onClick={() => setActiveTab('master_set')}
+            className={`pb-3 px-3 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+              activeTab === 'master_set'
+                ? 'border-purple-600 text-purple-600 dark:text-purple-400'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>মাস্টার কোশ্চেন সেট</span>
+            <span className="px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-extrabold">
+              {exam.questions.length}
+            </span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('sets_list')}
             className={`pb-3 px-3 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
               activeTab === 'sets_list'
@@ -302,6 +317,76 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
         {/* Modal Body */}
         <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-5">
           
+          {/* TAB 0: MASTER QUESTION SET */}
+          {activeTab === 'master_set' && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                    <span>মাস্টার কোশ্চেন সেট (Master Question Bank)</span>
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    এই মূল সেট থেকেই যেকোনো সংখ্যক ইউনিক ও এলোমেলো (Shuffled) প্রশ্ন সেট এবং সংশ্লিষ্ট ওএমআর তৈরি হয়।
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="px-3 py-1 rounded-xl bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 font-mono text-xs font-black">
+                    মোট প্রশ্ন: {exam.questions.length} টি
+                  </span>
+                </div>
+              </div>
+
+              {/* Master Questions Grid */}
+              <div className="space-y-2.5 max-h-[52vh] overflow-y-auto pr-1">
+                {exam.questions.map((q, idx) => (
+                  <div
+                    key={q.id || idx}
+                    className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 text-xs shadow-2xs"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="font-bold text-slate-900 dark:text-white flex items-start gap-2">
+                        <span className="text-purple-600 font-mono font-black shrink-0">
+                          {toBengaliNumber(idx + 1)}.
+                        </span>
+                        <span>{q.text}</span>
+                      </div>
+                      {q.topic && (
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold shrink-0">
+                          {q.topic}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+                      {q.options.map((opt) => {
+                        const isCorrect = opt.id === q.correctOption;
+                        return (
+                          <div
+                            key={opt.id}
+                            className={`px-2.5 py-1.5 rounded-xl border text-[11px] ${
+                              isCorrect
+                                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 text-emerald-800 dark:text-emerald-300 font-bold'
+                                : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                            }`}
+                          >
+                            <span className="font-bold">({opt.id})</span> {opt.text}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {q.explanation && (
+                      <div className="mt-2 text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-900/40 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
+                        <strong className="text-slate-700 dark:text-slate-300">ব্যাখ্যা:</strong> {q.explanation}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* TAB 1: SETS LIST */}
           {activeTab === 'sets_list' && (
             <div className="space-y-5">
