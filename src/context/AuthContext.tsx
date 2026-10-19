@@ -7,6 +7,7 @@ interface AuthUser {
   name: string;
   email: string;
   role: UserRole;
+  rollNo?: string;
   college?: string;
   mobile?: string;
   enrolledCourses?: string[];
@@ -176,6 +177,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       role: 'student',
       college: student.college,
       mobile: student.mobile,
+      rollNo: student.rollNo,
       enrolledCourses: student.enrolledCourses || []
     };
 
@@ -215,6 +217,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         name: created.name,
         email: created.email,
         role: 'student',
+        rollNo: created.rollNo,
         college: created.college,
         mobile: created.mobile,
         enrolledCourses: created.enrolledCourses

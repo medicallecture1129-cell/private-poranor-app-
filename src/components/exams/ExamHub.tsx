@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Exam, Course, ExamSubmission, StudentUser } from '../../types';
 import { CreateExamModal } from './CreateExamModal';
+import { CreateOfflineExamModal } from './CreateOfflineExamModal';
 import { EditExamModal } from './EditExamModal';
 import { ExamRunner } from './ExamRunner';
 import { PracticeResultModal } from './PracticeResultModal';
 import { OmrGeneratorModal } from './OmrGeneratorModal';
 import { OmrScannerModal } from './OmrScannerModal';
+import { OfflineLeaderboardModal } from './OfflineLeaderboardModal';
 import { deleteExam, updateExam } from '../../services/db';
 import { useToast } from '../../context/ToastContext';
 import { ModernSelect } from '../ui/ModernSelect';
@@ -31,7 +33,8 @@ import {
   Sparkles,
   Layers,
   Printer,
-  Scan
+  Scan,
+  Trophy
 } from 'lucide-react';
 
 interface ExamHubProps {
@@ -45,19 +48,21 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
   const { user, role } = useAuth();
   const { success: toastSuccess, error: toastError } = useToast();
 
-  const [activeSegment, setActiveSegment] = useState<'live' | 'practice'>('live');
+  const [activeSegment, setActiveSegment] = useState<'live' | 'practice' | 'offline'>('live');
   const [selectedCourseFilter, setSelectedCourseFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreateOfflineModal, setShowCreateOfflineModal] = useState(false);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
   const [activeExamRunning, setActiveExamRunning] = useState<{ exam: Exam; isLive: boolean } | null>(null);
   const [practiceResultData, setPracticeResultData] = useState<{ exam: Exam; submission: ExamSubmission } | null>(null);
   
-  // OMR Generator & Scanner Modals
+  // OMR Generator, Scanner & Offline Leaderboard Modals
   const [omrGeneratorExam, setOmrGeneratorExam] = useState<Exam | null>(null);
   const [omrScannerExam, setOmrScannerExam] = useState<Exam | null>(null);
+  const [offlineLeaderboardExam, setOfflineLeaderboardExam] = useState<Exam | null>(null);
 
   // Re-live Exam Modal State
   const [reLiveTargetExam, setReLiveTargetExam] = useState<Exam | null>(null);
@@ -164,24 +169,28 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
     ? exams
     : exams.filter(e => e.courseId === 'general' || studentEnrolledCourseIds.includes(e.courseId));
 
-  // Segmentation Logic (Requirement 1):
+  // Segmentation Logic:
   // Helper to check if an exam has transitioned to Practice mode:
-  // 1. Manually converted: exam.isPractice === true
-  // 2. Automatically converted: currentTime >= exam.endTime
   const isExamInPracticeMode = (exam: Exam, now: number) => {
     return exam.isPractice === true || (exam.endTime > 0 && now >= exam.endTime);
   };
 
-  const liveExams = availableExams.filter(e => !isExamInPracticeMode(e, currentTime));
-  const practiceExams = availableExams.filter(e => isExamInPracticeMode(e, currentTime));
+  const offlineExams = availableExams.filter(e => e.isOffline === true || e.examType === 'offline');
+  const liveExams = availableExams.filter(e => !e.isOffline && e.examType !== 'offline' && !isExamInPracticeMode(e, currentTime));
+  const practiceExams = availableExams.filter(e => !e.isOffline && e.examType !== 'offline' && isExamInPracticeMode(e, currentTime));
 
-  const currentSegmentExams = activeSegment === 'live' ? liveExams : practiceExams;
+  const currentSegmentExams = activeSegment === 'live' 
+    ? liveExams 
+    : activeSegment === 'practice' 
+    ? practiceExams 
+    : offlineExams;
 
   // Apply Course & Search Filters
   const filteredExams = currentSegmentExams.filter(e => {
     const matchCourse = selectedCourseFilter === 'all' || e.courseId === selectedCourseFilter;
     const matchSearch = e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        (e.courseName && e.courseName.toLowerCase().includes(searchQuery.toLowerCase()));
+                        (e.courseName && e.courseName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                        (e.subject && e.subject.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchCourse && matchSearch;
   });
 
@@ -228,27 +237,37 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             {role === 'admin'
-              ? 'Admin Dashboard: Manage live schedules, active/inactive modes, convert to practice, and questions bank'
-              : 'Official Live Exams with Scheduled Result Publishing & Unlimited Practice Tests'}
+              ? 'Admin Dashboard: Manage live schedules, offline exams & 4-column OMR sheets, camera evaluation, and leaderboards'
+              : 'Official Exams: Live tests, offline model tests with smart OMR verification, and combined merit lists'}
           </p>
         </div>
 
         {role === 'admin' && (
           <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
             <button
-              onClick={() => setOmrScannerExam(availableExams[0] || exams[0] || null)}
+              onClick={() => setOmrScannerExam(offlineExams[0] || availableExams[0] || exams[0] || null)}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm shadow-sm cursor-pointer transition-colors"
               title="ওএমআর শিট স্ক্যানার ও মূল্যায়নকারী"
             >
               <Scan className="w-4 h-4" />
-              <span>ওএমআর স্ক্যানার (OMR Scanner)</span>
+              <span>QR ও ওএমআর স্ক্যানার (Scanner)</span>
             </button>
+
+            <button
+              onClick={() => setShowCreateOfflineModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm shadow-sm cursor-pointer transition-colors"
+              title="নতুন অফলাইন পরীক্ষা ও ওএমআর তৈরি করুন"
+            >
+              <Printer className="w-4 h-4" />
+              <span>নতুন অফলাইন এক্সাম</span>
+            </button>
+
             <button
               onClick={() => setShowCreateModal(true)}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl btn-theme-primary font-semibold text-xs sm:text-sm shadow-sm cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>New Exam</span>
+              <span>New Online Exam</span>
             </button>
           </div>
         )}
@@ -256,8 +275,8 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
 
       {/* Segment Selector & Course Filter */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        {/* Live vs Practice Tabs */}
-        <div className="inline-flex p-1 bg-theme-surface border border-theme-border rounded-2xl shadow-xs self-start">
+        {/* Live vs Practice vs Offline Tabs */}
+        <div className="inline-flex p-1 bg-theme-surface border border-theme-border rounded-2xl shadow-xs self-start flex-wrap gap-1">
           <button
             onClick={() => setActiveSegment('live')}
             className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
@@ -291,6 +310,23 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
               {practiceExams.length}
             </span>
           </button>
+
+          <button
+            onClick={() => setActiveSegment('offline')}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              activeSegment === 'offline'
+                ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-950/50 ring-1 ring-blue-400/40'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>অফলাইন এক্সাম (Offline)</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+              activeSegment === 'offline' ? 'bg-white/20 text-white' : 'bg-blue-950/60 text-blue-300 border border-blue-800/60'
+            }`}>
+              {offlineExams.length}
+            </span>
+          </button>
         </div>
 
         {/* Modern Course Filter Dropdown (Requirement 4: Modernized Dropdown UI) */}
@@ -322,26 +358,54 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
         </div>
       </div>
 
-      {/* Exams Grid & Empty State ("No Live Exams Found" as in User's Screenshot) */}
+      {/* Exams Grid & Empty State */}
       {filteredExams.length === 0 ? (
-        <div className="bg-theme-card border border-theme-card rounded-3xl p-12 text-center text-slate-400 shadow-md">
+        <div className="bg-theme-card border border-theme-card rounded-3xl p-12 text-center text-slate-400 shadow-md space-y-3">
           <div 
-            className="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center ring-1 ring-white/10"
+            className="w-16 h-16 rounded-full mx-auto flex items-center justify-center ring-1 ring-white/10"
             style={{ 
-              backgroundColor: activeSegment === 'live' ? 'rgba(244, 63, 94, 0.18)' : 'var(--theme-primary-light)',
-              color: activeSegment === 'live' ? '#fb7185' : 'var(--theme-primary)'
+              backgroundColor: activeSegment === 'live' 
+                ? 'rgba(244, 63, 94, 0.18)' 
+                : activeSegment === 'offline'
+                ? 'rgba(37, 99, 235, 0.18)'
+                : 'var(--theme-primary-light)',
+              color: activeSegment === 'live' 
+                ? '#fb7185' 
+                : activeSegment === 'offline'
+                ? '#3b82f6'
+                : 'var(--theme-primary)'
             }}
           >
-            <Clock className="w-8 h-8" />
+            {activeSegment === 'offline' ? (
+              <Printer className="w-8 h-8" />
+            ) : (
+              <Clock className="w-8 h-8" />
+            )}
           </div>
           <h4 className="font-bold text-theme-title text-base">
-            No {activeSegment === 'live' ? 'Live' : 'Practice'} Exams Found
+            {activeSegment === 'offline'
+              ? 'কোনো অফলাইন এক্সাম পাওয়া যায়নি'
+              : `No ${activeSegment === 'live' ? 'Live' : 'Practice'} Exams Found`}
           </h4>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1.5 max-w-md mx-auto">
-            {activeSegment === 'live'
+          <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto">
+            {activeSegment === 'offline'
+              ? 'মেডিকেল ও বিশ্ববিদ্যালয় ভর্তি পরীক্ষার আদলে ৪-কলাম বিশিষ্ট ওএমআর শিট ও কিউআর কোডসহ প্রশ্নপত্র তৈরি করুন।'
+              : activeSegment === 'live'
               ? 'No live exams are currently scheduled or active. When live exams expire or are converted, they appear in Practice exams.'
               : 'No practice exams match your selected course or search query.'}
           </p>
+
+          {activeSegment === 'offline' && role === 'admin' && (
+            <div className="pt-2 flex items-center justify-center gap-3">
+              <button
+                onClick={() => setShowCreateOfflineModal(true)}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-2 cursor-pointer shadow-md shadow-blue-600/30 transition-all"
+              >
+                <Printer className="w-4 h-4" />
+                <span>নতুন অফলাইন এক্সাম তৈরি করুন</span>
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -491,6 +555,22 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
                         </button>
                       )}
 
+                      {/* Offline Section Action: Combined Leaderboard button */}
+                      {activeSegment === 'offline' && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOfflineLeaderboardExam(exam);
+                          }}
+                          className="w-full py-2 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-amber-500/30 transition-all cursor-pointer shadow-xs"
+                          title="এই অফলাইন পরীক্ষার কম্বাইন্ড মেরিট লিস্ট ও ফলাফল দেখুন"
+                        >
+                          <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                          <span>কম্বাইন্ড মেরিট লিস্ট ও র‍্যাংক</span>
+                        </button>
+                      )}
+
                       <div className="flex items-center gap-2">
                         {/* Requirement 2.1 & 3.1: Active / Inactive Toggle */}
                         <button
@@ -548,12 +628,62 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
                     </div>
                   ) : (
                     /* STUDENT CONTROLS */
-                    /* Requirement 2.1 & 3.1: If Inactive, show "এডমিন এটি ইনএকটিভ করে রেখেছেন" */
                     !isExamActive ? (
                       <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-center text-xs text-amber-800 dark:text-amber-300 font-semibold flex items-center justify-center gap-2">
                         <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                         <span>এডমিন এটি ইনএকটিভ করে রেখেছেন</span>
                       </div>
+                    ) : activeSegment === 'offline' ? (
+                      (() => {
+                        const studentSub = submissions.find(
+                          s => (s.examId === exam.id || s.examId === exam.id.toString()) && 
+                               (s.studentId === user?.id || (user?.rollNo && s.rollNo === user.rollNo))
+                        );
+                        return studentSub ? (
+                          <div className="space-y-2">
+                            <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs">
+                              <div className="flex items-center justify-between font-bold text-emerald-800 dark:text-emerald-300">
+                                <span className="flex items-center gap-1.5">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>ওএমআর মূল্যায়ন সম্পন্ন</span>
+                                </span>
+                                <span className="font-mono text-sm">{studentSub.marksObtained} / {exam.totalMarks}</span>
+                              </div>
+                              <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1 font-mono">
+                                <span>সঠিক: {studentSub.correctCount}</span>
+                                <span>ভুল: {studentSub.wrongCount}</span>
+                                <span>সেট: {studentSub.setCode || 'A'}</span>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => setOfflineLeaderboardExam(exam)}
+                              className="w-full py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-amber-500/30 cursor-pointer"
+                            >
+                              <Trophy className="w-3.5 h-3.5" />
+                              <span>মেরিট লিস্ট ও র‍্যাংক দেখুন</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="p-3 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-900/60 text-xs text-blue-800 dark:text-blue-300">
+                              <div className="font-bold flex items-center gap-1.5">
+                                <Printer className="w-3.5 h-3.5 text-blue-600" />
+                                <span>অফলাইন ওএমআর পরীক্ষা</span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                                ওএমআর শিট পূরণ করে পরীক্ষা দিন। স্ক্যান হওয়ার পর প্রাপ্ত নম্বর ও র‍্যাংক এখানে প্রদর্শিত হবে।
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => setOfflineLeaderboardExam(exam)}
+                              className="w-full py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                              <span>বর্তমান মেরিট লিস্ট দেখুন</span>
+                            </button>
+                          </div>
+                        );
+                      })()
                     ) : activeSegment === 'live' ? (
                       studentLiveSubmission ? (
                         <div className="p-2.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 text-center text-xs text-emerald-700 dark:text-emerald-300 font-medium flex items-center justify-center gap-1.5">
@@ -768,6 +898,31 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
           students={students}
           isOpen={!!omrScannerExam}
           onClose={() => setOmrScannerExam(null)}
+          onSubmissionCreated={() => {
+            toastSuccess('ওএমআর ফলাফল সফলভাবে ডাটাবেজে সংরক্ষিত হয়েছে!');
+          }}
+        />
+      )}
+
+      {/* Dedicated Offline Exam Creation Modal */}
+      {showCreateOfflineModal && (
+        <CreateOfflineExamModal
+          courses={courses}
+          isOpen={showCreateOfflineModal}
+          onClose={() => setShowCreateOfflineModal(false)}
+          onExamCreated={(newExam) => {
+            setActiveSegment('offline');
+          }}
+        />
+      )}
+
+      {/* Offline Exam Combined Merit List / Leaderboard Modal */}
+      {offlineLeaderboardExam && (
+        <OfflineLeaderboardModal
+          exam={offlineLeaderboardExam}
+          submissions={submissions}
+          isOpen={!!offlineLeaderboardExam}
+          onClose={() => setOfflineLeaderboardExam(null)}
         />
       )}
     </div>

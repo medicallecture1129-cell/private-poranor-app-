@@ -115,9 +115,12 @@ export const registerOrUpdateStudent = async (
   existingId?: string
 ): Promise<StudentUser> => {
   const id = existingId || ('student_' + Date.now());
+  // Auto-generate 6-digit roll number (e.g. 600000 or 700000 series) if not present
+  const assignedRollNo = student.rollNo || `${Math.floor(600000 + Math.random() * 99999)}`;
   const studentData: StudentUser = {
     id,
     ...student,
+    rollNo: assignedRollNo,
     createdAt: Date.now()
   };
   await setDoc(doc(db, 'students', id), studentData, { merge: true });
@@ -513,6 +516,11 @@ export const createExam = async (examData: Omit<Exam, 'id' | 'createdAt'>): Prom
     questions: sanitizedQuestions,
     isActive: examData.isActive !== false,
     isPractice: Boolean(examData.isPractice) || false,
+    isOffline: Boolean(examData.isOffline) || false,
+    examType: examData.examType || (examData.isOffline ? 'offline' : 'live'),
+    subject: examData.subject ? String(examData.subject).trim() : '',
+    markPerQuestion: examData.markPerQuestion !== undefined ? Number(examData.markPerQuestion) : undefined,
+    offlineSets: examData.offlineSets || [],
     createdAt: Date.now()
   };
 
@@ -539,6 +547,11 @@ export const updateExam = async (examId: string, updates: Partial<Exam>): Promis
   if (updates.resultPublishTime !== undefined) cleanUpdates.resultPublishTime = Number(updates.resultPublishTime);
   if (updates.isActive !== undefined) cleanUpdates.isActive = Boolean(updates.isActive);
   if (updates.isPractice !== undefined) cleanUpdates.isPractice = Boolean(updates.isPractice);
+  if (updates.isOffline !== undefined) cleanUpdates.isOffline = Boolean(updates.isOffline);
+  if (updates.examType !== undefined) cleanUpdates.examType = updates.examType;
+  if (updates.subject !== undefined) cleanUpdates.subject = String(updates.subject).trim();
+  if (updates.markPerQuestion !== undefined) cleanUpdates.markPerQuestion = Number(updates.markPerQuestion);
+  if (updates.offlineSets !== undefined) cleanUpdates.offlineSets = updates.offlineSets;
   if (updates.questions) {
     cleanUpdates.questions = updates.questions.map((q, idx) => ({
       id: q.id || `q_${Date.now()}_${idx}`,

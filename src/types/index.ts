@@ -120,6 +120,10 @@ export interface Exam {
   resultPublishTime: number; // ms timestamp
   questions: Question[];
   offlineSets?: OfflineExamSet[]; // Pre-generated scrambled sets for offline OMR print
+  isOffline?: boolean; // True for offline paper/OMR exams
+  examType?: 'live' | 'practice' | 'offline'; // Explicit exam classification
+  markPerQuestion?: number; // Marks per correct question (e.g. 1.0)
+  subject?: string; // Subject / Topics (e.g. Biology - উদ্ভিদবিজ্ঞান ও প্রাণিবিজ্ঞান)
   createdAt: number;
   isActive?: boolean; // Admin can toggle exam ON / OFF (Active / Inactive)
   isPractice?: boolean; // True if converted to practice or explicitly in practice section
