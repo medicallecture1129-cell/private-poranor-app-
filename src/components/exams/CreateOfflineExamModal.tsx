@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Course, Question, Exam } from '../../types';
-import { createExam } from '../../services/db';
+import { createExam, updateExam } from '../../services/db';
 import { parseBulkMCQText } from '../../utils/mcqParser';
 import { generateBatchSets } from '../../utils/omrPdfGenerator';
 import { useToast } from '../../context/ToastContext';
@@ -49,11 +49,62 @@ export const CreateOfflineExamModal: React.FC<CreateOfflineExamModalProps> = ({
 
   // Question Bank / Master Set
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [questionInputMode, setQuestionInputMode] = useState<'bulk' | 'manual'>('bulk');
   const [bulkText, setBulkText] = useState('');
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Manual Question Input State
+  const [manualQText, setManualQText] = useState('');
+  const [manualOptA, setManualOptA] = useState('');
+  const [manualOptB, setManualOptB] = useState('');
+  const [manualOptC, setManualOptC] = useState('');
+  const [manualOptD, setManualOptD] = useState('');
+  const [manualCorrectOpt, setManualCorrectOpt] = useState('A');
+  const [manualTopic, setManualTopic] = useState('');
+  const [manualExplanation, setManualExplanation] = useState('');
+
   if (!isOpen) return null;
+
+  // Add Single Manual Question
+  const handleAddManualQuestion = () => {
+    if (!manualQText.trim()) {
+      toastError('অনুগ্রহ করে প্রশ্নের বিবরণ লিখুন');
+      return;
+    }
+    if (!manualOptA.trim() || !manualOptB.trim() || !manualOptC.trim() || !manualOptD.trim()) {
+      toastError('অনুগ্রহ করে ৪টি অপশন (A, B, C, D) লিখুন');
+      return;
+    }
+
+    const newQ: Question = {
+      id: `manual_q_${Date.now()}_${questions.length + 1}`,
+      text: manualQText.trim(),
+      options: [
+        { id: 'A', text: manualOptA.trim() },
+        { id: 'B', text: manualOptB.trim() },
+        { id: 'C', text: manualOptC.trim() },
+        { id: 'D', text: manualOptD.trim() }
+      ],
+      correctOption: manualCorrectOpt,
+      topic: manualTopic.trim() || undefined,
+      explanation: manualExplanation.trim() || undefined
+    };
+
+    const updated = [...questions, newQ];
+    setQuestions(updated);
+    setTotalMarks(updated.length * markPerQuestion);
+
+    // Reset manual form
+    setManualQText('');
+    setManualOptA('');
+    setManualOptB('');
+    setManualOptC('');
+    setManualOptD('');
+    setManualTopic('');
+    setManualExplanation('');
+    toastSuccess(`প্রশ্ন ${updated.length} সফলভাবে যোগ করা হয়েছে!`);
+  };
 
   // Bulk MCQ Parsing
   const handleParseBulk = () => {
@@ -195,12 +246,15 @@ export const CreateOfflineExamModal: React.FC<CreateOfflineExamModalProps> = ({
         createdAt: Date.now()
       };
 
-      // Create in Firestore
+      // Create in Firestore / LocalStorage
       const createdExam = await createExam(newExamData);
 
-      createdExam.offlineSets = [];
+      // Pre-generate 4 standard unique sets (Set 1, Set 2, Set 3, Set 4)
+      const defaultSets = generateBatchSets(createdExam, 4, 1);
+      await updateExam(createdExam.id, { offlineSets: defaultSets });
+      createdExam.offlineSets = defaultSets;
 
-      toastSuccess(`"${createdExam.title}" অফলাইন পরীক্ষা এবং মাস্টার সেট (${createdExam.questions.length}টি প্রশ্ন) সফলভাবে তৈরি হয়েছে! এবার ইচ্ছামতো ইউনিক সেট তৈরি করতে পারবেন।`);
+      toastSuccess(`"${createdExam.title}" অফলাইন পরীক্ষা এবং মাস্টার সেট (${createdExam.questions.length}টি প্রশ্ন) সফলভাবে তৈরি হয়েছে! ৪টি ইউনিক সেটও স্বয়ংক্রিয়ভাবে প্রস্তুত করা হয়েছে।`);
       onExamCreated(createdExam);
       onClose();
     } catch (err: unknown) {
@@ -386,47 +440,78 @@ export const CreateOfflineExamModal: React.FC<CreateOfflineExamModalProps> = ({
               <div>
                 <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
                   <Layers className="w-4 h-4 text-blue-600" />
-                  <span>মাস্টার কোশ্চেন সেট আপলোড (১০০টি এমসিকিউ)</span>
+                  <span>মাস্টার কোশ্চেন সেট আপলোড ও তৈরি ({questions.length}টি প্রস্তুত)</span>
                   <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-mono font-bold">
                     {questions.length} / 100 প্রশ্ন প্রস্তুত
                   </span>
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  এই মাস্টার সেট থেকে সিস্টেম ব্যাকগ্রাউন্ডে স্বয়ংক্রিয়ভাবে প্রশ্ন ও অপশন এলোমেলো করে হাজার হাজার ইউনিক সেট তৈরি করবে।
+                  সব প্রশ্ন একসাথে পেস্ট করে পার্স করতে পারেন অথবা ম্যানুয়ালি একটি একটি করে প্রশ্ন লিখতে পারেন।
                 </p>
               </div>
 
-              {/* Action Buttons for Master Set */}
-              <div className="flex items-center gap-2 flex-wrap">
+              {/* Mode Toggle: Bulk Paste vs Manual */}
+              <div className="flex items-center gap-1.5 p-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
                 <button
                   type="button"
-                  onClick={handleLoadSample100MedicalMCQs}
-                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer transition-all"
+                  onClick={() => setQuestionInputMode('bulk')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
+                    questionInputMode === 'bulk'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                  }`}
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>১০০টি মেডিকেল মডেল টেস্ট প্রশ্ন লোড করুন</span>
+                  সব প্রশ্ন একসাথে পেস্ট (Bulk)
                 </button>
-
-                <label className="px-3.5 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all">
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>ফাইল আপলোড (.txt)</span>
-                  <input
-                    type="file"
-                    accept=".txt,.json,.csv"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-                </label>
+                <button
+                  type="button"
+                  onClick={() => setQuestionInputMode('manual')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
+                    questionInputMode === 'manual'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  ম্যানুয়াল একটি একটি (Manual)
+                </button>
               </div>
             </div>
 
-            {/* Bulk Text Area */}
-            <div className="space-y-2">
-              <textarea
-                rows={6}
-                value={bulkText}
-                onChange={(e) => setBulkText(e.target.value)}
-                placeholder="প্রশ্ন ও ৪টি অপশন পেস্ট করুন:
+            {/* BULK MODE */}
+            {questionInputMode === 'bulk' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    একসাথে ১০০টি এমসিকিউ প্রশ্ন ও অপশন পেস্ট করুন:
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleLoadSample100MedicalMCQs}
+                      className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-all"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>১০০টি মেডিকেল মডেল টেস্ট প্রশ্ন লোড</span>
+                    </button>
+
+                    <label className="px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>ফাইল আপলোড (.txt)</span>
+                      <input
+                        type="file"
+                        accept=".txt,.json,.csv"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <textarea
+                  rows={6}
+                  value={bulkText}
+                  onChange={(e) => setBulkText(e.target.value)}
+                  placeholder="প্রশ্ন ও ৪টি অপশন পেস্ট করুন:
 1. মাইটোসিস কোষ বিভাজনের কোন ধাপে ক্রোমোজোমগুলো বিষুবীয় অঞ্চলে থাকে?
 A. প্রোফেজ
 B. মেটাফেজ
@@ -441,27 +526,124 @@ B. সর্বজনীন গ্রহীতা
 C. বিশেষ গ্রুপ
 D. অ্যান্টিজেন মুক্ত
 Answer: B"
-                className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-mono focus:outline-hidden focus:ring-2 focus:ring-blue-500 leading-relaxed"
-              />
+                  className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-mono focus:outline-hidden focus:ring-2 focus:ring-blue-500 leading-relaxed"
+                />
 
-              <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={handleParseBulk}
-                  className="px-4 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer flex items-center gap-1.5"
-                >
-                  <FileCheck className="w-4 h-4" />
-                  <span>টেক্সট পার্স করুন (Parse MCQs)</span>
-                </button>
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={handleParseBulk}
+                    className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors cursor-pointer flex items-center gap-1.5 shadow-sm"
+                  >
+                    <FileCheck className="w-4 h-4" />
+                    <span>টেক্সট পার্স ও যুক্ত করুন (Parse MCQs)</span>
+                  </button>
 
-                {bulkError && (
-                  <span className="text-xs text-rose-500 flex items-center gap-1">
-                    <AlertCircle className="w-3.5 h-3.5" />
-                    {bulkError}
-                  </span>
-                )}
+                  {bulkError && (
+                    <span className="text-xs text-rose-500 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      {bulkError}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* MANUAL MODE */}
+            {questionInputMode === 'manual' && (
+              <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    প্রশ্ন নম্বর #{questions.length + 1}
+                  </span>
+                  <input
+                    type="text"
+                    value={manualTopic}
+                    onChange={(e) => setManualTopic(e.target.value)}
+                    placeholder="বিষয় / টপিক (e.g. উদ্ভিদবিজ্ঞান)"
+                    className="px-3 py-1 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white w-44"
+                  />
+                </div>
+
+                <div>
+                  <textarea
+                    rows={2}
+                    value={manualQText}
+                    onChange={(e) => setManualQText(e.target.value)}
+                    placeholder="প্রশ্নের বিবরণ লিখুন..."
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white font-semibold"
+                  />
+                </div>
+
+                {/* 4 Options Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-blue-600 w-5">A:</span>
+                    <input
+                      type="text"
+                      value={manualOptA}
+                      onChange={(e) => setManualOptA(e.target.value)}
+                      placeholder="অপশন A"
+                      className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-blue-600 w-5">B:</span>
+                    <input
+                      type="text"
+                      value={manualOptB}
+                      onChange={(e) => setManualOptB(e.target.value)}
+                      placeholder="অপশন B"
+                      className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-blue-600 w-5">C:</span>
+                    <input
+                      type="text"
+                      value={manualOptC}
+                      onChange={(e) => setManualOptC(e.target.value)}
+                      placeholder="অপশন C"
+                      className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-blue-600 w-5">D:</span>
+                    <input
+                      type="text"
+                      value={manualOptD}
+                      onChange={(e) => setManualOptD(e.target.value)}
+                      placeholder="অপশন D"
+                      className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">সঠিক উত্তর:</span>
+                    <select
+                      value={manualCorrectOpt}
+                      onChange={(e) => setManualCorrectOpt(e.target.value)}
+                      className="px-3 py-1 text-xs font-bold rounded-lg border border-emerald-400 bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200"
+                    >
+                      <option value="A">বিকল্প A</option>
+                      <option value="B">বিকল্প B</option>
+                      <option value="C">বিকল্প C</option>
+                      <option value="D">বিকল্প D</option>
+                    </select>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAddManualQuestion}
+                    className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <span>+ এই প্রশ্নটি যোগ করুন</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Questions Summary Preview */}
             {questions.length > 0 && (
@@ -469,7 +651,7 @@ Answer: B"
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                   <span className="font-bold text-slate-900 dark:text-white">
-                    মোট {questions.length} টি প্রশ্ন লোড হয়েছে (মাস্টার সেট প্রস্তুত)
+                    মোট {questions.length} টি প্রশ্ন যুক্ত হয়েছে (মাস্টার সেট প্রস্তুত)
                   </span>
                 </div>
                 <button
@@ -477,7 +659,7 @@ Answer: B"
                   onClick={() => setQuestions([])}
                   className="text-xs font-bold text-rose-500 hover:underline cursor-pointer"
                 >
-                  প্রশ্নগুলো মুছুন
+                  সব প্রশ্ন মুছুন
                 </button>
               </div>
             )}

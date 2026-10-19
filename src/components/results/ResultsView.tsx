@@ -1000,11 +1000,13 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                sub.isLive 
+                                sub.isOfflineOMR
+                                  ? 'bg-purple-100 dark:bg-purple-950 text-purple-600 border border-purple-200 dark:border-purple-900/40'
+                                  : sub.isLive 
                                   ? 'bg-rose-100 dark:bg-rose-950 text-rose-600 border border-rose-200 dark:border-rose-900/40' 
                                   : 'bg-blue-100 dark:bg-blue-950 text-blue-600 border border-blue-200 dark:border-blue-900/40'
                               }`}>
-                                {sub.isLive ? 'Live Exam' : 'Practice Exam'}
+                                {sub.isOfflineOMR ? `OMR (${sub.setCode || 'Offline'})` : sub.isLive ? 'Live Exam' : 'Practice Exam'}
                               </span>
                               <span className="text-xs text-slate-400">
                                 {new Date(sub.submittedAt).toLocaleDateString('en-GB')}

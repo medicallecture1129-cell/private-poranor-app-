@@ -91,7 +91,7 @@ export const generateShuffledSet = (
 };
 
 /**
- * Generate unique sets in batch
+ * Generate unique sets in batch (Default: 'Set 1', 'Set 2', 'Set 3', ...)
  */
 export const generateBatchSets = (
   exam: Exam,
@@ -101,7 +101,7 @@ export const generateBatchSets = (
   const sets: OfflineExamSet[] = [];
   for (let i = 0; i < count; i++) {
     const num = startNumber + i;
-    const setCode = count <= 4 && startNumber === 1 ? `Set-${['A', 'B', 'C', 'D'][i] || num}` : `Set-${num}`;
+    const setCode = `Set ${num}`;
     sets.push(generateShuffledSet(exam, setCode));
   }
   return sets;
@@ -116,14 +116,17 @@ export const toBengaliNumber = (num: number | string): string => {
 };
 
 /**
- * Render 4-Sub-Column Unmesh Style 100 MCQ OMR Grid
- * Sub-col 1: 1-25
- * Sub-col 2: 26-50
- * Sub-col 3: 51-75
- * Sub-col 4: 76-100
+ * Render 4-Sub-Column 100 MCQ OMR Grid matching attached Reference Image 1
+ * 4 columns of 25 questions:
+ * Col 1: 1-25
+ * Col 2: 26-50
+ * Col 3: 51-75
+ * Col 4: 76-100
+ * Column header for question number: 'NO'
+ * Column header for options: 'ANSWER' (with A, B, C, D circles)
  */
 function renderUnmesh100OmrGrid(totalQuestions: number): string {
-  let html = '<div style="display: flex; gap: 3px; margin-top: 3px; flex: 1;">';
+  let html = '<div style="display: flex; gap: 2.5px; margin-top: 2px; flex: 1;">';
   const subCols = [
     { start: 1, end: 25 },
     { start: 26, end: 50 },
@@ -132,28 +135,28 @@ function renderUnmesh100OmrGrid(totalQuestions: number): string {
   ];
 
   subCols.forEach(({ start, end }) => {
-    html += '<div style="flex: 1; border: 1px solid #dc2626; border-radius: 2px; padding: 1px; background: #ffffff;">';
+    html += '<div style="flex: 1; border: 1px solid #000000; border-radius: 2px; padding: 1px; background: #ffffff;">';
     
-    // Header
+    // Header: 'NO' and 'ANSWER' as explicitly requested
     html += `
-      <div style="display: flex; align-items: center; justify-content: space-between; font-size: 5px; font-weight: 800; color: #ffffff; background: #dc2626; padding: 1px 2px; text-align: center; border-radius: 1px;">
-        <span style="width: 11px;">Q.No.</span>
-        <span style="flex: 1; text-align: center;">Answer</span>
+      <div style="display: flex; align-items: center; justify-content: space-between; font-size: 5px; font-weight: 800; color: #000000; border-bottom: 0.8px solid #000000; padding: 1px 2px; text-align: center; background: #f8fafc;">
+        <span style="width: 10px; font-family: monospace; font-weight: 900;">NO</span>
+        <span style="flex: 1; text-align: center; letter-spacing: 0.5px; font-weight: 900;">ANSWER</span>
       </div>
     `;
 
     for (let q = start; q <= end; q++) {
       if (q > totalQuestions && q > 100) break;
       html += `
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.9px; font-size: 5px; height: 7px;">
-          <div style="width: 10px; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: #dc2626; text-align: right; padding-right: 2px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.7px; font-size: 4.8px; height: 6.8px;">
+          <div style="width: 9.5px; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: #000000; text-align: right; padding-right: 1.5px;">
             ${q}
           </div>
           <div style="flex: 1; display: flex; justify-content: space-around; align-items: center;">
-            <div style="width: 5.5px; height: 5.5px; border-radius: 50%; border: 0.7px solid #e11d48; display: flex; align-items: center; justify-content: center; font-size: 3.5px; font-weight: 700; color: #be123c;">A</div>
-            <div style="width: 5.5px; height: 5.5px; border-radius: 50%; border: 0.7px solid #e11d48; display: flex; align-items: center; justify-content: center; font-size: 3.5px; font-weight: 700; color: #be123c;">B</div>
-            <div style="width: 5.5px; height: 5.5px; border-radius: 50%; border: 0.7px solid #e11d48; display: flex; align-items: center; justify-content: center; font-size: 3.5px; font-weight: 700; color: #be123c;">C</div>
-            <div style="width: 5.5px; height: 5.5px; border-radius: 50%; border: 0.7px solid #e11d48; display: flex; align-items: center; justify-content: center; font-size: 3.5px; font-weight: 700; color: #be123c;">D</div>
+            <div style="width: 5.2px; height: 5.2px; border-radius: 50%; border: 0.7px solid #000000; display: flex; align-items: center; justify-content: center; font-size: 3.2px; font-weight: 800; color: #000000;">A</div>
+            <div style="width: 5.2px; height: 5.2px; border-radius: 50%; border: 0.7px solid #000000; display: flex; align-items: center; justify-content: center; font-size: 3.2px; font-weight: 800; color: #000000;">B</div>
+            <div style="width: 5.2px; height: 5.2px; border-radius: 50%; border: 0.7px solid #000000; display: flex; align-items: center; justify-content: center; font-size: 3.2px; font-weight: 800; color: #000000;">C</div>
+            <div style="width: 5.2px; height: 5.2px; border-radius: 50%; border: 0.7px solid #000000; display: flex; align-items: center; justify-content: center; font-size: 3.2px; font-weight: 800; color: #000000;">D</div>
           </div>
         </div>
       `;
@@ -167,54 +170,56 @@ function renderUnmesh100OmrGrid(totalQuestions: number): string {
 }
 
 /**
- * Render Student ID OMR Bubble Grid (0-9 numeric columns to shade)
+ * Render 6-Digit Student ID OMR Bubble Grid matching Reference Image 1:
+ * - 6 write boxes at top
+ * - Underneath: 0 to 9 circles
+ * - Explicit Requirement: "কলামগুলোর ভেতরের রো বর্ডার বাদ থাকবে" (No horizontal row borders between circles!)
  */
 function renderStudentIdOmrGrid(): string {
-  const digits = 6;
   return `
-    <div style="border: 1px solid #dc2626; border-radius: 3px; padding: 2px 4px; margin-top: 2px; background: #fff5f5; display: flex; gap: 4px;">
-      <div style="flex: 1;">
-        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 6px; font-weight: 800; color: #dc2626; margin-bottom: 1.5px;">
-          <span>Student ID (স্টুডেন্ট আইডি)</span>
-          <span style="font-size: 5px; color: #64748b;">(৬ ডিজিট)</span>
-        </div>
-        <!-- 6 write boxes -->
-        <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-          ${[0, 1, 2, 3, 4, 5].map(() => `
-            <div style="width: 11px; height: 10px; border: 0.8px solid #dc2626; background: #ffffff; border-radius: 1px;"></div>
-          `).join('')}
-        </div>
-        <!-- Bubble Matrix 0 to 9 -->
-        <div style="display: flex; justify-content: space-between; font-size: 4px;">
-          ${[0, 1, 2, 3, 4, 5].map(() => `
-            <div style="display: flex; flex-direction: column; align-items: center; gap: 0.8px;">
-              ${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(d => `
-                <div style="width: 5.4px; height: 5.4px; border-radius: 50%; border: 0.6px solid #e11d48; display: flex; align-items: center; justify-content: center; font-size: 3.5px; font-weight: bold; color: #be123c; background: #ffffff;">${d}</div>
-              `).join('')}
-            </div>
-          `).join('')}
-        </div>
+    <div style="border: 1px solid #000000; border-radius: 3px; padding: 2px 3px; margin-top: 2px; background: #ffffff;">
+      <div style="text-align: center; font-size: 6px; font-weight: 800; color: #000000; margin-bottom: 1.5px; letter-spacing: 0.3px;">
+        Student ID
+      </div>
+      
+      <!-- 6 rectangular boxes for writing digits -->
+      <div style="display: flex; justify-content: space-around; margin-bottom: 2.5px; padding: 0 4px;">
+        ${[0, 1, 2, 3, 4, 5].map(() => `
+          <div style="width: 11px; height: 10px; border: 0.8px solid #000000; background: #ffffff; border-radius: 1px;"></div>
+        `).join('')}
       </div>
 
-      <!-- Signature of Invigilator vertical box -->
-      <div style="width: 18px; border-left: 0.8px dashed #dc2626; display: flex; align-items: center; justify-content: center; writing-mode: vertical-rl; transform: rotate(180deg); font-size: 4.5px; font-weight: 700; color: #991b1b; padding: 2px;">
-        SIGNATURE OF INVIGILATOR
+      <!-- Bubble Columns 0 to 9 without inner row borders (vertical clean columns) -->
+      <div style="display: flex; justify-content: space-around; padding: 0 4px;">
+        ${[0, 1, 2, 3, 4, 5].map(() => `
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 0.8px;">
+            ${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(d => `
+              <div style="width: 5.4px; height: 5.4px; border-radius: 50%; border: 0.7px solid #000000; display: flex; align-items: center; justify-content: center; font-size: 3.4px; font-weight: 800; color: #000000; background: #ffffff;">[${d}]</div>
+            `).join('')}
+          </div>
+        `).join('')}
       </div>
     </div>
   `;
 }
 
 /**
- * Build Full Unmesh-Style Layout HTML (Matching IMG_20261019_170429_064.jpg & IMG_20261019_170429_220.jpg)
+ * Build Full Layout HTML matching attached reference photos:
+ * Page 1:
+ * - Col 1: Course Name box, Exam Name box, QR Code, Student ID (no row borders), Banner, 100 MCQ OMR (4 cols x 25) with 'NO' and 'ANSWER' headers.
+ * - Cols 2, 3, 4: Header box, Questions 1 to 53.
+ * Page 2:
+ * - Cols 1, 2, 3: Questions 54 to 100.
+ * - Col 4: 'পাতা ২ of ২', Bordered box 'পরীক্ষার্থীদের জন্য নির্দেশাবলী' with clean rules.
  */
-function buildUnmeshStyleHtml(
+export function buildUnmeshStyleHtml(
   exam: Exam,
   set: OfflineExamSet,
   qrDataUrl: string,
   appName: string = 'Medical Admission Program 2026'
 ): { page1Html: string; page2Html: string } {
-  const questionsPage1 = set.questions.slice(0, 53); // Q1 to Q53 on Front Page
-  const questionsPage2 = set.questions.slice(53);     // Q54 to Q100 on Back Page
+  const questionsPage1 = set.questions.slice(0, 53); // Q1 to Q53 on Front Page (Page 1)
+  const questionsPage2 = set.questions.slice(53);     // Q54 to Q100 on Back Page (Page 2)
 
   // Split Page 1 questions across Columns 2, 3, 4 (18, 18, 17)
   const p1Col2Questions = questionsPage1.slice(0, 18);
@@ -227,14 +232,14 @@ function buildUnmeshStyleHtml(
   const p2Col3Questions = questionsPage2.slice(32, 47);
 
   const renderQuestionBlock = (q: OfflineExamSetQuestion) => `
-    <div style="margin-bottom: 5.5px; page-break-inside: avoid; font-size: 7.8px; line-height: 1.3;">
-      <div style="font-weight: 700; color: #090d16; margin-bottom: 1.5px;">
-        <span style="font-family: 'JetBrains Mono', monospace; font-size: 7.8px; font-weight: 800; color: #0f172a;">${toBengaliNumber(q.questionNumber).padStart(2, '০')}.</span> ${q.text}
+    <div style="margin-bottom: 5px; page-break-inside: avoid; font-size: 7.6px; line-height: 1.28;">
+      <div style="font-weight: 700; color: #000000; margin-bottom: 1.2px;">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 7.6px; font-weight: 800; color: #000000;">${toBengaliNumber(q.questionNumber).padStart(2, '০')}.</span> ${q.text}
       </div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1px 4px; padding-left: 3px; font-size: 7.2px; color: #1e293b;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1px 4px; padding-left: 2px; font-size: 7px; color: #000000;">
         ${q.options.map(opt => `
           <div>
-            <span style="font-weight: 700; color: #0f172a;">(${opt.id.toLowerCase()})</span> ${opt.text}
+            <span style="font-weight: 700;">(${opt.id.toLowerCase()})</span> ${opt.text}
           </div>
         `).join('')}
       </div>
@@ -243,11 +248,11 @@ function buildUnmeshStyleHtml(
 
   const sharedStyles = `
     font-family: 'Hind Siliguri', 'Noto Sans Bengali', -apple-system, sans-serif;
-    color: #090d16;
+    color: #000000;
     background: #ffffff;
     width: 1122px; /* Landscape A4 */
     height: 793px;  /* Landscape A4 */
-    padding: 12px 16px;
+    padding: 10px 14px;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -255,247 +260,236 @@ function buildUnmeshStyleHtml(
     overflow: hidden;
   `;
 
-  // Page 1 (Front Side): 4 Columns
-  // Col 1 = Left Sidebar OMR with 4 Corner Registration Black Squares
-  // Col 2, 3, 4 = Questions 01 to 53
+  // PAGE 1: 4 Columns
+  // Col 1: Left OMR Column with Course/Exam Box, QR Code, Student ID, 100 MCQ OMR section
+  // Cols 2, 3, 4: Questions 01 to 53
   const page1Html = `
     <div style="${sharedStyles}">
       <div style="height: 100%; display: flex; flex-direction: column; box-sizing: border-box;">
         
-        <!-- 4 Columns Container -->
-        <div style="display: grid; grid-template-columns: 310px 1fr 1fr 1fr; gap: 8px; flex: 1; min-height: 0;">
+        <!-- 4 Columns Grid Container -->
+        <div style="display: grid; grid-template-columns: 295px 1fr 1fr 1fr; gap: 7px; flex: 1; min-height: 0;">
           
           <!-- ============================================== -->
-          <!-- COLUMN 1: UNMESH OMR SHEET WITH CORNER MARKERS -->
+          <!-- COLUMN 1: OMR SIDEBAR (Matching Image 1)       -->
           <!-- ============================================== -->
-          <div style="position: relative; border-right: 1.5px dashed #dc2626; padding-right: 6px; display: flex; flex-direction: column;">
+          <div style="position: relative; border-right: 1.5px solid #000000; padding-right: 6px; display: flex; flex-direction: column;">
             
-            {/* 4 SOLID BLACK CORNER REGISTRATION SQUARES FOR COMPUTER VISION */}
-            <div style="position: absolute; top: 0px; left: 0px; width: 9px; height: 9px; background: #000000; z-index: 20;"></div>
-            <div style="position: absolute; top: 0px; right: 8px; width: 9px; height: 9px; background: #000000; z-index: 20;"></div>
-            <div style="position: absolute; bottom: 0px; left: 0px; width: 9px; height: 9px; background: #000000; z-index: 20;"></div>
-            <div style="position: absolute; bottom: 0px; right: 8px; width: 9px; height: 9px; background: #000000; z-index: 20;"></div>
+            <!-- 4 Corner Registration Squares for Precise CV Scanning -->
+            <div style="position: absolute; top: 0px; left: 0px; width: 8px; height: 8px; background: #000000; z-index: 20;"></div>
+            <div style="position: absolute; top: 0px; right: 8px; width: 8px; height: 8px; background: #000000; z-index: 20;"></div>
+            <div style="position: absolute; bottom: 0px; left: 0px; width: 8px; height: 8px; background: #000000; z-index: 20;"></div>
+            <div style="position: absolute; bottom: 0px; right: 8px; width: 8px; height: 8px; background: #000000; z-index: 20;"></div>
 
-            <!-- Top Header & QR Codes -->
-            <div style="padding-left: 12px; padding-right: 12px; margin-bottom: 2px;">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div style="font-size: 6px; font-weight: bold; color: #475569; font-family: monospace;">
-                  Code: ${exam.id.slice(0, 16)}
-                </div>
-                <div style="font-size: 6px; font-weight: bold; color: #dc2626; font-family: monospace;">
-                  SET: ${set.setCode}
-                </div>
-              </div>
-
-              <!-- Title -->
-              <div style="text-align: center; margin-top: 1px;">
-                <div style="font-size: 9px; font-weight: 900; color: #0f172a; text-transform: uppercase;">
-                  ${appName}
-                </div>
-                <div style="font-size: 7.5px; font-weight: 700; color: #1e3a8a;">
-                  ${exam.title}
-                </div>
-              </div>
-
-              <!-- QR Code & OMR Banner -->
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 2px;">
-                <!-- Left QR Code -->
-                <div style="background: #ffffff; padding: 1px; border: 1px solid #000000; border-radius: 2px;">
-                  <img src="${qrDataUrl}" style="width: 38px; height: 38px; display: block;" />
-                </div>
-
-                <div style="text-align: center; flex: 1; padding: 0 4px;">
-                  <div style="background: #dc2626; color: #ffffff; font-size: 7.5px; font-weight: 900; padding: 1px 6px; border-radius: 2px; display: inline-block;">
-                    OMR উত্তরপত্র
+            <!-- Top Header Box: Course Name, Exam Name and QR Code -->
+            <div style="padding-left: 10px; padding-right: 10px; margin-bottom: 2px;">
+              <div style="display: flex; gap: 4px; align-items: stretch;">
+                
+                <!-- Left Stacked Boxes: Course Name & Exam Name -->
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 2px;">
+                  <div style="border: 1px solid #000000; border-radius: 3px; padding: 2px 4px; font-size: 7px; font-weight: 800; color: #000000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #ffffff; min-height: 15px; display: flex; align-items: center;">
+                    ${exam.courseName || 'Course Name'}
                   </div>
-                  <div style="font-size: 5px; color: #dc2626; font-weight: bold; line-height: 1.1; margin-top: 1.5px;">
-                    * "পরীক্ষার্থীদের জন্য নির্দেশাবলি" অপর পৃষ্ঠায় বর্ণিত হয়েছে।<br/>
-                    Roll No. নির্দিষ্ট স্থানে ইংরেজিতে লিখে সংশ্লিষ্ট বৃত্তগুলো ভরাট করতে হবে।
+                  <div style="border: 1px solid #000000; border-radius: 3px; padding: 2px 4px; font-size: 7px; font-weight: 800; color: #000000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #ffffff; min-height: 15px; display: flex; align-items: center;">
+                    ${exam.title || 'Exam Name'}
                   </div>
                 </div>
 
-                <!-- Right QR Code (Redundant sync) -->
-                <div style="background: #ffffff; padding: 1px; border: 1px solid #000000; border-radius: 2px;">
-                  <img src="${qrDataUrl}" style="width: 38px; height: 38px; display: block;" />
+                <!-- Right Square: QR Code (Linked to Set & Answer Key) -->
+                <div style="width: 36px; height: 36px; border: 1px solid #000000; border-radius: 3px; padding: 1px; background: #ffffff; display: flex; align-items: center; justify-content: center; shrink-0;">
+                  <img src="${qrDataUrl}" style="width: 32px; height: 32px; display: block;" />
                 </div>
+              </div>
+
+              <!-- Set Indicator -->
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5px; font-size: 5.5px; font-weight: bold;">
+                <span style="font-family: monospace; color: #334155;">ID: ${exam.id.slice(0, 10)}</span>
+                <span style="font-family: monospace; font-weight: 900; color: #000000; background: #f1f5f9; padding: 0.5px 4px; border-radius: 2px; border: 0.5px solid #cbd5e1;">${set.setCode}</span>
               </div>
             </div>
 
-            <!-- Student ID Grid -->
+            <!-- Student ID Grid (6 columns, 0-9 bubbles without row borders) -->
             ${renderStudentIdOmrGrid()}
 
-            <!-- 100 MCQ OMR Grid (4 sub-columns: 1-25, 26-50, 51-75, 76-100) -->
+            <!-- OMR Banner: বৃত্ত ভরাট করার নির্দেশনা -->
+            <div style="background: #000000; color: #ffffff; font-size: 5.5px; font-weight: 800; text-align: center; padding: 1.5px; border-radius: 2px; margin-top: 2.5px; letter-spacing: 0.3px;">
+              OMR বিভাগ - বৃত্ত ভরাট করার নির্দেশনা
+            </div>
+
+            <!-- 100 MCQ OMR Grid (4 columns x 25 with 'NO' and 'ANSWER' headers) -->
             ${renderUnmesh100OmrGrid(exam.questions.length)}
 
-            <!-- Bottom Feedback Banner -->
-            <div style="border-top: 0.8px solid #cbd5e1; padding-top: 2px; margin-top: 2px; font-size: 5px; color: #dc2626; display: flex; justify-content: space-between; align-items: center;">
-              <span>আজকের প্রশ্নের মান কেমন হয়েছে?</span>
-              <span style="display: flex; gap: 4px; font-weight: bold;">
-                <span>○ স্ট্যান্ডার্ড</span>
-                <span>○ কঠিন</span>
-                <span>○ সহজ</span>
-              </span>
+            <!-- Bottom Note -->
+            <div style="border-top: 0.8px solid #000000; padding-top: 1.5px; margin-top: 2px; font-size: 5px; font-weight: 800; text-align: center; color: #000000;">
+              OMR বিভাগ - বৃত্তের কালো বলপেন ব্যবহার করুন
             </div>
 
-            <!-- Perforation Scissor label on right border -->
-            <div style="position: absolute; right: -8px; top: 40%; font-size: 7px; color: #dc2626; background: #ffffff; padding: 2px 0;">
-              ✂
-            </div>
-            <div style="position: absolute; right: -8px; top: 75%; font-size: 7px; color: #dc2626; background: #ffffff; padding: 2px 0;">
-              ✂
-            </div>
           </div>
 
           <!-- ============================================== -->
-          <!-- COLUMNS 2, 3, 4: QUESTIONS 01 TO 53 -->
+          <!-- COLUMNS 2, 3, 4: QUESTIONS 01 TO 53 (Page 1)   -->
           <!-- ============================================== -->
 
           <!-- Column 2: Questions 01 to 18 -->
-          <div style="border-right: 1px solid #e2e8f0; padding-right: 5px; display: flex; flex-direction: column;">
-            <!-- Column 2 Header -->
-            <div style="border-bottom: 1px solid #0f172a; padding-bottom: 2px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; font-size: 7px;">
-              <span style="font-weight: 800; color: #0f172a;">${appName}</span>
-              <span style="font-weight: 700; color: #475569;">পূর্ণমান: ১০০</span>
-              <span style="font-weight: 700; color: #475569;">সময়: ৬০ মিনিট</span>
+          <div style="border-right: 1px solid #cbd5e1; padding-right: 5px; display: flex; flex-direction: column;">
+            
+            <!-- Column 2 Top Header (Matching Reference Image 1) -->
+            <div style="border: 1px solid #000000; border-radius: 3px; padding: 2px 4px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; font-size: 6.5px; font-weight: 800; background: #ffffff;">
+              <span>পাতা - ১</span>
+              <span>০১ [ক] এর উত্তর</span>
             </div>
-            <div style="text-align: center; font-weight: 800; font-size: 7.5px; color: #0f172a; margin-bottom: 4px;">
-              বহুনির্বাচনি প্রশ্ন (MCQ)
+            
+            <div style="text-align: center; font-weight: 900; font-size: 8px; color: #000000; margin-bottom: 4px; border-bottom: 0.8px solid #000000; padding-bottom: 1px;">
+              বহুনির্বাচনী প্রশ্ন
             </div>
+
             <div>
               ${p1Col2Questions.map(renderQuestionBlock).join('')}
             </div>
           </div>
 
-          <!-- Column 3: Questions 19 to 36 -->
-          <div style="border-right: 1px solid #e2e8f0; padding-right: 5px; padding-top: 18px;">
+          <!-- Column 3: Questions 19 to 35 -->
+          <div style="border-right: 1px solid #cbd5e1; padding-right: 5px; padding-top: 22px;">
             ${p1Col3Questions.map(renderQuestionBlock).join('')}
           </div>
 
-          <!-- Column 4: Questions 37 to 53 -->
-          <div style="padding-top: 18px;">
+          <!-- Column 4: Questions 36 to 53 -->
+          <div style="padding-top: 22px;">
             ${p1Col4Questions.map(renderQuestionBlock).join('')}
           </div>
 
         </div>
 
-        <!-- Page 1 Bottom Footer -->
-        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 6.5px; color: #64748b; border-top: 1px solid #cbd5e1; padding-top: 2px; margin-top: 3px;">
-          <span>${exam.title} • সেট কোড: ${set.setCode}</span>
-          <span style="font-weight: 800; color: #0f172a;">[পৃষ্ঠা ১ (সম্মুখভাগ)]</span>
-          <span>${appName}</span>
+        <!-- Page 1 Footer -->
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 6px; color: #475569; border-top: 0.8px solid #cbd5e1; padding-top: 2px; margin-top: 2px;">
+          <span>${exam.courseName} • ${exam.title} • ${set.setCode}</span>
+          <span style="font-weight: 800; color: #000000;">[পাতা ১ of ২]</span>
+          <span>পূর্ণমান: ${exam.totalMarks} • সময়: ${exam.durationMinutes} মিনিট</span>
         </div>
 
       </div>
     </div>
   `;
 
-  // Page 2 (Back Side): 4 Columns
-  // Cols 1, 2, 3 = Questions 54 to 100
-  // Col 4 = "পরীক্ষার্থীদের জন্য নির্দেশাবলি" (Rules & Instructions Box)
+  // PAGE 2: 4 Columns
+  // Cols 1, 2, 3: Questions 54 to 100
+  // Col 4: Top 'পাতা ২ of ২', Bordered Box 'পরীক্ষার্থীদের জন্য নির্দেশাবলী' with clean rules
   const page2Html = `
     <div style="${sharedStyles}">
       <div style="height: 100%; display: flex; flex-direction: column; box-sizing: border-box;">
         
         <!-- Header Page 2 -->
-        <div style="border-bottom: 1.5px solid #0f172a; padding-bottom: 3px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
-          <div style="font-size: 10px; font-weight: 800; color: #0f172a;">
-            ${appName} • ${exam.title}
+        <div style="border-bottom: 1.2px solid #000000; padding-bottom: 2px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
+          <div style="font-size: 9px; font-weight: 900; color: #000000;">
+            ${exam.courseName} • ${exam.title}
           </div>
-          <div style="font-size: 8px; font-weight: 700; color: #dc2626; font-family: monospace;">
-            SET: ${set.setCode} (প্রশ্ন ৫৪ থেকে ১০০)
+          <div style="font-size: 7.5px; font-weight: 800; color: #000000; font-family: monospace;">
+            ${set.setCode} (প্রশ্ন ৫৪ থেকে ১০০)
           </div>
         </div>
 
         <!-- 4 Columns Grid Page 2 -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 280px; gap: 8px; flex: 1; min-height: 0;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 270px; gap: 7px; flex: 1; min-height: 0;">
           
-          <!-- Column 1: Questions 54 to 69 -->
-          <div style="border-right: 1px solid #e2e8f0; padding-right: 5px;">
+          <!-- Column 1: Questions 54 to 70 -->
+          <div style="border-right: 1px solid #cbd5e1; padding-right: 5px;">
             ${p2Col1Questions.map(renderQuestionBlock).join('')}
           </div>
 
-          <!-- Column 2: Questions 70 to 85 -->
-          <div style="border-right: 1px solid #e2e8f0; padding-right: 5px;">
+          <!-- Column 2: Questions 71 to 87 -->
+          <div style="border-right: 1px solid #cbd5e1; padding-right: 5px;">
             ${p2Col2Questions.map(renderQuestionBlock).join('')}
           </div>
 
-          <!-- Column 3: Questions 86 to 100 -->
-          <div style="border-right: 1px solid #e2e8f0; padding-right: 5px;">
+          <!-- Column 3: Questions 88 to 100 -->
+          <div style="border-right: 1px solid #cbd5e1; padding-right: 5px;">
             ${p2Col3Questions.map(renderQuestionBlock).join('')}
           </div>
 
-          <!-- Column 4: পরীক্ষার্থীদের জন্য নির্দেশাবলি (Exact Unmesh Style Instructions) -->
-          <div style="display: flex; flex-direction: column; justify-content: space-between;">
+          <!-- Column 4: পরীক্ষার্থীদের জন্য নির্দেশাবলী (Matching Reference Image 2) -->
+          <div style="display: flex; flex-direction: column; justify-content: flex-start;">
             
-            <div style="border: 1.5px solid #dc2626; border-radius: 4px; padding: 6px; background: #fffdfd; font-size: 6.8px; line-height: 1.32; color: #1e293b;">
+            <!-- Top Page Indicator -->
+            <div style="text-align: right; font-size: 7.5px; font-weight: 800; color: #000000; margin-bottom: 3px;">
+              পাতা ২ of ২
+            </div>
+
+            <!-- Bordered Instructions Box -->
+            <div style="border: 1.5px solid #000000; border-radius: 3px; padding: 6px 8px; background: #ffffff; font-size: 6.8px; line-height: 1.34; color: #000000;">
               
-              <!-- Red Header Banner -->
-              <div style="background: #dc2626; color: #ffffff; text-align: center; font-size: 8px; font-weight: 900; padding: 3px; border-radius: 2px; margin-bottom: 5px;">
-                পরীক্ষার্থীদের জন্য নির্দেশাবলি
+              <!-- Header -->
+              <div style="text-align: center; font-size: 8.5px; font-weight: 900; color: #000000; border-bottom: 1.2px solid #000000; padding-bottom: 3px; margin-bottom: 5px; letter-spacing: 0.3px;">
+                পরীক্ষার্থীদের জন্য নির্দেশাবলী
               </div>
 
-              <!-- Numbered Instructions matching photo -->
-              <div style="space-y: 3px;">
+              <!-- Rules matching Reference Image 2 exactly -->
+              <div>
                 <div style="margin-bottom: 3.5px;">
-                  <strong style="color: #dc2626;">১।</strong> প্রশ্নপত্রের সাথে সংযুক্ত অবস্থায় OMR উত্তরপত্র প্রদান করা হলো। সতর্কতার সাথে পারফোরেশন মার্ক (--- ✂ ---) বরাবর ছিঁড়ে OMR উত্তরপত্রটি প্রশ্নপত্র হতে আলাদা করে নিতে হবে।
+                  <strong>১।</strong> প্রশ্নপত্রের সাথে সংযুক্ত অবস্থায় OMR উত্তরপত্র প্রদান করা হলো। সতর্কতার সাথে পারফোরেশন মার্ক (--- ✂ ---) বরাবর ছিঁড়ে OMR উত্তরপত্রটি প্রশ্নপত্র হতে আলাদা করে নিতে হবে। আলাদা করার সময় OMR উত্তরপত্রটি নিচে ফেলে না দিয়ে সাবধানে তার পরীক্ষা কক্ষে আবর্তিত করতে হবে।
                 </div>
 
                 <div style="margin-bottom: 3.5px;">
-                  <strong style="color: #dc2626;">২।</strong> OMR উত্তরপত্রের নির্ধারিত স্থানে পরীক্ষার্থীকে রোল নম্বর ও রেজিস্ট্রেশন নম্বর লিখে সংশ্লিষ্ট বৃত্ত ভরাট করতে হবে।
+                  <strong>২।</strong> OMR উত্তরপত্রের নির্ধারিত স্থানে পরীক্ষার্থীকে রোল নম্বর ও রেজিস্ট্রেশন নম্বর লিখে সংশ্লিষ্ট বৃত্ত ভরাট করতে হবে।
                 </div>
 
                 <!-- Illustrated Bubble filling guide -->
-                <div style="margin-bottom: 3.5px; background: #fef2f2; padding: 3px; border-radius: 2px; border: 0.5px solid #fecaca;">
-                  <div style="color: #991b1b; font-weight: 800; font-size: 6.5px; margin-bottom: 1.5px;">
-                    ৩। বৃত্তগুলো এমনভাবে ভরাট করতে হবে যেন ভেতরের লেখাটি দেখা না যায়।
+                <div style="margin-bottom: 3.5px; border: 0.7px solid #000000; border-radius: 2px; padding: 2.5px 4px; background: #f8fafc;">
+                  <div style="font-weight: 800; font-size: 6.2px; margin-bottom: 1px;">
+                    ৩। বৃত্তগুলো এমনভাবে ভরাট করতে হবে যেন ভেতরের লেখাটি দেখা না যায়। যেমন-
                   </div>
-                  <div style="display: flex; align-items: center; justify-content: space-around; font-size: 6px;">
-                    <span style="color: #15803d; font-weight: bold;">সঠিক পদ্ধতি: ●</span>
+                  <div style="display: flex; align-items: center; justify-content: space-around; font-size: 5.8px; font-weight: bold;">
+                    <span style="color: #15803d;">সঠিক পদ্ধতি: ●</span>
                     <span style="color: #b91c1c;">ভুল পদ্ধতি: ⊗ ⊙ ◐ ✕</span>
                   </div>
                 </div>
 
                 <div style="margin-bottom: 3.5px;">
-                  <strong style="color: #dc2626;">৪।</strong> প্রতিটি প্রশ্নের চারটি অপশন (Option) দেওয়া আছে। সঠিক অপশনটি বেছে নিয়ে OMR উত্তরপত্রের সংশ্লিষ্ট বৃত্তটি <strong>কালো কালির বলপেন</strong> দিয়ে সম্পূর্ণ ভরাট করতে হবে।
+                  <strong>৪।</strong> অনুরোধের প্রেক্ষিতে প্রশ্নের প্রতিটি অপশন (Option) দেওয়া আছে। সঠিক অপশনটি বেছে নিয়ে OMR উত্তরপত্রের সংশ্লিষ্ট বৃত্তটি কালো কালির বলপেন দিয়ে সম্পূর্ণভাবে ভরাট করতে হবে।
                 </div>
 
                 <div style="margin-bottom: 3.5px;">
-                  <strong style="color: #dc2626;">৫।</strong> OMR উত্তরপত্রটি মেশিনে মূল্যায়ন করা হবে। এজন্য কোনো অংশে দাগ দেওয়া যাবে না বা রাফ করার কাজে ব্যবহার করা যাবে না।
+                  <strong>৫।</strong> OMR উত্তরপত্রটি মেশিনে মূল্যায়ন করা হবে। এজন্য OMR উত্তরপত্রের কোনো অংশে দাগ দেওয়া যাবে না বা রাফ করার কাজে ব্যবহার করা যাবে না।
                 </div>
 
                 <div style="margin-bottom: 3.5px;">
-                  <strong style="color: #dc2626;">৬।</strong> ভুলভাবে ভরাটকৃত উত্তরপত্র বাতিল বলে গণ্য হবে।
+                  <strong>৬।</strong> অসম্পূর্ণ বা ভুলভাবে ভরাটকৃত উত্তরপত্র বাতিল বলে গণ্য হবে।
                 </div>
 
                 <div style="margin-bottom: 3.5px;">
-                  <strong style="color: #dc2626;">৭।</strong> পরীক্ষা কক্ষে মোবাইল বা কোনো প্রকার ডিজিটাল ডিভাইস সম্পূর্ণ নিষিদ্ধ।
+                  <strong>৭।</strong> পরীক্ষা কক্ষে মোবাইল বা কোনো প্রকার ডিজিটাল ডিভাইস সম্পূর্ণ নিষিদ্ধ।
                 </div>
 
                 <div style="margin-bottom: 3.5px;">
-                  <strong style="color: #dc2626;">৮।</strong> অসদুপায় অবলম্বন করলে সাথে সাথে বহিষ্কার করা হবে।
+                  <strong>৮।</strong> পরীক্ষার্থীকে অন্যোপায় অবলম্বনে অথবা বিশৃঙ্খলা সৃষ্টি করতে দেখা গেলে সংশ্লিষ্ট কর্মকর্তা তাকে তাৎক্ষণিকভাবে বহিষ্কার করতে পারবেন।
                 </div>
 
                 <div style="margin-bottom: 3.5px;">
-                  <strong style="color: #dc2626;">৯।</strong> খসড়ার জন্য প্রশ্নপত্র ব্যবহার করা যাবে। কোনো পৃথক কাগজ ব্যবহার করা যাবে না।
+                  <strong>৯।</strong> খসড়ার জন্য প্রশ্নপত্র ব্যবহার করা যাবে। কোনো পৃথক কাগজ ব্যবহার করা যাবে না।
                 </div>
 
                 <div style="margin-bottom: 3.5px;">
-                  <strong style="color: #dc2626;">১০।</strong> পরীক্ষা শেষ না হওয়া পর্যন্ত কোনো পরীক্ষার্থী হল ত্যাগ করতে পারবে না।
+                  <strong>১০।</strong> পরীক্ষা শেষ না হওয়া পর্যন্ত কোনো পরীক্ষার্থী হল ত্যাগ করতে পারবে না।
                 </div>
 
                 <div>
-                  <strong style="color: #dc2626;">১১।</strong> প্রতিটি সঠিক উত্তরের জন্য <strong>১ নম্বর</strong> পাওয়া যাবে। প্রতিটি ভুল উত্তরের জন্য <strong>০.২৫ নম্বর</strong> কাটা যাবে।
+                  <strong>১১।</strong> প্রতিটি সঠিক উত্তরের জন্য <strong>${exam.markPerQuestion || 1} নম্বর</strong> পাওয়া যাবে। প্রতিটি ভুল উত্তরের জন্য <strong>${exam.negativeMarkPercentage !== undefined ? exam.negativeMarkPercentage : 0.25} নম্বর</strong> কাটা যাবে।
                 </div>
+
+                ${exam.instructions ? `
+                  <div style="margin-top: 4px; padding-top: 3px; border-top: 0.8px dashed #cbd5e1; font-style: italic; color: #334155;">
+                    <strong>বিশেষ নির্দেশনা:</strong> ${exam.instructions}
+                  </div>
+                ` : ''}
               </div>
 
             </div>
 
             <!-- Rough Work Area -->
-            <div style="flex: 1; border: 1.2px dashed #94a3b8; border-radius: 4px; margin-top: 5px; padding: 4px; background: #fafafa; display: flex; flex-direction: column;">
-              <div style="font-size: 6.5px; font-weight: 800; color: #64748b; text-align: center; border-bottom: 0.8px dashed #cbd5e1; padding-bottom: 2px;">
+            <div style="flex: 1; border: 1px dashed #cbd5e1; border-radius: 3px; margin-top: 5px; padding: 4px; background: #ffffff; display: flex; flex-direction: column;">
+              <div style="font-size: 6px; font-weight: 800; color: #64748b; text-align: center; border-bottom: 0.6px dashed #cbd5e1; padding-bottom: 1.5px;">
                 খসড়া বা রাফ করার স্থান (ROUGH WORK)
               </div>
-              <div style="flex: 1; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 10px; font-weight: bold;">
+              <div style="flex: 1; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 9px; font-weight: bold;">
                 (প্রয়োজনে হিসাব-নিকাশ করার জন্য)
               </div>
             </div>
@@ -505,9 +499,9 @@ function buildUnmeshStyleHtml(
         </div>
 
         <!-- Page 2 Footer -->
-        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 6.5px; color: #64748b; border-top: 1px solid #cbd5e1; padding-top: 2px; margin-top: 3px;">
-          <span>${exam.title} • সেট কোড: ${set.setCode}</span>
-          <span style="font-weight: 800; color: #0f172a;">[পৃষ্ঠা ২ (বিপরীতভাগ - সমাপ্ত)]</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 6px; color: #475569; border-top: 0.8px solid #cbd5e1; padding-top: 2px; margin-top: 2px;">
+          <span>${exam.courseName} • ${exam.title} • ${set.setCode}</span>
+          <span style="font-weight: 800; color: #000000;">[পাতা ২ of ২ - সমাপ্ত]</span>
           <span>${appName}</span>
         </div>
 
@@ -519,7 +513,7 @@ function buildUnmeshStyleHtml(
 }
 
 /**
- * Generate 2-Page Unmesh-Style Printable PDF
+ * Generate 2-Page Printable PDF matching reference images
  */
 export const generateAdmissionStylePDF = async (
   exam: Exam,
