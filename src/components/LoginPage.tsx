@@ -8,7 +8,14 @@ interface LoginPageProps {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ courses }) => {
-  const { loginTeacher, checkStudentEmail, loginExistingStudent, registerNewStudent } = useAuth();
+  const { 
+    loginTeacher, 
+    checkStudentEmail, 
+    loginExistingStudent, 
+    registerNewStudent,
+    loginAsDemoAdmin,
+    loginAsDemoStudent
+  } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'teacher' | 'student'>('teacher');
 
@@ -481,6 +488,33 @@ export const LoginPage: React.FC<LoginPageProps> = ({ courses }) => {
             )}
           </div>
         )}
+
+        {/* Quick Instant Demo Access */}
+        <div className="pt-4 mt-6 border-t border-slate-200 dark:border-slate-800 space-y-3">
+          <div className="text-center">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              ⚡ দ্রুত টেস্ট করার জন্য সরাসরি প্রবেশ (1-Click Demo)
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={loginAsDemoAdmin}
+              className="py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer ring-1 ring-white/10"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>অ্যাডমিন হিসেবে প্রবেশ</span>
+            </button>
+            <button
+              type="button"
+              onClick={loginAsDemoStudent}
+              className="py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-white font-bold text-xs flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-700 shadow-sm transition-all cursor-pointer"
+            >
+              <GraduationCap className="w-4 h-4 text-emerald-500" />
+              <span>শিক্ষার্থী হিসেবে প্রবেশ</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

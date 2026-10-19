@@ -10,21 +10,36 @@ declare global {
 }
 
 if ('serviceWorker' in navigator) {
-  let refreshing = false;
-
-  // When a new Service Worker takes control, reload immediately to activate the new version
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (refreshing) return;
-    refreshing = true;
-    window.location.reload();
-  });
-
-  window.addEventListener('load', async () => {
-    try {
-      // updateViaCache: 'none' forces the browser / WebView to bypass HTTP cache when checking for sw.js updates
-      const reg = await navigator.serviceWorker.register('/sw.js', { 
-        updateViaCache: 'none' 
+  // In development, clear any lingering service workers so hot updates and fresh code are never stale
+  if (import.meta.env.DEV) {
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      for (const registration of registrations) {
+        registration.unregister();
+      }
+    });
+    if ('caches' in window) {
+      caches.keys().then((names) => {
+        for (const name of names) {
+          caches.delete(name);
+        }
       });
+    }
+  } else {
+    let refreshing = false;
+
+    // When a new Service Worker takes control, reload immediately to activate the new version
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    });
+
+    window.addEventListener('load', async () => {
+      try {
+        // updateViaCache: 'none' forces the browser / WebView to bypass HTTP cache when checking for sw.js updates
+        const reg = await navigator.serviceWorker.register('/sw.js', { 
+          updateViaCache: 'none' 
+        });
 
       // Check for Service Worker updates
       const checkForUpdate = async () => {
@@ -93,6 +108,7 @@ if ('serviceWorker' in navigator) {
       console.warn('[PWA] Service worker registration error:', err);
     }
   });
+  }
 }
 
 createRoot(document.getElementById('root')!).render(<App />);

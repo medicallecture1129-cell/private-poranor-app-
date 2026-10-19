@@ -1,5 +1,5 @@
 // Service Worker for Exam Portal PWA - Auto-Update Enabled for Installed PWAs
-const CACHE_NAME = 'exam-portal-app-v4';
+const CACHE_NAME = 'exam-portal-app-v6';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
@@ -46,10 +46,15 @@ self.addEventListener('message', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = event.request.url;
 
-  // CRITICAL: Always bypass Service Worker cache for Firebase, Firestore, Google APIs, and non-GET requests
-  // This ensures 100% real-time Firestore synchronization without stale cache interference
+  // CRITICAL: Always bypass Service Worker cache for development, Vite HMR, Firebase, Firestore, Google APIs, and non-GET requests
+  // This ensures 100% real-time synchronization without stale cache interference
   if (
     event.request.method !== 'GET' ||
+    url.includes('/@vite/') ||
+    url.includes('/@fs/') ||
+    url.includes('/src/') ||
+    url.includes('/node_modules/') ||
+    url.includes('hot-update') ||
     url.includes('firestore.googleapis.com') ||
     url.includes('googleapis.com') ||
     url.includes('firebasedatabase.app') ||

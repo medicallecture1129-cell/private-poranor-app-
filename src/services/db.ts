@@ -30,12 +30,22 @@ import {
   VideoNote,
   AppNotification
 } from '../types';
+import { createSampleOfflineExam } from '../utils/sampleOfflineExam';
 
 // Default Admin account for bootstrapping first login if database is fresh
 export const DEFAULT_ADMIN: AdminUser = {
   id: 'admin_primary',
   name: 'Head Teacher / Admin',
   email: 'admin@examportal.com',
+  password: 'admin',
+  canManageAdmins: true,
+  createdAt: 1700000000000
+};
+
+export const OWNER_ADMIN: AdminUser = {
+  id: 'admin_owner',
+  name: 'Abdullah (System Admin)',
+  email: 'examportalabdullah1@gmail.com',
   password: 'admin',
   canManageAdmins: true,
   createdAt: 1700000000000
@@ -478,12 +488,20 @@ export const subscribeExams = (
         list.push({ id: doc.id, ...doc.data() } as Exam);
       });
       list.sort((a, b) => b.createdAt - a.createdAt);
+
+      // If no offline exam exists in Firestore yet, provide the high-quality 100-MCQ Medical Model Test as demo
+      const hasOfflineExam = list.some(e => e.isOffline || e.examType === 'offline');
+      if (!hasOfflineExam) {
+        const sampleOffline = createSampleOfflineExam();
+        list.unshift(sampleOffline);
+      }
+
       callback(list);
     }, 
     (error) => {
       console.error("Firestore exams listener error:", error);
       if (onError) onError(error);
-      callback([]);
+      callback([createSampleOfflineExam()]);
     }
   );
 };
