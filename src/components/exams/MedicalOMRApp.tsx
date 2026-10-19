@@ -52,7 +52,7 @@ interface MedicalOMRAppProps {
 export default function MedicalOMRApp({ onBack }: MedicalOMRAppProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'questions' | 'generator' | 'scanner'>('dashboard');
   
-  // Exam Details Config (Added at the start of Question Input)
+  // Exam Details Config
   const [examMeta, setExamMeta] = useState({
     examName: "MEDICAL & DENTAL ADMISSION MODEL TEST - 2026",
     institute: "DOCTORS' CARE ACADEMY",
@@ -82,7 +82,7 @@ export default function MedicalOMRApp({ onBack }: MedicalOMRAppProps) {
   // Bulk Import State
   const [bulkText, setBulkText] = useState("");
   
-  // Dynamic Sets Config (Fixed the fixed-4 issue)
+  // Dynamic Sets Config
   const [setCount, setSetCount] = useState<number>(4); 
 
   // Students & Results
@@ -120,44 +120,96 @@ export default function MedicalOMRApp({ onBack }: MedicalOMRAppProps) {
     alert("সফলভাবে একটি প্রশ্ন যুক্ত করা হয়েছে!");
   };
 
-  // --- 2. BULK QUESTION PARSER (Fixed to process all questions correctly) ---
+  // --- 2. FIXED BULK QUESTION PARSER (Handles multiple questions perfectly, scanning line-by-line) ---
   const handleBulkImport = (e: React.FormEvent) => {
     e.preventDefault();
     if (!bulkText.trim()) return;
 
-    const blocks = bulkText.split(/\n\s*\n/).filter(b => b.trim() !== "");
+    // Split text by lines and group them into individual questions
+    const lines = bulkText.split('\n').map(l => l.trim()).filter(l => l !== "");
     const parsedQuestions: QuestionItem[] = [];
+    
+    let currentQ: string | null = null;
+    let currentOpts: string[] = [];
+    let currentAns = 0;
+    let currentExp = "ব্যাখ্যা দেওয়া নেই।";
 
-    blocks.forEach((block) => {
-      const lines = block.split('\n').map(l => l.trim()).filter(l => l !== "");
-      if (lines.length >= 5) {
-        const qText = lines[0].replace(/^\d+[\.\)]\s*/, '');
-        const options = lines.slice(1, 5).map(opt => opt.replace(/^[A-Da-d][\.\)]\s*/, ''));
-        const ansLine = lines.find(l => l.toLowerCase().includes('সঠিক') || l.toLowerCase().includes('ans'));
-        let ansIndex = 0;
-        if (ansLine) {
-          if (ansLine.toUpperCase().includes('B')) ansIndex = 1;
-          else if (ansLine.toUpperCase().includes('C')) ansIndex = 2;
-          else if (ansLine.toUpperCase().includes('D')) ansIndex = 3;
+    // Helper regex to detect start of a question:
+    // English digits (1., 1)), Bengali digits (১., ১)), or Q1./প্রশ্ন ১.
+    const isNewQuestionLine = (l: string) => {
+      return (
+        /^(\d+|[০-৯]+)[\.\)\-:]/i.test(l) ||
+        /^(?:Q|প্রশ্ন)\s*(\d+|[০-৯]+)[\.\)\-:]/i.test(l)
+      );
+    };
+
+    // Helper regex to detect options (A., B., C., D. / (A), (B) / ক., খ., গ., ঘ.)
+    const isOptionLine = (l: string) => {
+      return (
+        /^(?:\(?)?[A-Da-d][\.\)\-:]/.test(l) ||
+        /^(?:\(?)?[কখগঘ][\.\)\-:]/.test(l)
+      );
+    };
+
+    lines.forEach((line) => {
+      // Detect if line is a new question
+      if (isNewQuestionLine(line)) {
+        // If we already were building a question, push it before starting the next
+        if (currentQ && currentOpts.length >= 4) {
+          parsedQuestions.push({
+            id: masterQuestions.length + parsedQuestions.length + 1,
+            question: currentQ,
+            options: currentOpts.slice(0, 4),
+            answer: currentAns,
+            explanation: currentExp
+          });
         }
-        const expLine = lines.find(l => l.toLowerCase().includes('ব্যাখ্যা') || l.toLowerCase().includes('exp')) || "ব্যাখ্যা দেওয়া নেই।";
-
-        parsedQuestions.push({
-          id: masterQuestions.length + parsedQuestions.length + 1,
-          question: qText,
-          options: options.length === 4 ? options : ["Option A", "Option B", "Option C", "Option D"],
-          answer: ansIndex,
-          explanation: expLine
-        });
+        // Reset for new question
+        currentQ = line.replace(/^(?:(?:Q|প্রশ্ন)\s*)?(\d+|[০-৯]+)[\.\)\-:]\s*/i, '');
+        currentOpts = [];
+        currentAns = 0;
+        currentExp = "ব্যাখ্যা দেওয়া নেই।";
+      } 
+      // Detect Options (A), B), C), D) or a, b, c, d) or (ক), (খ), (গ), (ঘ))
+      else if (isOptionLine(line)) {
+        const optText = line.replace(/^(?:\(?)?([A-Da-d]|[কখগঘ])[\.\)\-:]\s*/, '');
+        currentOpts.push(optText);
+      } 
+      // Detect Correct Answer (checks 'সঠিক', 'ans', 'উত্তর')
+      else if (line.toLowerCase().includes('সঠিক') || line.toLowerCase().includes('ans') || line.includes('উত্তর')) {
+        const upper = line.toUpperCase();
+        if (upper.includes('B') || line.includes('খ')) currentAns = 1;
+        else if (upper.includes('C') || line.includes('গ')) currentAns = 2;
+        else if (upper.includes('D') || line.includes('ঘ')) currentAns = 3;
+        else currentAns = 0; // Default A / ক
+      } 
+      // Detect Explanation
+      else if (line.toLowerCase().includes('ব্যাখ্যা') || line.toLowerCase().includes('exp')) {
+        currentExp = line.replace(/^(?:ব্যাখ্যা|exp)[:\-]\s*/i, '');
+      }
+      // If continuation of question text before any options appear
+      else if (currentQ && currentOpts.length === 0) {
+        currentQ += ' ' + line;
       }
     });
+
+    // Push the last question if valid
+    if (currentQ && currentOpts.length >= 4) {
+      parsedQuestions.push({
+        id: masterQuestions.length + parsedQuestions.length + 1,
+        question: currentQ,
+        options: currentOpts.slice(0, 4),
+        answer: currentAns,
+        explanation: currentExp
+      });
+    }
 
     if (parsedQuestions.length > 0) {
       setMasterQuestions([...masterQuestions, ...parsedQuestions]);
       setBulkText("");
       alert(`সফলভাবে ${parsedQuestions.length} টি প্রশ্ন বাল্ক ইনপুট করা হয়েছে!`);
     } else {
-      alert("সঠিক ফরম্যাটে লেখা পাওয়া যায়নি।");
+      alert("সঠিক ফরম্যাটে লেখা পাওয়া যায়নি। দয়া করে প্রতিটি প্রশ্ন নম্বর (যেমন ১., ২. বা 1., 2.) দিয়ে শুরু করুন এবং অপশনগুলো A, B, C, D আকারে দিন।");
     }
   };
 
@@ -176,7 +228,7 @@ export default function MedicalOMRApp({ onBack }: MedicalOMRAppProps) {
     setActiveTab('dashboard');
   };
 
-  // --- 4. EXAM PAPER & OMR PDF GENERATOR (With QR, Student ID Bubbles & Dynamic Questions) ---
+  // --- 4. EXAM PAPER & OMR PDF GENERATOR ---
   const handlePrintExamPaper = (setName: string) => {
     let questionsHTML = '';
     masterQuestions.forEach((q, idx) => {
@@ -646,18 +698,26 @@ export default function MedicalOMRApp({ onBack }: MedicalOMRAppProps) {
 
             {/* Method 2: Bulk Notepad Import */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
-              <h3 className="text-lg font-bold text-slate-800">পদ্ধতি ২: বাল্ক প্রশ্ন পেস্ট (নোটপ্যাড থেকে)</h3>
+              <h3 className="text-lg font-bold text-slate-800">পদ্ধতি ২: বাল্ক প্রশ্ন পেস্ট (নোটপ্যাড থেকে একসাথে একাধিক)</h3>
               <form onSubmit={handleBulkImport} className="space-y-4">
                 <textarea 
-                  rows={6}
+                  rows={8}
                   value={bulkText}
                   onChange={(e) => setBulkText(e.target.value)}
-                  placeholder={`১. প্রশ্ন এখানে লিখুন?
+                  placeholder={`১. প্রথম প্রশ্ন এখানে লিখুন?
 A) অপশন ১
 B) অপশন ২
 C) অপশন ৩
 D) অপশন ৪
 সঠিক উত্তর: A
+ব্যাখ্যা: ব্যাখ্যা এখানে...
+
+২. দ্বিতীয় প্রশ্ন এখানে লিখুন?
+A) অপশন ১
+B) অপশন ২
+C) অপশন ৩
+D) অপশন ৪
+সঠিক উত্তর: B
 ব্যাখ্যা: ব্যাখ্যা এখানে...`}
                   className="w-full p-3 border border-slate-300 rounded-xl text-sm font-mono bg-slate-50 outline-hidden"
                   required
@@ -667,7 +727,7 @@ D) অপশন ৪
                   className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-700 flex items-center space-x-2 cursor-pointer transition-colors shadow-xs"
                 >
                   <Clipboard className="w-4 h-4" />
-                  <span>বাল্ক প্রশ্ন আপলোড করুন</span>
+                  <span>বাল্ক প্রশ্ন আপলোড করুন (সবগুলো একসাথে যুক্ত হবে)</span>
                 </button>
               </form>
             </div>
