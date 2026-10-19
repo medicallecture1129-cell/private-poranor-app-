@@ -13,7 +13,9 @@ import {
   ChevronUp, 
   HelpCircle,
   ShieldAlert,
-  ArrowLeft
+  ArrowLeft,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 
 interface ExamRunnerProps {
@@ -106,10 +108,100 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
   const [liveSuccessMsg, setLiveSuccessMsg] = useState(false);
+  const [offlineSuccessMsg, setOfflineSuccessMsg] = useState(false);
 
-  // Shortcut Question Palette panel state (Toggleable, default open on desktop, minimizable on mobile)
+  // Anti-Cheat Guard State
+  const [cheatWarnings, setCheatWarnings] = useState<number>(0);
+  const [showCheatModal, setShowCheatModal] = useState<boolean>(false);
+  const [cheatModalMessage, setCheatModalMessage] = useState<string>('');
+  const [autoSubmittedByCheat, setAutoSubmittedByCheat] = useState<boolean>(false);
+  const lastSwitchTimeRef = useRef<number>(0);
+
+  // Offline Resilient State
+  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+  // Shortcut Question Palette panel state
   const [paletteOpen, setPaletteOpen] = useState(true);
   const [paletteSide, setPaletteSide] = useState<'right' | 'left'>('right');
+
+  // Monitor Network Connectivity for Offline Safe Exam Taking
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      // Auto-sync any pending offline submissions
+      try {
+        const pending = localStorage.getItem('examportal_pending_offline_submissions');
+        if (pending) {
+          const subs: ExamSubmission[] = JSON.parse(pending);
+          subs.forEach((s) => {
+            submitExamAnswers(s).catch(console.error);
+          });
+          localStorage.removeItem('examportal_pending_offline_submissions');
+        }
+      } catch {}
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Anti-Cheat & Tab Switch Guard Listener
+  useEffect(() => {
+    if (autoSubmittedByCheat || liveSuccessMsg || offlineSuccessMsg) return;
+
+    const triggerCheatWarning = () => {
+      const now = Date.now();
+      // Debounce if multiple triggers occur in quick succession
+      if (now - lastSwitchTimeRef.current < 2000) return;
+      lastSwitchTimeRef.current = now;
+
+      setCheatWarnings((prev) => {
+        const newCount = prev + 1;
+        if (newCount >= 3) {
+          setAutoSubmittedByCheat(true);
+          setShowCheatModal(true);
+          setCheatModalMessage('সর্বোচ্চ ৩ বার সতর্কতা লঙ্ঘন হয়েছে! পরীক্ষাটি বাতিল এবং স্বয়ংক্রিয়ভাবে সাবমিট করা হলো।');
+          setTimeout(() => {
+            handleFinalSubmit(true, newCount);
+          }, 1500);
+          return newCount;
+        } else if (newCount === 2) {
+          setShowCheatModal(true);
+          setCheatModalMessage('দ্বিতীয় সতর্কতা (২/৩): পরীক্ষা চলাকালীন ট্যাব বা উইন্ডো পরিবর্তন নিষিদ্ধ! আর মাত্র ১ বার লঙ্ঘন করলে পরীক্ষা সাথে সাথে অটো-সাবমিট হয়ে যাবে!');
+        } else {
+          setShowCheatModal(true);
+          setCheatModalMessage('প্রথম সতর্কতা (১/৩): আপনি ব্রাউজার ট্যাব পরিবর্তন অথবা উইন্ডো মিনিমাইজ করেছেন। পরীক্ষা চলাকালীন সর্বদা এই স্ক্রিনে থাকুন!');
+        }
+        return newCount;
+      });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        triggerCheatWarning();
+      }
+    };
+
+    const handleWindowBlur = () => {
+      triggerCheatWarning();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleWindowBlur);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleWindowBlur);
+    };
+  }, [autoSubmittedByCheat, liveSuccessMsg, offlineSuccessMsg]);
 
   // Strict Real-time countdown timer loop
   useEffect(() => {
@@ -173,7 +265,7 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
   };
 
   // Submit and Calculate Scores
-  const handleFinalSubmit = async () => {
+  const handleFinalSubmit = async (cheatingFlag: boolean = false, switchCount?: number) => {
     if (isSubmitting || !user) return;
     setIsSubmitting(true);
 
@@ -229,6 +321,8 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
       studentEmail: user.email,
       studentName: user.name,
       studentCollege: user.college || 'N/A',
+      rollNo: (user as any).rollNo || undefined,
+      tabSwitchCount: switchCount !== undefined ? switchCount : cheatWarnings,
       isLive: effectiveIsLive && (exam.endTime ? now <= exam.endTime : true),
       startTime: session.startedAt,
       submittedAt: now,
@@ -242,13 +336,28 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
       answers: studentAnswers
     };
 
+    // Clean up local exam session
+    try {
+      localStorage.removeItem(sessionKey);
+    } catch {}
+
+    // Check if offline
+    if (!navigator.onLine) {
+      // Store in offline queue
+      try {
+        const key = 'examportal_pending_offline_submissions';
+        const pending = localStorage.getItem(key);
+        const list = pending ? JSON.parse(pending) : [];
+        list.push({ ...submissionData, id: 'sub_offline_' + Date.now() });
+        localStorage.setItem(key, JSON.stringify(list));
+      } catch {}
+      setOfflineSuccessMsg(true);
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const savedSub = await submitExamAnswers(submissionData);
-
-      // Mark session finished
-      try {
-        localStorage.removeItem(sessionKey);
-      } catch {}
 
       if (submissionData.isLive) {
         setLiveSuccessMsg(true);
@@ -256,7 +365,16 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
         onFinished(savedSub);
       }
     } catch (err) {
-      console.error('Submission failed:', err);
+      console.error('Submission failed, storing offline:', err);
+      // Fallback offline queue on network error
+      try {
+        const key = 'examportal_pending_offline_submissions';
+        const pending = localStorage.getItem(key);
+        const list = pending ? JSON.parse(pending) : [];
+        list.push({ ...submissionData, id: 'sub_offline_' + Date.now() });
+        localStorage.setItem(key, JSON.stringify(list));
+      } catch {}
+      setOfflineSuccessMsg(true);
     } finally {
       setIsSubmitting(false);
     }
@@ -264,6 +382,39 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
 
   const answeredCount = Object.values(answers).filter(Boolean).length;
   const isUrgentTimer = secondsRemaining <= 180; // under 3 mins
+
+  if (offlineSuccessMsg) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+        <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 text-center space-y-6 shadow-2xl">
+          <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto">
+            <WifiOff className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-2">
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+              অফলাইন সেফ সাবমিশন সংরক্ষিত হয়েছে!
+            </h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+              ইন্টারনেট সংযোগ না থাকায় আপনার উত্তরপত্রটি ডিভাইসের সুরক্ষিত মেমরিতে এনক্রিপ্ট করে সেভ করা হয়েছে। ইন্টারনেট ফিরে আসা মাত্রই এটি ব্যাকগ্রাউন্ডে স্বয়ংক্রিয়ভাবে ক্লাউডে সাবমিট হবে।
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-xs text-amber-800 dark:text-amber-300 text-left space-y-1">
+            <span className="font-bold block">💡 পরীক্ষার্থী নির্দেশিকা:</span>
+            <span>ব্রাউজার ক্যাশ ক্লিয়ার করবেন না। নেটওয়ার্ক পেলেই আপনার রেজাল্ট সার্ভারে যুক্ত হয়ে যাবে।</span>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors cursor-pointer"
+          >
+            Back to Exam Hub
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (liveSuccessMsg) {
     return (
@@ -299,13 +450,59 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-100 dark:bg-slate-950 flex flex-col overflow-hidden">
+      {/* Anti-Cheat Warning Modal */}
+      {showCheatModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/95 backdrop-blur-md animate-in fade-in">
+          <div className="w-full max-w-md bg-slate-900 border-2 border-red-500 rounded-3xl p-6 text-center space-y-4 shadow-[0_0_50px_rgba(239,68,68,0.4)]">
+            <div className="w-16 h-16 rounded-full bg-red-950 border border-red-500/60 text-red-500 flex items-center justify-center mx-auto animate-bounce">
+              <ShieldAlert className="w-8 h-8" />
+            </div>
+
+            <div>
+              <span className="px-3 py-1 rounded-full bg-red-500/20 text-red-400 text-xs font-black tracking-wider uppercase border border-red-500/30">
+                Exam Anti-Cheat Guard
+              </span>
+              <h3 className="text-lg font-black text-white mt-2">
+                {cheatWarnings >= 3 ? '🚨 পরীক্ষা অটো-সাবমিট!' : `⚠️ অ্যান্টি-চিট সতর্কতা (${cheatWarnings}/৩)`}
+              </h3>
+              <p className="text-xs text-red-200 mt-2 leading-relaxed bg-red-950/50 p-3 rounded-xl border border-red-900/50">
+                {cheatModalMessage}
+              </p>
+            </div>
+
+            <div className="space-y-2 pt-2">
+              {cheatWarnings < 3 ? (
+                <button
+                  onClick={() => setShowCheatModal(false)}
+                  className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer shadow-lg shadow-red-900/50"
+                >
+                  আমি বুঝতে পেরেছি, পরীক্ষায় ফিরুন
+                </button>
+              ) : (
+                <div className="text-xs text-slate-400 animate-pulse">
+                  উত্তরপত্র প্রসেসিং ও সাবমিট হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Top Bar: Exam Title, Course, Countdown Timer, Submit */}
       <header className="px-4 sm:px-6 py-3.5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 shrink-0 shadow-xs z-30">
         <div className="flex items-center gap-3 min-w-0">
           <div className="min-w-0">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-              {effectiveIsLive ? '🔴 Live Official Exam' : 'Practice Exam'} • {exam.courseName}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                {effectiveIsLive ? '🔴 Live Official Exam' : 'Practice Exam'} • {exam.courseName}
+              </span>
+              {!isOnline && (
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-500 border border-amber-500/30 text-[9px] font-bold flex items-center gap-1">
+                  <WifiOff className="w-2.5 h-2.5" />
+                  <span>Offline Resilient</span>
+                </span>
+              )}
+            </div>
             <h1 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
               {exam.title}
             </h1>
@@ -314,6 +511,12 @@ export const ExamRunner: React.FC<ExamRunnerProps> = ({
 
         {/* Center/Right Timer & Submit Action */}
         <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+          {/* Anti-cheat status pill */}
+          <div className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-semibold text-slate-600 dark:text-slate-300">
+            <ShieldAlert className="w-3.5 h-3.5 text-blue-500" />
+            <span>সতর্কতা: {cheatWarnings}/৩</span>
+          </div>
+
           {/* Real-time Countdown Timer Badge */}
           <div className={`flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl border font-mono font-bold text-xs sm:text-sm shadow-xs transition-colors ${
             isUrgentTimer

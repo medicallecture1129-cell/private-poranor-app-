@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { subscribePortalSettings, DEFAULT_PORTAL_SETTINGS } from '../services/db';
-import { PortalSettings } from '../types';
+import { 
+  subscribePortalSettings, 
+  DEFAULT_PORTAL_SETTINGS,
+  subscribeNotifications,
+  markNotificationRead
+} from '../services/db';
+import { PortalSettings, AppNotification } from '../types';
 import { ColorStudioModal } from './ui/ColorStudioModal';
 import { 
   LogOut, 
@@ -14,7 +19,12 @@ import {
   Cloud, 
   Bell, 
   Palette, 
-  RefreshCw
+  RefreshCw,
+  Radio,
+  FileCheck,
+  Award,
+  Sparkles,
+  Check
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -27,10 +37,25 @@ export const Navbar: React.FC = () => {
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showPaletteModal, setShowPaletteModal] = useState(false);
+  
+  // Real-Time Notifications State
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [pushStatus, setPushStatus] = useState<string>(
+    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default'
+  );
 
   // App update checking state for PWA
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [updateFeedback, setUpdateFeedback] = useState<string | null>(null);
+
+  // Subscribe to real-time notifications
+  useEffect(() => {
+    const unsub = subscribeNotifications((notifs) => {
+      setNotifications(notifs);
+    });
+    return () => unsub();
+  }, []);
 
   // Subscribe to real-time Portal Settings from Firestore
   useEffect(() => {
@@ -92,10 +117,28 @@ export const Navbar: React.FC = () => {
       if (showProfileModal) setShowProfileModal(false);
       if (showInstallGuide) setShowInstallGuide(false);
       if (showPaletteModal) setShowPaletteModal(false);
+      if (showNotificationsModal) setShowNotificationsModal(false);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [showProfileModal, showInstallGuide, showPaletteModal]);
+  }, [showProfileModal, showInstallGuide, showPaletteModal, showNotificationsModal]);
+
+  const handleRequestPushPermission = async () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      try {
+        const perm = await Notification.requestPermission();
+        setPushStatus(perm);
+        if (perm === 'granted') {
+          new Notification('ওয়েব পুশ নোটিফিকেশন চালু হয়েছে!', {
+            body: 'লাইভ ক্লাস, পরীক্ষার রুটিন এবং রেজাল্ট পাবলিশ হলে রিয়েল-টাইম নোটিফিকেশন পাবেন।',
+            icon: '/favicon.ico'
+          });
+        }
+      } catch (err) {
+        console.warn('Push permission error:', err);
+      }
+    }
+  };
 
 
   // Trigger manual app update check for installed PWA / browser
@@ -163,6 +206,23 @@ export const Navbar: React.FC = () => {
 
           {/* Right: Controls, Install PWA, & Profile (Light mode removed) */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Real-time Notifications Bell Button */}
+            <button
+              onClick={() => {
+                window.history.pushState({ modal: 'notifications' }, '');
+                setShowNotificationsModal(true);
+              }}
+              className="relative p-2 rounded-xl border border-theme-border bg-theme-card hover:bg-theme-card-hover text-slate-200 transition-all cursor-pointer shadow-xs"
+              title="Real-time Notifications & Updates"
+            >
+              <Bell className="w-4 h-4 text-theme-title" />
+              {notifications.filter(n => !n.read).length > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-600 text-white font-mono font-bold text-[9px] flex items-center justify-center animate-pulse shadow-sm">
+                  {notifications.filter(n => !n.read).length > 9 ? '9+' : notifications.filter(n => !n.read).length}
+                </span>
+              )}
+            </button>
+
             {/* Custom Color Studio Button Capsule */}
             <button
               onClick={() => setShowPaletteModal(true)}
@@ -434,6 +494,139 @@ export const Navbar: React.FC = () => {
         isOpen={showPaletteModal} 
         onClose={() => setShowPaletteModal(false)} 
       />
+
+      {/* REAL-TIME NOTIFICATIONS MODAL */}
+      {showNotificationsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-lg bg-theme-card border border-theme-border rounded-3xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-theme-border flex items-center justify-between bg-theme-surface">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                  <Bell className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-theme-title">
+                    নোটিফিকেশন ও ঘোষণা (Notification Hub)
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    লাইভ ক্লাস, এক্সাম রুটিন ও রেজাল্ট সংক্রান্ত সর্বশেষ আপডেট
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowNotificationsModal(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Web Push Notification Status Bar */}
+            <div className="p-3.5 bg-theme-surface/70 border-b border-theme-border flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <Radio className={`w-4 h-4 ${pushStatus === 'granted' ? 'text-emerald-400' : 'text-amber-400'}`} />
+                <span className="text-slate-300 text-[11px]">
+                  ওয়েব পুশ নোটিফিকেশন: <strong className={pushStatus === 'granted' ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>
+                    {pushStatus === 'granted' ? 'সক্রিয় (Active)' : 'নিষ্ক্রিয় (Off)'}
+                  </strong>
+                </span>
+              </div>
+
+              {pushStatus !== 'granted' && typeof window !== 'undefined' && 'Notification' in window && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const res = await Notification.requestPermission();
+                      setPushStatus(res);
+                      if (res === 'granted') {
+                        new Notification('Exam Portal', {
+                          body: 'পুশ নোটিফিকেশন সফলভাবে সক্রিয় হয়েছে!'
+                        });
+                      }
+                    } catch (e) {
+                      console.error(e);
+                    }
+                  }}
+                  className="px-2.5 py-1 rounded-xl btn-theme-primary text-[10px] font-bold cursor-pointer transition-all shadow-xs"
+                >
+                  অনুমতি দিন
+                </button>
+              )}
+            </div>
+
+            {/* Notifications List */}
+            <div className="max-h-[60vh] overflow-y-auto divide-y divide-theme-border p-2">
+              {notifications.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 space-y-2">
+                  <Bell className="w-8 h-8 mx-auto text-slate-500 opacity-50" />
+                  <p className="text-xs font-medium">কোনো নতুন নোটিফিকেশন নেই।</p>
+                  <p className="text-[10px] text-slate-500">নতুন ক্লাস বা এক্সাম পাবলিশ হলে এখানে সরাসরি দেখতে পাবেন।</p>
+                </div>
+              ) : (
+                notifications.map((notif) => (
+                  <div
+                    key={notif.id}
+                    onClick={() => {
+                      if (!notif.read) {
+                        markNotificationRead(notif.id);
+                      }
+                    }}
+                    className={`p-3.5 rounded-2xl flex items-start gap-3 transition-colors cursor-pointer ${
+                      notif.read ? 'hover:bg-theme-surface/50 opacity-80' : 'bg-rose-500/5 hover:bg-rose-500/10'
+                    }`}
+                  >
+                    <div className="p-2 rounded-xl bg-theme-surface border border-theme-border shrink-0 mt-0.5">
+                      {notif.type === 'omr' ? (
+                        <FileCheck className="w-4 h-4 text-purple-400" />
+                      ) : notif.type === 'exam' ? (
+                        <Radio className="w-4 h-4 text-rose-400 animate-pulse" />
+                      ) : notif.type === 'result' ? (
+                        <Award className="w-4 h-4 text-amber-400" />
+                      ) : (
+                        <Sparkles className="w-4 h-4 text-blue-400" />
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="font-bold text-xs text-theme-title truncate">
+                          {notif.title}
+                        </h4>
+                        <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                          {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        {notif.message}
+                      </p>
+                    </div>
+
+                    {!notif.read && (
+                      <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 mt-2" title="Unread" />
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-3 border-t border-theme-border flex items-center justify-between bg-theme-surface">
+              <span className="text-[10px] text-slate-400">
+                মোট {notifications.length} টি নোটিফিকেশন
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowNotificationsModal(false)}
+                className="px-4 py-1.5 rounded-xl bg-theme-card hover:bg-theme-card-hover border border-theme-border text-slate-200 text-xs font-semibold cursor-pointer"
+              >
+                বন্ধ করুন
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

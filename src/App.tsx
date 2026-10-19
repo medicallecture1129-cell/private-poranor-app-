@@ -181,6 +181,7 @@ const MainApp: React.FC = () => {
             exams={exams}
             courses={courses}
             submissions={submissions}
+            students={students}
           />
         )}
 

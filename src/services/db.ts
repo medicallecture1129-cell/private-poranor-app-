@@ -26,7 +26,9 @@ import {
   Exam, 
   ExamSubmission,
   PortalSettings,
-  PresetTheme
+  PresetTheme,
+  VideoNote,
+  AppNotification
 } from '../types';
 
 // Default Admin account for bootstrapping first login if database is fresh
@@ -724,22 +726,32 @@ export const subscribePresetThemes = (
   const q = collection(db, 'presetThemes');
   return onSnapshot(
     q,
-    (snapshot) => {
+    async (snapshot) => {
       const list: PresetTheme[] = [];
       snapshot.forEach((d) => {
         list.push({ id: d.id, ...d.data() } as PresetTheme);
       });
       list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
 
+      // Check if we already bootstrapped before
+      const metaDocRef = doc(db, 'settings', 'themes_meta');
       if (list.length === 0) {
-        // Bootstrap default presets in Firestore
-        DEFAULT_PRESET_THEMES.forEach((theme) => {
-          setDoc(doc(db, 'presetThemes', theme.id), theme).catch(() => {});
-        });
-        callback(DEFAULT_PRESET_THEMES);
-      } else {
-        callback(list);
+        try {
+          const metaSnap = await getDoc(metaDocRef);
+          if (!metaSnap.exists()) {
+            // First time ever bootstrapping
+            await setDoc(metaDocRef, { bootstrapped: true });
+            for (const theme of DEFAULT_PRESET_THEMES) {
+              await setDoc(doc(db, 'presetThemes', theme.id), theme);
+            }
+            callback(DEFAULT_PRESET_THEMES);
+            return;
+          }
+        } catch {
+          // If offline or permission check, fallback
+        }
       }
+      callback(list);
     },
     (error) => {
       console.error('Firestore presetThemes listener error:', error);
@@ -767,5 +779,156 @@ export const createPresetTheme = async (
 };
 
 export const deletePresetTheme = async (id: string): Promise<void> => {
+  // Mark themes_meta bootstrapped so deleting does not trigger auto-reseed
+  try {
+    await setDoc(doc(db, 'settings', 'themes_meta'), { bootstrapped: true }, { merge: true });
+  } catch {}
   await deleteDoc(doc(db, 'presetThemes', id));
+};
+
+export const restoreDefaultThemes = async (): Promise<void> => {
+  for (const theme of DEFAULT_PRESET_THEMES) {
+    await setDoc(doc(db, 'presetThemes', theme.id), theme);
+  }
+};
+
+// ==========================================
+// Video Timestamp Notes & Bookmarks
+// ==========================================
+export const subscribeVideoNotes = (
+  videoId: string,
+  studentId: string,
+  callback: (notes: VideoNote[]) => void
+) => {
+  const q = collection(db, 'videoNotes');
+  return onSnapshot(q, (snapshot) => {
+    const list: VideoNote[] = [];
+    snapshot.forEach((d) => {
+      const data = d.data() as VideoNote;
+      if (data.videoId === videoId && (data.studentId === studentId || !data.studentId)) {
+        list.push({ ...data, id: d.id });
+      }
+    });
+    list.sort((a, b) => a.timestampSeconds - b.timestampSeconds);
+    callback(list);
+  }, () => {
+    // Fallback to local storage
+    try {
+      const local = localStorage.getItem(`video_notes_${videoId}_${studentId}`);
+      if (local) callback(JSON.parse(local));
+      else callback([]);
+    } catch {
+      callback([]);
+    }
+  });
+};
+
+export const addVideoNote = async (
+  note: Omit<VideoNote, 'id' | 'createdAt'>
+): Promise<VideoNote> => {
+  const newNote: VideoNote = {
+    ...note,
+    id: 'vnote_' + Date.now(),
+    createdAt: Date.now()
+  };
+  try {
+    await setDoc(doc(db, 'videoNotes', newNote.id), newNote);
+  } catch (err) {
+    console.warn('Saving video note to localStorage fallback', err);
+  }
+  // Also save to localStorage
+  try {
+    const key = `video_notes_${note.videoId}_${note.studentId}`;
+    const saved = localStorage.getItem(key);
+    const list: VideoNote[] = saved ? JSON.parse(saved) : [];
+    list.push(newNote);
+    list.sort((a, b) => a.timestampSeconds - b.timestampSeconds);
+    localStorage.setItem(key, JSON.stringify(list));
+  } catch {}
+  return newNote;
+};
+
+export const deleteVideoNote = async (noteId: string, videoId: string, studentId: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, 'videoNotes', noteId));
+  } catch {}
+  try {
+    const key = `video_notes_${videoId}_${studentId}`;
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      const list: VideoNote[] = JSON.parse(saved).filter((n: VideoNote) => n.id !== noteId);
+      localStorage.setItem(key, JSON.stringify(list));
+    }
+  } catch {}
+};
+
+// ==========================================
+// In-App & Web Push Notifications
+// ==========================================
+export const subscribeNotifications = (
+  callback: (notifications: AppNotification[]) => void
+) => {
+  const q = collection(db, 'notifications');
+  return onSnapshot(q, (snapshot) => {
+    const list: AppNotification[] = [];
+    snapshot.forEach((d) => {
+      list.push({ id: d.id, ...d.data() } as AppNotification);
+    });
+    list.sort((a, b) => b.createdAt - a.createdAt);
+    callback(list);
+  }, () => {
+    try {
+      const local = localStorage.getItem('examportal_notifications');
+      callback(local ? JSON.parse(local) : []);
+    } catch {
+      callback([]);
+    }
+  });
+};
+
+export const addNotification = async (
+  notification: Omit<AppNotification, 'id' | 'createdAt'>
+): Promise<AppNotification> => {
+  const newNotif: AppNotification = {
+    ...notification,
+    id: 'notif_' + Date.now(),
+    createdAt: Date.now(),
+    read: false
+  };
+  try {
+    await setDoc(doc(db, 'notifications', newNotif.id), newNotif);
+  } catch {}
+  try {
+    const local = localStorage.getItem('examportal_notifications');
+    const list: AppNotification[] = local ? JSON.parse(local) : [];
+    list.unshift(newNotif);
+    localStorage.setItem('examportal_notifications', JSON.stringify(list.slice(0, 50)));
+  } catch {}
+
+  // Trigger browser push notification if permitted
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification(newNotif.title, {
+        body: newNotif.message,
+        icon: '/favicon.ico'
+      });
+    } catch {}
+  }
+
+  return newNotif;
+};
+
+export const markNotificationRead = async (id: string): Promise<void> => {
+  try {
+    await updateDoc(doc(db, 'notifications', id), { read: true });
+  } catch {}
+  try {
+    const local = localStorage.getItem('examportal_notifications');
+    if (local) {
+      const list: AppNotification[] = JSON.parse(local).map((n: AppNotification) => 
+        n.id === id ? { ...n, read: true } : n
+      );
+      localStorage.setItem('examportal_notifications', JSON.stringify(list));
+    }
+  } catch {}
 };

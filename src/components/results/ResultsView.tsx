@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Course, Exam, ExamSubmission, LeaderboardRow, StudentUser } from '../../types';
 import { exportLeaderboardPDF, exportAnswerScriptPDF, exportStudentSummaryPDF } from '../../utils/pdfExport';
 import { getSynchronizedScore } from '../../utils/scoreSync';
+import { generateResultCertificatePDF } from '../../utils/certificateGenerator';
 import { StudentProfileModal } from '../StudentProfileModal';
 import { useToast } from '../../context/ToastContext';
 import { ModernSelect } from '../ui/ModernSelect';
@@ -30,7 +31,13 @@ import {
   ChevronDown,
   BookOpen,
   Users,
-  Award
+  Award,
+  BarChart3,
+  TrendingDown,
+  Target,
+  BrainCircuit,
+  Lightbulb,
+  Scan
 } from 'lucide-react';
 
 interface ResultsViewProps {
@@ -59,6 +66,29 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
   // Selected Submission for Answer Script View Modal
   const [inspectSubmission, setInspectSubmission] = useState<{ submission: ExamSubmission; exam: Exam } | null>(null);
+  const [inspectTab, setInspectTab] = useState<'script' | 'weakness'>('script');
+  const [isDownloadingCert, setIsDownloadingCert] = useState(false);
+
+  const handleDownloadCertificate = async (exam: Exam, submission: ExamSubmission) => {
+    setIsDownloadingCert(true);
+    try {
+      const blob = await generateResultCertificatePDF(exam, submission);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Certificate_${submission.studentName.replace(/\s+/g, '_')}_${exam.title.replace(/\s+/g, '_')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toastSuccess('ভেরিফায়েড সার্টিফিকেট সফলভাবে ডাউনলোড হয়েছে!');
+    } catch (err) {
+      console.error('Certificate download error:', err);
+      toastError('সার্টিফিকেট তৈরি করতে সমস্যা হয়েছে');
+    } finally {
+      setIsDownloadingCert(false);
+    }
+  };
 
   // Selected Student for Profile View Modal
   const [inspectStudentProfile, setInspectStudentProfile] = useState<(Partial<StudentUser> & { name: string; college?: string; email?: string; mobile?: string }) | null>(null);
@@ -503,9 +533,20 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                                   </span>
                                 </td>
                                 <td className="py-3 px-4 font-semibold text-slate-900 dark:text-white">
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
                                     <span>{row.studentName}</span>
-                                    {/* Student Profile Button (Admin gets full info, Student gets public card) */}
+                                    {(row.rollNo || subRecord?.rollNo) && (
+                                      <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono text-slate-500">
+                                        Roll: {row.rollNo || subRecord?.rollNo}
+                                      </span>
+                                    )}
+                                    {subRecord?.isOfflineOMR && (
+                                      <span className="px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 text-[9px] font-black uppercase tracking-wider border border-purple-300 dark:border-purple-800 flex items-center gap-1">
+                                        <Scan className="w-2.5 h-2.5" />
+                                        <span>OMR {subRecord.setCode ? `Set-${subRecord.setCode}` : ''}</span>
+                                      </span>
+                                    )}
+                                    {/* Student Profile Button */}
                                     <button
                                       onClick={() => setInspectStudentProfile({
                                         name: row.studentName,
@@ -1019,128 +1060,295 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
       )}
 
       {/* ========================================================= */}
-      {/* INSPECT ANSWER SCRIPT MODAL */}
+      {/* INSPECT ANSWER SCRIPT & WEAKNESS ANALYTICS MODAL */}
       {/* ========================================================= */}
-      {inspectSubmission && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[92vh]">
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                  Answer Script Analysis • {inspectSubmission.submission.studentName}
-                </h3>
-                {(() => {
-                  const syncd = getSynchronizedScore(inspectSubmission.submission, inspectSubmission.exam);
-                  return (
-                    <p className="text-xs text-slate-400">
-                      {inspectSubmission.exam.title} • Score: <strong className="text-rose-400 font-mono">{syncd.marksObtained}/{syncd.totalMarks}</strong> ({syncd.percentage.toFixed(1)}%)
-                    </p>
-                  );
-                })()}
-              </div>
+      {inspectSubmission && (() => {
+        const syncd = getSynchronizedScore(inspectSubmission.submission, inspectSubmission.exam);
+        const isPassed = syncd.marksObtained >= (inspectSubmission.exam.passMark || 0) || syncd.percentage >= 40;
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    const syncd = getSynchronizedScore(inspectSubmission.submission, inspectSubmission.exam);
-                    exportAnswerScriptPDF(
-                      inspectSubmission.exam,
-                      {
-                        ...inspectSubmission.submission,
-                        marksObtained: syncd.marksObtained,
-                        totalMarks: syncd.totalMarks,
-                        percentage: syncd.percentage
-                      },
-                      inspectSubmission.submission.studentName,
-                      inspectSubmission.submission.studentCollege
-                    );
-                  }}
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer text-slate-700 dark:text-slate-300"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Answer Script PDF</span>
-                </button>
-                <button
-                  onClick={() => setInspectSubmission(null)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
+        // Group questions by Topic / Chapter for Weakness Analytics
+        const topicMap: Record<string, { total: number; correct: number; wrong: number; skipped: number }> = {};
+        inspectSubmission.exam.questions.forEach((q) => {
+          const t = q.topic?.trim() || 'মৌলিক কনসেপ্ট ও অধ্যায়';
+          if (!topicMap[t]) {
+            topicMap[t] = { total: 0, correct: 0, wrong: 0, skipped: 0 };
+          }
+          topicMap[t].total++;
+          const ans = inspectSubmission.submission.answers.find(a => a.questionId === q.id);
+          if (!ans || ans.selectedOption === null) {
+            topicMap[t].skipped++;
+          } else if (ans.isCorrect) {
+            topicMap[t].correct++;
+          } else {
+            topicMap[t].wrong++;
+          }
+        });
 
-            {/* Questions list */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {inspectSubmission.exam.questions.map((q, idx) => {
-                const ans = inspectSubmission.submission.answers.find(a => a.questionId === q.id);
-                const isCorrect = ans?.isCorrect;
-                const isSkipped = !ans || ans.selectedOption === null;
+        const topicAnalytics = Object.entries(topicMap).map(([topicName, stats]) => {
+          const accuracy = (stats.correct / (stats.total || 1)) * 100;
+          return {
+            topicName,
+            ...stats,
+            accuracy,
+            isWeak: accuracy < 50
+          };
+        }).sort((a, b) => a.accuracy - b.accuracy);
 
-                return (
-                  <div
-                    key={q.id}
-                    className={`p-4 rounded-xl border text-xs space-y-2.5 transition-colors ${
-                      isCorrect
-                        ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40'
-                        : isSkipped
-                        ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800'
-                        : 'bg-red-50/50 dark:bg-red-950/20 border-red-200 dark:border-red-900/40'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="font-semibold text-slate-900 dark:text-white text-sm">
-                        Q{idx + 1}. {q.text}
-                      </div>
-                      <span
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold shrink-0 ${
-                          isCorrect
-                            ? 'bg-emerald-600 text-white'
-                            : isSkipped
-                            ? 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
-                            : 'bg-red-600 text-white'
-                        }`}
-                      >
-                        {isCorrect ? 'Correct' : isSkipped ? 'Skipped' : 'Wrong'}
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-sm overflow-y-auto">
+            <div className="w-full max-w-4xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[92vh]">
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
+                      {inspectSubmission.submission.studentName}
+                    </h3>
+                    {inspectSubmission.submission.isOfflineOMR && (
+                      <span className="px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 text-[10px] font-black uppercase tracking-wider border border-purple-300 dark:border-purple-800 flex items-center gap-1">
+                        <Scan className="w-2.5 h-2.5" />
+                        <span>OMR Exam</span>
                       </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    {inspectSubmission.exam.title} • Score: <strong className="text-rose-500 font-mono">{syncd.marksObtained}/{syncd.totalMarks}</strong> ({syncd.percentage.toFixed(1)}%) • Duration: {Math.floor(inspectSubmission.submission.durationSeconds / 60)}m
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* Verified Certificate Download Button */}
+                  {isPassed && (
+                    <button
+                      onClick={() => handleDownloadCertificate(inspectSubmission.exam, inspectSubmission.submission)}
+                      disabled={isDownloadingCert}
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer disabled:opacity-50"
+                      title="ভেরিফায়েড সার্টিফিকেট ডাউনলোড"
+                    >
+                      <Award className="w-4 h-4 text-slate-950" />
+                      <span>{isDownloadingCert ? 'সার্টিফিকেট হচ্ছে...' : 'সার্টিফিকেট PDF'}</span>
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      exportAnswerScriptPDF(
+                        inspectSubmission.exam,
+                        {
+                          ...inspectSubmission.submission,
+                          marksObtained: syncd.marksObtained,
+                          totalMarks: syncd.totalMarks,
+                          percentage: syncd.percentage
+                        },
+                        inspectSubmission.submission.studentName,
+                        inspectSubmission.submission.studentCollege
+                      );
+                    }}
+                    className="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer text-slate-700 dark:text-slate-300"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>উত্তরপত্র PDF</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => setInspectSubmission(null)}
+                    className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Subtabs: [Answer Script] vs [Topic & Weakness Analytics] */}
+              <div className="px-6 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center gap-2">
+                <button
+                  onClick={() => setInspectTab('script')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    inspectTab === 'script'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>প্রশ্ন ভিত্তিক উত্তরপত্র (Answer Script)</span>
+                </button>
+
+                <button
+                  onClick={() => setInspectTab('weakness')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    inspectTab === 'weakness'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <BrainCircuit className="w-3.5 h-3.5" />
+                  <span>দুর্বলতা বিশ্লেষণ (Topic/Weakness Analytics)</span>
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {inspectTab === 'weakness' ? (
+                  /* ========================================================= */
+                  /* TOPIC / WEAKNESS ANALYTICS DASHBOARD */
+                  /* ========================================================= */
+                  <div className="space-y-5">
+                    {/* Weakness Alert Banner */}
+                    <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3">
+                      <Lightbulb className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                      <div className="space-y-1 text-xs">
+                        <h4 className="font-bold text-amber-900 dark:text-amber-300">
+                          AI ও ডেটা ড্রিভেন দুর্বলতা পরামর্শ (Weakness Insights):
+                        </h4>
+                        <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+                          পরীক্ষার ফলাফল বিশ্লেষণ করে দেখা গেছে যে সব বিষয়ে আপনার নির্ভুলতা ৫০% এর কম, সেগুলোতে আরও বেশি অনুশীলনের প্রয়োজন। নিচের কার্ডগুলোতে বিস্তারিত অধ্যায়ভিত্তিক দখল দেখানো হয়েছে।
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                      {q.options.map((opt) => {
-                        const isStudentChoice = ans?.selectedOption === opt.id;
-                        const isCorrectOption = q.correctOption === opt.id;
-
-                        let styleClass = 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300';
-                        if (isCorrectOption) {
-                          styleClass = 'border-emerald-500 bg-emerald-100/60 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-200 font-semibold';
-                        } else if (isStudentChoice && !isCorrect) {
-                          styleClass = 'border-red-500 bg-red-100/60 dark:bg-red-950/60 text-red-800 dark:text-red-200 font-semibold';
-                        }
+                    {/* Topic Performance Cards Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      {topicAnalytics.map((t) => {
+                        const statusColor = t.accuracy >= 75
+                          ? 'emerald'
+                          : t.accuracy >= 50
+                          ? 'blue'
+                          : 'rose';
 
                         return (
-                          <div key={opt.id} className={`p-2 rounded-lg border text-xs ${styleClass}`}>
-                            <span className="font-bold mr-1.5">{opt.id})</span>
-                            <span>{opt.text}</span>
-                            {isCorrectOption && <span className="text-[10px] ml-1 font-bold text-emerald-700 dark:text-emerald-300">[Correct Answer]</span>}
-                            {isStudentChoice && !isCorrectOption && <span className="text-[10px] ml-1 font-bold text-red-700 dark:text-red-300">[Your Choice]</span>}
+                          <div
+                            key={t.topicName}
+                            className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-3"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-extrabold text-sm text-slate-900 dark:text-white">
+                                {t.topicName}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                t.accuracy >= 75
+                                  ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                                  : t.accuracy >= 50
+                                  ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'
+                                  : 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300'
+                              }`}>
+                                {t.accuracy >= 75 ? 'শক্তিশালী দখল' : t.accuracy >= 50 ? 'সন্তোষজনক' : 'দুর্বল - রিভিশন দরকার'}
+                              </span>
+                            </div>
+
+                            {/* Progress bar */}
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-[11px] font-bold">
+                                <span className="text-slate-500">নির্ভুলতা (Accuracy):</span>
+                                <span className={t.accuracy < 50 ? 'text-rose-500' : 'text-emerald-500'}>
+                                  {t.accuracy.toFixed(1)}%
+                                </span>
+                              </div>
+                              <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                                <div
+                                  className={`h-full transition-all duration-500 ${
+                                    t.accuracy >= 75 ? 'bg-emerald-500' : t.accuracy >= 50 ? 'bg-blue-500' : 'bg-rose-500'
+                                  }`}
+                                  style={{ width: `${Math.max(5, t.accuracy)}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Stats */}
+                            <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-medium">
+                              <span>মোট প্রশ্ন: <strong>{t.total}</strong></span>
+                              <span className="text-emerald-600 dark:text-emerald-400">সঠিক: {t.correct}</span>
+                              <span className="text-rose-500">ভুল: {t.wrong}</span>
+                              <span className="text-slate-400">স্কিপ: {t.skipped}</span>
+                            </div>
                           </div>
                         );
                       })}
                     </div>
-
-                    {q.explanation && (
-                      <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed">
-                        <span className="font-semibold text-slate-800 dark:text-slate-200">Explanation: </span>
-                        {q.explanation}
-                      </div>
-                    )}
                   </div>
-                );
-              })}
+                ) : (
+                  /* ========================================================= */
+                  /* ANSWER SCRIPT VIEW */
+                  /* ========================================================= */
+                  <div className="space-y-4">
+                    {inspectSubmission.exam.questions.map((q, idx) => {
+                      const ans = inspectSubmission.submission.answers.find(a => a.questionId === q.id);
+                      const isCorrect = ans?.isCorrect;
+                      const isSkipped = !ans || ans.selectedOption === null;
+
+                      return (
+                        <div
+                          key={q.id}
+                          className={`p-4 rounded-xl border text-xs space-y-2.5 transition-colors ${
+                            isCorrect
+                              ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40'
+                              : isSkipped
+                              ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800'
+                              : 'bg-red-50/50 dark:bg-red-950/20 border-red-200 dark:border-red-900/40'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="font-semibold text-slate-900 dark:text-white text-sm">
+                                Q{idx + 1}. {q.text}
+                              </div>
+                              {q.topic && (
+                                <span className="text-[10px] font-semibold text-slate-500 mt-0.5 inline-block">
+                                  অধ্যায়: {q.topic}
+                                </span>
+                              )}
+                            </div>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[11px] font-bold shrink-0 ${
+                                isCorrect
+                                  ? 'bg-emerald-600 text-white'
+                                  : isSkipped
+                                  ? 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                                  : 'bg-red-600 text-white'
+                              }`}
+                            >
+                              {isCorrect ? 'Correct' : isSkipped ? 'Skipped' : 'Wrong'}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                            {q.options.map((opt) => {
+                              const isStudentChoice = ans?.selectedOption === opt.id;
+                              const isCorrectOption = q.correctOption === opt.id;
+
+                              let styleClass = 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300';
+                              if (isCorrectOption) {
+                                styleClass = 'border-emerald-500 bg-emerald-100/60 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-200 font-semibold';
+                              } else if (isStudentChoice && !isCorrect) {
+                                styleClass = 'border-red-500 bg-red-100/60 dark:bg-red-950/60 text-red-800 dark:text-red-200 font-semibold';
+                              }
+
+                              return (
+                                <div key={opt.id} className={`p-2 rounded-lg border text-xs ${styleClass}`}>
+                                  <span className="font-bold mr-1.5">{opt.id})</span>
+                                  <span>{opt.text}</span>
+                                  {isCorrectOption && <span className="text-[10px] ml-1 font-bold text-emerald-700 dark:text-emerald-300">[Correct Answer]</span>}
+                                  {isStudentChoice && !isCorrectOption && <span className="text-[10px] ml-1 font-bold text-red-700 dark:text-red-300">[Your Choice]</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {q.explanation && (
+                            <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed">
+                              <span className="font-semibold text-slate-800 dark:text-slate-200">Explanation: </span>
+                              {q.explanation}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };

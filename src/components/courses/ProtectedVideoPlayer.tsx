@@ -7,18 +7,27 @@ import {
   Maximize, 
   Minimize, 
   X, 
-  RotateCcw,
-  RotateCw,
+  RotateCcw, 
+  RotateCw, 
   Gauge, 
-  GraduationCap,
-  Sun,
-  Minus,
-  Plus,
-  ShieldCheck,
-  Settings,
-  Check
+  GraduationCap, 
+  Sun, 
+  Minus, 
+  Plus, 
+  ShieldCheck, 
+  Settings, 
+  Check,
+  Bookmark,
+  FileText,
+  Trash2,
+  ExternalLink,
+  Clock,
+  Sparkles
 } from 'lucide-react';
 import { extractYouTubeId, getGoogleDriveEmbedUrl } from '../../utils/mediaUrl';
+import { useAuth } from '../../context/AuthContext';
+import { subscribeVideoNotes, addVideoNote, deleteVideoNote } from '../../services/db';
+import { VideoNote } from '../../types';
 
 interface ProtectedVideoPlayerProps {
   title: string;
@@ -97,6 +106,13 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
 
+  // Video Timestamp Notes & Bookmarks State
+  const { user } = useAuth();
+  const [showNotesPanel, setShowNotesPanel] = useState(false);
+  const [videoNotes, setVideoNotes] = useState<VideoNote[]>([]);
+  const [newNoteInput, setNewNoteInput] = useState('');
+  const [isSavingNote, setIsSavingNote] = useState(false);
+
   // Gesture HUD indicators
   const [skipFeedback, setSkipFeedback] = useState<{ side: 'left' | 'right'; text: string } | null>(null);
   const [gestureFeedback, setGestureFeedback] = useState<{ type: 'brightness' | 'volume'; value: number } | null>(null);
@@ -105,6 +121,60 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const videoId = extractYouTubeId(url);
   const isDriveVideo = !videoId && url.includes('drive.google.com');
   const isDirectVideo = !videoId && !isDriveVideo;
+  const videoIdentifier = videoId || url;
+
+  // Subscribe to Video Notes
+  useEffect(() => {
+    const unsub = subscribeVideoNotes(videoIdentifier, user?.id || 'anon', (loadedNotes) => {
+      setVideoNotes(loadedNotes);
+    });
+    return () => unsub();
+  }, [videoIdentifier, user?.id]);
+
+  // Jump Video Playback to specific timestamp
+  const jumpToTime = (targetSec: number) => {
+    setCurrentTime(targetSec);
+    if (isDirectVideo && html5VideoRef.current) {
+      html5VideoRef.current.currentTime = targetSec;
+      html5VideoRef.current.play().catch(() => {});
+    } else if (videoId) {
+      dispatchCommand('seekTo', [targetSec, true]);
+      dispatchCommand('playVideo', []);
+    }
+    setIsPlaying(true);
+  };
+
+  const handleCreateNote = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newNoteInput.trim()) return;
+
+    setIsSavingNote(true);
+    try {
+      const snapSec = Math.floor(currentTime);
+      await addVideoNote({
+        videoId: videoIdentifier,
+        studentId: user?.id || 'anon',
+        studentName: user?.name || 'Student',
+        studentEmail: user?.email || '',
+        timestampSeconds: snapSec,
+        timestampFormatted: formatTime(snapSec),
+        noteText: newNoteInput.trim()
+      });
+      setNewNoteInput('');
+    } catch (err) {
+      console.error('Save video note error:', err);
+    } finally {
+      setIsSavingNote(false);
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    try {
+      await deleteVideoNote(noteId, videoIdentifier, user?.id || 'anon');
+    } catch (err) {
+      console.error('Delete note error:', err);
+    }
+  };
 
   // Universal Player Command Dispatcher (Calls YT.Player API + postMessage fallback)
   const dispatchCommand = useCallback((func: string, args: any[] = []) => {
@@ -975,6 +1045,23 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 <span>{playbackSpeed.toFixed(2)}x</span>
               </button>
 
+              {/* Video Notes & Timestamp Bookmarks */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowNotesPanel(prev => !prev);
+                }}
+                className={`px-2 sm:px-2.5 py-1 rounded-lg text-white font-medium text-[11px] sm:text-xs flex items-center gap-1 transition-all cursor-pointer border ${
+                  showNotesPanel
+                    ? 'bg-amber-500/30 border-amber-400 text-amber-300'
+                    : 'bg-white/10 hover:bg-white/20 border-white/10'
+                }`}
+                title="Timestamp Notes & Bookmarks"
+              >
+                <Bookmark className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline">নোটস ({videoNotes.length})</span>
+              </button>
+
               {/* Fullscreen Toggle */}
               <button
                 onClick={(e) => {
@@ -987,6 +1074,99 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIDEO NOTES & TIMESTAMP BOOKMARKS DRAWER */}
+      {showNotesPanel && (
+        <div 
+          onClick={(e) => e.stopPropagation()}
+          className="absolute top-12 right-3 sm:right-5 bottom-16 w-80 max-w-[85%] bg-slate-900/95 backdrop-blur-md border border-white/15 rounded-2xl shadow-2xl z-40 flex flex-col overflow-hidden text-white animate-in slide-in-from-right duration-200"
+        >
+          {/* Panel Header */}
+          <div className="p-3.5 border-b border-white/10 flex items-center justify-between bg-black/30">
+            <div className="flex items-center gap-2">
+              <Bookmark className="w-4 h-4 text-amber-400" />
+              <h4 className="font-bold text-xs sm:text-sm">ক্লাস নোটস ও বুকমার্ক</h4>
+            </div>
+            <button
+              onClick={() => setShowNotesPanel(false)}
+              className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Input Form to Capture current second */}
+          <form onSubmit={handleCreateNote} className="p-3 border-b border-white/10 space-y-2 bg-black/20">
+            <div className="flex items-center justify-between text-[11px] text-slate-400">
+              <span>টাইমস্ট্যাম্প:</span>
+              <span className="font-mono font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20">
+                ⏱ {formatTime(currentTime)}
+              </span>
+            </div>
+            <div className="flex gap-1.5">
+              <input
+                type="text"
+                placeholder="এই সময়ে নোট লিখুন..."
+                value={newNoteInput}
+                onChange={(e) => setNewNoteInput(e.target.value)}
+                className="flex-1 px-3 py-1.5 rounded-xl bg-white/10 border border-white/15 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                maxLength={120}
+              />
+              <button
+                type="submit"
+                disabled={isSavingNote || !newNoteInput.trim()}
+                className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs disabled:opacity-50 cursor-pointer shrink-0 transition-colors"
+              >
+                {isSavingNote ? '...' : 'যোগ'}
+              </button>
+            </div>
+          </form>
+
+          {/* Notes List */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            {videoNotes.length === 0 ? (
+              <div className="text-center py-8 text-slate-500 text-xs space-y-1">
+                <Clock className="w-6 h-6 mx-auto text-slate-600 mb-1" />
+                <p>কোনো নোট যোগ করা হয়নি।</p>
+                <p className="text-[10px]">লেকচার চলাকালে যেকোনো মুহূর্তে নোট নিন।</p>
+              </div>
+            ) : (
+              videoNotes.map((note) => (
+                <div
+                  key={note.id}
+                  className="p-2.5 rounded-xl bg-white/5 border border-white/10 hover:border-amber-400/40 transition-colors group space-y-1"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => jumpToTime(note.timestampSeconds)}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-400/15 hover:bg-amber-400/30 text-amber-300 font-mono font-bold text-[10px] border border-amber-400/30 cursor-pointer transition-all"
+                      title="ক্লিক করে এই অংশে জাম্প করুন"
+                    >
+                      <Play className="w-2.5 h-2.5 fill-current" />
+                      <span>{note.timestampFormatted}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteNote(note.id)}
+                      className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-400 transition-opacity cursor-pointer"
+                      title="মুছে ফেলুন"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <p 
+                    onClick={() => jumpToTime(note.timestampSeconds)}
+                    className="text-xs text-slate-200 cursor-pointer hover:text-white leading-relaxed break-words"
+                  >
+                    {note.noteText}
+                  </p>
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}

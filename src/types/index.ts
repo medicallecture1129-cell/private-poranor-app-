@@ -15,6 +15,7 @@ export interface StudentUser {
   email: string;
   college: string;
   mobile: string;
+  rollNo?: string; // 6-digit roll number for OMR and student identity
   password?: string;
   enrolledCourses: string[]; // Course IDs
   createdAt: number;
@@ -83,6 +84,24 @@ export interface Question {
   options: MCQOption[];
   correctOption: string; // 'A', 'B', 'C', or 'D'
   explanation?: string;
+  topic?: string; // e.g. "Physics", "গতিবিদ্যা", "Organic Chemistry", etc.
+}
+
+export interface OfflineExamSetQuestion {
+  questionNumber: number; // 1 to N
+  masterQuestionId: string;
+  text: string;
+  options: MCQOption[];
+  correctOption: string;
+  topic?: string;
+}
+
+export interface OfflineExamSet {
+  setCode: string; // 'A', 'B', 'C', 'D'
+  qrData: string; // QR code payload string
+  questions: OfflineExamSetQuestion[];
+  answerKey: Record<number, string>; // 1: 'A', 2: 'C', etc.
+  createdAt: number;
 }
 
 export interface Exam {
@@ -100,6 +119,7 @@ export interface Exam {
   endTime: number; // ms timestamp
   resultPublishTime: number; // ms timestamp
   questions: Question[];
+  offlineSets?: OfflineExamSet[]; // Pre-generated scrambled sets for offline OMR print
   createdAt: number;
   isActive?: boolean; // Admin can toggle exam ON / OFF (Active / Inactive)
   isPractice?: boolean; // True if converted to practice or explicitly in practice section
@@ -120,7 +140,11 @@ export interface ExamSubmission {
   studentEmail: string;
   studentName: string;
   studentCollege: string;
+  rollNo?: string;
   isLive: boolean; // true if submitted during live window, false if practice
+  isOfflineOMR?: boolean; // true if evaluated from offline OMR sheet
+  setCode?: string; // 'A', 'B', 'C', 'D' if taken via offline set
+  tabSwitchCount?: number; // Anti-cheat warning / switch counter
   startTime: number;
   submittedAt: number;
   durationSeconds: number; // actual time taken
@@ -140,6 +164,8 @@ export interface LeaderboardRow {
   studentName: string;
   studentCollege: string;
   studentEmail?: string;
+  rollNo?: string;
+  isOfflineOMR?: boolean;
   marksObtained: number;
   percentage: number;
   durationSeconds: number;
@@ -170,4 +196,26 @@ export interface PresetTheme {
   primaryColor: string;
   createdAt: number;
   createdBy?: string;
+}
+
+export interface VideoNote {
+  id: string;
+  videoId: string;
+  studentId: string;
+  studentEmail?: string;
+  studentName?: string;
+  timestampSeconds: number;
+  timestampFormatted: string;
+  noteText: string;
+  createdAt: number;
+}
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'class' | 'exam' | 'result' | 'omr' | 'system';
+  linkTab?: string;
+  createdAt: number;
+  read?: boolean;
 }

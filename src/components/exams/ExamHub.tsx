@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Exam, Course, ExamSubmission } from '../../types';
+import { Exam, Course, ExamSubmission, StudentUser } from '../../types';
 import { CreateExamModal } from './CreateExamModal';
 import { EditExamModal } from './EditExamModal';
 import { ExamRunner } from './ExamRunner';
 import { PracticeResultModal } from './PracticeResultModal';
+import { OmrGeneratorModal } from './OmrGeneratorModal';
+import { OmrScannerModal } from './OmrScannerModal';
 import { deleteExam, updateExam } from '../../services/db';
 import { useToast } from '../../context/ToastContext';
 import { ModernSelect } from '../ui/ModernSelect';
@@ -27,16 +29,19 @@ import {
   X,
   ArrowRight,
   Sparkles,
-  Layers
+  Layers,
+  Printer,
+  Scan
 } from 'lucide-react';
 
 interface ExamHubProps {
   exams: Exam[];
   courses: Course[];
   submissions: ExamSubmission[];
+  students?: StudentUser[];
 }
 
-export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions }) => {
+export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, students = [] }) => {
   const { user, role } = useAuth();
   const { success: toastSuccess, error: toastError } = useToast();
 
@@ -49,8 +54,12 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
   const [activeExamRunning, setActiveExamRunning] = useState<{ exam: Exam; isLive: boolean } | null>(null);
   const [practiceResultData, setPracticeResultData] = useState<{ exam: Exam; submission: ExamSubmission } | null>(null);
+  
+  // OMR Generator & Scanner Modals
+  const [omrGeneratorExam, setOmrGeneratorExam] = useState<Exam | null>(null);
+  const [omrScannerExam, setOmrScannerExam] = useState<Exam | null>(null);
 
-  // Re-live Exam Modal State (Requirement 3: Dynamic Re-Live Logic from Practice section)
+  // Re-live Exam Modal State
   const [reLiveTargetExam, setReLiveTargetExam] = useState<Exam | null>(null);
   const [reLiveStartTime, setReLiveStartTime] = useState('');
   const [reLiveEndTime, setReLiveEndTime] = useState('');
@@ -225,13 +234,23 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
         </div>
 
         {role === 'admin' && (
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl btn-theme-primary font-semibold text-xs sm:text-sm shadow-sm cursor-pointer self-start sm:self-auto"
-          >
-            <Plus className="w-4 h-4" />
-            <span>New Exam</span>
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+            <button
+              onClick={() => setOmrScannerExam(availableExams[0] || exams[0] || null)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm shadow-sm cursor-pointer transition-colors"
+              title="ওএমআর শিট স্ক্যানার ও মূল্যায়নকারী"
+            >
+              <Scan className="w-4 h-4" />
+              <span>ওএমআর স্ক্যানার (OMR Scanner)</span>
+            </button>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl btn-theme-primary font-semibold text-xs sm:text-sm shadow-sm cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>New Exam</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -498,6 +517,34 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
                           <span>Manage / Edit</span>
                         </button>
                       </div>
+
+                      {/* OMR Printable Sheet & Scanner for this exam */}
+                      <div className="flex items-center gap-2 pt-1 border-t border-slate-100 dark:border-white/[0.06]">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOmrGeneratorExam(exam);
+                          }}
+                          className="flex-1 py-1.5 px-2 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 text-purple-700 dark:text-purple-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-purple-500/30 transition-all cursor-pointer"
+                          title="মেডিকেল ভর্তি পরীক্ষা আদলে প্রশ্ন ও ওএমআর প্রিন্ট করুন"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          <span>ওএমআর ও প্রশ্ন প্রিন্ট</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOmrScannerExam(exam);
+                          }}
+                          className="py-1.5 px-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-emerald-500/30 transition-all cursor-pointer"
+                          title="এই পরীক্ষার ওএমআর স্ক্যান ও মূল্যায়ন করুন"
+                        >
+                          <Scan className="w-3.5 h-3.5" />
+                          <span>ওএমআর স্ক্যান</span>
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     /* STUDENT CONTROLS */
@@ -704,6 +751,24 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions })
             </div>
           </div>
         </div>
+      )}
+      {/* OMR Printable Sheet Generator Modal */}
+      {omrGeneratorExam && (
+        <OmrGeneratorModal
+          exam={omrGeneratorExam}
+          isOpen={!!omrGeneratorExam}
+          onClose={() => setOmrGeneratorExam(null)}
+        />
+      )}
+
+      {/* OMR Scanner & Evaluation Modal */}
+      {omrScannerExam && (
+        <OmrScannerModal
+          exam={omrScannerExam}
+          students={students}
+          isOpen={!!omrScannerExam}
+          onClose={() => setOmrScannerExam(null)}
+        />
       )}
     </div>
   );

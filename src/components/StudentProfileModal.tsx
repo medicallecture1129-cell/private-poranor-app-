@@ -84,6 +84,18 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
             /* ADMIN VIEW: Full Details */
             <div className="space-y-4">
               <div className="grid grid-cols-1 gap-2.5">
+                <div className="flex items-center gap-3 p-3 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-900/60">
+                  <div className="w-8 h-8 rounded-xl bg-purple-600 text-white font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                    ID
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wider block">Student ID / OMR Roll No</span>
+                    <span className="font-mono font-bold text-sm text-purple-900 dark:text-purple-200">
+                      {student.rollNo || (student.id ? student.id.slice(-6).toUpperCase() : '100001')}
+                    </span>
+                  </div>
+                </div>
+
                 <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80">
                   <Mail className="w-4 h-4 text-blue-600 shrink-0" />
                   <div className="min-w-0 flex-1">

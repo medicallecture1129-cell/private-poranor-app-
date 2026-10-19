@@ -6,6 +6,7 @@ import {
   subscribePresetThemes, 
   createPresetTheme, 
   deletePresetTheme, 
+  restoreDefaultThemes,
   DEFAULT_PRESET_THEMES 
 } from '../../services/db';
 import { PresetTheme } from '../../types';
@@ -18,7 +19,9 @@ import {
   Sparkles, 
   Plus, 
   X,
-  Loader2
+  Loader2,
+  RotateCcw,
+  AlertTriangle
 } from 'lucide-react';
 
 type ActiveTab = 'BACKGROUND' | 'FOREGROUND' | 'BUTTON_LOGO';
@@ -53,6 +56,8 @@ export const ColorStudioModal: React.FC<ColorStudioModalProps> = ({ isOpen, onCl
   const [isSavingPreset, setIsSavingPreset] = useState(false);
   const [showSavePresetInput, setShowSavePresetInput] = useState(false);
   const [presetFeedback, setPresetFeedback] = useState<string | null>(null);
+  const [themeToDelete, setThemeToDelete] = useState<PresetTheme | null>(null);
+  const [isRestoringDefaults, setIsRestoringDefaults] = useState(false);
 
   // Subscribe to real-time preset themes in Firestore
   useEffect(() => {
@@ -71,6 +76,7 @@ export const ColorStudioModal: React.FC<ColorStudioModalProps> = ({ isOpen, onCl
       setActiveTab('BACKGROUND');
       setShowSavePresetInput(false);
       setPresetFeedback(null);
+      setThemeToDelete(null);
     }
   }, [isOpen]);
 
@@ -165,15 +171,33 @@ export const ColorStudioModal: React.FC<ColorStudioModalProps> = ({ isOpen, onCl
     }
   };
 
-  // Delete a preset theme from Firestore (Admin only)
-  const handleDeletePreset = async (e: React.MouseEvent, presetId: string, presetName: string) => {
-    e.stopPropagation();
-    if (window.confirm(`আপনি কি "${presetName}" প্রিসেট থিমটি মুছে ফেলতে চান?`)) {
-      try {
-        await deletePresetTheme(presetId);
-      } catch (err) {
-        console.error('Delete preset error:', err);
-      }
+  // Delete ANY preset theme from Firestore (Admin only)
+  const handleConfirmDeletePreset = async () => {
+    if (!themeToDelete) return;
+    try {
+      await deletePresetTheme(themeToDelete.id);
+      setPresetFeedback(`"${themeToDelete.name}" থিমটি সফলভাবে মুছে ফেলা হয়েছে!`);
+      setTimeout(() => setPresetFeedback(null), 3000);
+    } catch (err) {
+      console.error('Delete preset error:', err);
+      setPresetFeedback('থিম মুছতে সমস্যা হয়েছে।');
+    } finally {
+      setThemeToDelete(null);
+    }
+  };
+
+  // Restore Default Themes
+  const handleRestoreDefaults = async () => {
+    setIsRestoringDefaults(true);
+    try {
+      await restoreDefaultThemes();
+      setPresetFeedback('ডিফল্ট সিস্টেম থিমসমূহ সফলভাবে পুনরুদ্ধার করা হয়েছে!');
+      setTimeout(() => setPresetFeedback(null), 3000);
+    } catch (err) {
+      console.error('Restore error:', err);
+      setPresetFeedback('ডিফল্ট থিম পুনরুদ্ধার করতে ব্যর্থ হয়েছে।');
+    } finally {
+      setIsRestoringDefaults(false);
     }
   };
 
@@ -466,25 +490,63 @@ export const ColorStudioModal: React.FC<ColorStudioModalProps> = ({ isOpen, onCl
                       প্রিসেট থিম লাইব্রেরি (Cloud Presets)
                     </span>
                   </div>
-                  {!showSavePresetInput ? (
+                  <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => setShowSavePresetInput(true)}
-                      className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                      onClick={handleRestoreDefaults}
+                      disabled={isRestoringDefaults}
+                      className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                      title="ডিফল্ট থিমসমূহ রিস্টোর করুন"
                     >
-                      <Plus className="w-3 h-3" />
-                      <span>প্রিসেট তৈরি করুন</span>
+                      <RotateCcw className={`w-3 h-3 ${isRestoringDefaults ? 'animate-spin' : ''}`} />
+                      <span>রিস্টোর</span>
                     </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setShowSavePresetInput(false)}
-                      className="text-slate-400 hover:text-white text-[11px]"
-                    >
-                      বন্ধ করুন
-                    </button>
-                  )}
+                    {!showSavePresetInput ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowSavePresetInput(true)}
+                        className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>নতুন থিম</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowSavePresetInput(false)}
+                        className="text-slate-400 hover:text-white text-[11px]"
+                      >
+                        বন্ধ করুন
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {/* Confirm Delete Theme Prompt */}
+                {themeToDelete && (
+                  <div className="p-3 rounded-xl bg-red-950/70 border border-red-500/50 space-y-2 animate-in fade-in">
+                    <div className="flex items-center gap-2 text-red-300 text-xs font-semibold">
+                      <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                      <span>আপনি কি <strong>"{themeToDelete.name}"</strong> থিমটি মুছে ফেলতে চান?</span>
+                    </div>
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setThemeToDelete(null)}
+                        className="px-3 py-1 rounded-lg bg-white/10 text-xs text-slate-300 hover:text-white cursor-pointer"
+                      >
+                        বাতিল
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleConfirmDeletePreset}
+                        className="px-3 py-1 rounded-lg bg-red-600 hover:bg-red-700 text-xs font-bold text-white cursor-pointer"
+                      >
+                        মুছে ফেলুন
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Form to Save Current Colors as Preset */}
                 {showSavePresetInput && (
@@ -516,7 +578,11 @@ export const ColorStudioModal: React.FC<ColorStudioModalProps> = ({ isOpen, onCl
 
                 {/* List of Existing Presets */}
                 <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                  {presetThemes.map((preset) => {
+                  {presetThemes.length === 0 ? (
+                    <div className="text-center py-4 text-xs text-slate-400">
+                      কোনো থিম নেই। "নতুন থিম" তৈরি করুন অথবা "রিস্টোর" চাপুন।
+                    </div>
+                  ) : presetThemes.map((preset) => {
                     const isCurrent = 
                       workingColors.bgColor.toLowerCase() === preset.bgColor.toLowerCase() &&
                       workingColors.fgColor.toLowerCase() === preset.fgColor.toLowerCase();
@@ -562,16 +628,17 @@ export const ColorStudioModal: React.FC<ColorStudioModalProps> = ({ isOpen, onCl
                               <span>সক্রিয়</span>
                             </span>
                           )}
-                          {!preset.id.startsWith('default_') && (
-                            <button
-                              type="button"
-                              onClick={(e) => handleDeletePreset(e, preset.id, preset.name)}
-                              className="p-1 rounded-lg hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-colors"
-                              title="মুছে ফেলুন"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setThemeToDelete(preset);
+                            }}
+                            className="p-1 rounded-lg hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-colors"
+                            title="যেকোনো থিম মুছে ফেলুন"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
                     );
