@@ -9,6 +9,7 @@ import { PracticeResultModal } from './PracticeResultModal';
 import { OmrGeneratorModal } from './OmrGeneratorModal';
 import { OmrScannerModal } from './OmrScannerModal';
 import { OfflineLeaderboardModal } from './OfflineLeaderboardModal';
+import MedicalOMRApp from './MedicalOMRApp';
 import { deleteExam, updateExam } from '../../services/db';
 import { useToast } from '../../context/ToastContext';
 import { ModernSelect } from '../ui/ModernSelect';
@@ -64,6 +65,7 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
   const [omrGeneratorExam, setOmrGeneratorExam] = useState<Exam | null>(null);
   const [omrScannerExam, setOmrScannerExam] = useState<Exam | null>(null);
   const [offlineLeaderboardExam, setOfflineLeaderboardExam] = useState<Exam | null>(null);
+  const [showMedicalOMRApp, setShowMedicalOMRApp] = useState<boolean>(false);
 
   // Re-live Exam Modal State
   const [reLiveTargetExam, setReLiveTargetExam] = useState<Exam | null>(null);
@@ -225,6 +227,10 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
     ...courses.map(c => ({ value: c.id, label: c.name, badge: c.batch }))
   ];
 
+  if (showMedicalOMRApp) {
+    return <MedicalOMRApp onBack={() => setShowMedicalOMRApp(false)} />;
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 pb-24 space-y-6">
       {/* Top Bar */}
@@ -243,35 +249,47 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
           </p>
         </div>
 
-        {role === 'admin' && (
-          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-            <button
-              onClick={() => setOmrScannerExam(offlineExams[0] || availableExams[0] || exams[0] || null)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm shadow-sm cursor-pointer transition-colors"
-              title="ওএমআর শিট স্ক্যানার ও মূল্যায়নকারী"
-            >
-              <Scan className="w-4 h-4" />
-              <span>QR ও ওএমআর স্ক্যানার (Scanner)</span>
-            </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          {/* Medical OMR 100-Question Portal Button */}
+          <button
+            onClick={() => setShowMedicalOMRApp(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 hover:from-indigo-500 hover:to-purple-600 text-white font-bold text-xs sm:text-sm shadow-md shadow-indigo-950/40 cursor-pointer transition-all border border-indigo-400/30"
+            title="মেডিকেল স্ট্যান্ডার্ড ১০০ প্রশ্ন ওএমআর প্রিন্ট, ইউনিক সেট ও অ্যান্টি-ফেক স্ক্যানার পোর্টাল"
+          >
+            <Award className="w-4 h-4 text-amber-300" />
+            <span>মেডিকেল ওএমআর পোর্টাল (১০০ প্রশ্ন)</span>
+          </button>
 
-            <button
-              onClick={() => setShowCreateOfflineModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm shadow-sm cursor-pointer transition-colors"
-              title="নতুন অফলাইন পরীক্ষা ও ওএমআর তৈরি করুন"
-            >
-              <Printer className="w-4 h-4" />
-              <span>নতুন অফলাইন এক্সাম</span>
-            </button>
+          {role === 'admin' && (
+            <>
+              <button
+                onClick={() => setOmrScannerExam(offlineExams[0] || availableExams[0] || exams[0] || null)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm shadow-sm cursor-pointer transition-colors"
+                title="ওএমআর শিট স্ক্যানার ও মূল্যায়নকারী"
+              >
+                <Scan className="w-4 h-4" />
+                <span>QR ও ওএমআর স্ক্যানার</span>
+              </button>
 
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl btn-theme-primary font-semibold text-xs sm:text-sm shadow-sm cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>New Online Exam</span>
-            </button>
-          </div>
-        )}
+              <button
+                onClick={() => setShowCreateOfflineModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm shadow-sm cursor-pointer transition-colors"
+                title="নতুন অফলাইন পরীক্ষা ও ওএমআর তৈরি করুন"
+              >
+                <Printer className="w-4 h-4" />
+                <span>নতুন অফলাইন এক্সাম</span>
+              </button>
+
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl btn-theme-primary font-semibold text-xs sm:text-sm shadow-sm cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Online Exam</span>
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Segment Selector & Course Filter */}
