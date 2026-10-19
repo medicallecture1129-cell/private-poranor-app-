@@ -250,14 +250,14 @@ export const ExamHub: React.FC<ExamHubProps> = ({ exams, courses, submissions, s
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-          {/* Medical OMR 100-Question Portal Button */}
+          {/* Medical OMR Portal Button */}
           <button
             onClick={() => setShowMedicalOMRApp(true)}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 hover:from-indigo-500 hover:to-purple-600 text-white font-bold text-xs sm:text-sm shadow-md shadow-indigo-950/40 cursor-pointer transition-all border border-indigo-400/30"
-            title="মেডিকেল স্ট্যান্ডার্ড ১০০ প্রশ্ন ওএমআর প্রিন্ট, ইউনিক সেট ও অ্যান্টি-ফেক স্ক্যানার পোর্টাল"
+            title="মেডিকেল স্ট্যান্ডার্ড ওএমআর প্রিন্ট, বাল্ক প্রশ্ন ইনপুট ও ক্যামেরা স্ক্যানার পোর্টাল"
           >
             <Award className="w-4 h-4 text-amber-300" />
-            <span>মেডিকেল ওএমআর পোর্টাল (১০০ প্রশ্ন)</span>
+            <span>মেডিকেল ওএমআর ও কোশ্চেন পোর্টাল</span>
           </button>
 
           {role === 'admin' && (
