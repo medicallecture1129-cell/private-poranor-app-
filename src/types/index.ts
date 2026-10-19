@@ -161,3 +161,13 @@ export interface PortalSettings {
   allowSelfRegistration?: boolean;
   updatedAt?: number;
 }
+
+export interface PresetTheme {
+  id: string;
+  name: string;
+  bgColor: string;
+  fgColor: string;
+  primaryColor: string;
+  createdAt: number;
+  createdBy?: string;
+}

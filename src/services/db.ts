@@ -25,7 +25,8 @@ import {
   DiscussionMessage, 
   Exam, 
   ExamSubmission,
-  PortalSettings
+  PortalSettings,
+  PresetTheme
 } from '../types';
 
 // Default Admin account for bootstrapping first login if database is fresh
@@ -665,4 +666,106 @@ export const subscribePortalSettings = (
 export const updatePortalSettings = async (settings: Partial<PortalSettings>): Promise<void> => {
   const docRef = doc(db, 'settings', 'portal');
   await setDoc(docRef, { ...settings, updatedAt: Date.now() }, { merge: true });
+};
+
+// Preset Themes operations (Created by Admin, stored in Firestore, visible & selectable by Admin and Students)
+export const DEFAULT_PRESET_THEMES: PresetTheme[] = [
+  {
+    id: 'default_midnight_blue',
+    name: 'Midnight Blue (ডিফল্ট)',
+    bgColor: '#090e18',
+    fgColor: '#132035',
+    primaryColor: '#2563eb',
+    createdAt: 1700000000000,
+    createdBy: 'System'
+  },
+  {
+    id: 'default_emerald_dark',
+    name: 'Emerald Forest (পান্না সবুজ)',
+    bgColor: '#091612',
+    fgColor: '#122720',
+    primaryColor: '#10b981',
+    createdAt: 1700000001000,
+    createdBy: 'System'
+  },
+  {
+    id: 'default_royal_purple',
+    name: 'Royal Velvet (রাজকীয় পার্পল)',
+    bgColor: '#120b1c',
+    fgColor: '#221334',
+    primaryColor: '#8b5cf6',
+    createdAt: 1700000002000,
+    createdBy: 'System'
+  },
+  {
+    id: 'default_crimson_noir',
+    name: 'Crimson Flame (ক্রিমসন লাল)',
+    bgColor: '#170b0e',
+    fgColor: '#2d141a',
+    primaryColor: '#ef4444',
+    createdAt: 1700000003000,
+    createdBy: 'System'
+  },
+  {
+    id: 'default_cyber_amber',
+    name: 'Cyber Amber (অ্যাম্বার গোল্ড)',
+    bgColor: '#151109',
+    fgColor: '#292012',
+    primaryColor: '#f59e0b',
+    createdAt: 1700000004000,
+    createdBy: 'System'
+  }
+];
+
+export const subscribePresetThemes = (
+  callback: (themes: PresetTheme[]) => void,
+  onError?: (err: Error) => void
+) => {
+  const q = collection(db, 'presetThemes');
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const list: PresetTheme[] = [];
+      snapshot.forEach((d) => {
+        list.push({ id: d.id, ...d.data() } as PresetTheme);
+      });
+      list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
+      if (list.length === 0) {
+        // Bootstrap default presets in Firestore
+        DEFAULT_PRESET_THEMES.forEach((theme) => {
+          setDoc(doc(db, 'presetThemes', theme.id), theme).catch(() => {});
+        });
+        callback(DEFAULT_PRESET_THEMES);
+      } else {
+        callback(list);
+      }
+    },
+    (error) => {
+      console.error('Firestore presetThemes listener error:', error);
+      if (onError) onError(error);
+      callback(DEFAULT_PRESET_THEMES);
+    }
+  );
+};
+
+export const createPresetTheme = async (
+  name: string,
+  colors: { bgColor: string; fgColor: string; primaryColor: string },
+  createdBy?: string
+): Promise<PresetTheme> => {
+  const newThemeData = {
+    name: name.trim(),
+    bgColor: colors.bgColor,
+    fgColor: colors.fgColor,
+    primaryColor: colors.primaryColor,
+    createdAt: Date.now(),
+    createdBy: createdBy || 'Admin'
+  };
+  const docRef = await addDoc(collection(db, 'presetThemes'), newThemeData);
+  return { id: docRef.id, ...newThemeData };
+};
+
+export const deletePresetTheme = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, 'presetThemes', id));
 };

@@ -179,7 +179,9 @@ export const Navbar: React.FC = () => {
                 style={{ backgroundColor: 'var(--theme-primary)' }}
               />
               <Palette className="w-3.5 h-3.5 text-slate-300 group-hover:rotate-12 transition-transform" />
-              <span className="hidden sm:inline text-xs font-bold text-theme-title">Colors</span>
+              <span className="hidden sm:inline text-xs font-bold text-theme-title">
+                {role === 'admin' ? 'Colors' : 'Themes'}
+              </span>
             </button>
 
             {/* Install PWA Button */}
@@ -367,12 +369,12 @@ export const Navbar: React.FC = () => {
                 </p>
               </div>
 
-              {/* Quick Custom Color Trigger */}
+              {/* Quick Custom Color / Preset Theme Trigger */}
               <div className="pt-2 border-t border-theme-border space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-theme-title flex items-center gap-1.5">
                     <Palette className="w-3.5 h-3.5" style={{ color: 'var(--theme-primary)' }} />
-                    <span>Custom Colors</span>
+                    <span>{role === 'admin' ? 'Custom Color Studio' : 'Preset Themes'}</span>
                   </span>
                   <button
                     type="button"
@@ -382,7 +384,7 @@ export const Navbar: React.FC = () => {
                     }}
                     className="text-xs font-bold px-2.5 py-1 rounded-lg btn-theme-primary cursor-pointer"
                   >
-                    Open Color Studio
+                    {role === 'admin' ? 'Open Color Studio' : 'Browse Themes'}
                   </button>
                 </div>
                 <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-theme-surface border border-theme-border text-[10px] text-center font-bold text-slate-300">
