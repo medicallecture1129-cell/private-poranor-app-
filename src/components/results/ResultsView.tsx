@@ -112,12 +112,14 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   const selectedExam = exams.find(e => e.id === selectedExamId);
 
   // Check if student is allowed to view results of this exam yet
-  const isResultPublished = selectedExam ? (currentTime >= selectedExam.resultPublishTime || role === 'admin') : false;
+  const isOfflineExam = selectedExam?.isOffline === true || selectedExam?.examType === 'offline';
+  const isResultPublished = selectedExam ? (isOfflineExam || currentTime >= selectedExam.resultPublishTime || role === 'admin') : false;
 
   // Requirement 4: Global Marks Synchronization
-  // Filter ONLY Live Exam Submissions for Official Leaderboard (Strictly students only - no admins)
+  // Filter Live & Offline Exam Submissions for Official Leaderboard (Strictly students only - no admins)
   const rawLiveSubmissions = selectedExam ? submissions.filter(s => {
-    if (s.examId !== selectedExam.id || !s.isLive) return false;
+    if (s.examId !== selectedExam.id && s.examId !== selectedExam.id.toString()) return false;
+    if (!isOfflineExam && !s.isLive) return false;
     if (s.studentId?.startsWith('admin_') || s.studentEmail?.toLowerCase().includes('admin@')) return false;
     return true;
   }) : [];
@@ -214,7 +216,11 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
   // Student's own past submissions (for Student view)
   const studentPastSubmissions = submissions
-    .filter(s => s.studentEmail.toLowerCase() === (user?.email?.toLowerCase() || ''))
+    .filter(s => 
+      (user?.email && s.studentEmail?.toLowerCase() === user.email.toLowerCase()) ||
+      (user?.id && s.studentId === user.id) ||
+      (user?.rollNo && s.rollNo === user.rollNo)
+    )
     .sort((a, b) => b.submittedAt - a.submittedAt);
 
   const filteredStudentPastSubs = studentPastSubmissions.filter(s => {

@@ -198,11 +198,9 @@ export const CreateOfflineExamModal: React.FC<CreateOfflineExamModalProps> = ({
       // Create in Firestore
       const createdExam = await createExam(newExamData);
 
-      // Auto generate 4 initial scrambled sets (Set A, B, C, D) with QR codes
-      const initialSets = generateBatchSets(createdExam, 4);
-      createdExam.offlineSets = initialSets;
+      createdExam.offlineSets = [];
 
-      toastSuccess(`"${createdExam.title}" অফলাইন পরীক্ষা এবং ৪টি ইউনিক ওএমআর সেট সফলভাবে তৈরি হয়েছে!`);
+      toastSuccess(`"${createdExam.title}" অফলাইন পরীক্ষা এবং মাস্টার সেট (${createdExam.questions.length}টি প্রশ্ন) সফলভাবে তৈরি হয়েছে! এবার ইচ্ছামতো ইউনিক সেট তৈরি করতে পারবেন।`);
       onExamCreated(createdExam);
       onClose();
     } catch (err: unknown) {
