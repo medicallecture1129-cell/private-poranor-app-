@@ -197,18 +197,16 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
   };
 
-  // Autohide controls after 5 seconds while playing
+  // Autohide controls after 3 seconds of inactivity
   const resetHideTimer = useCallback(() => {
     if (hideControlsTimerRef.current) {
       clearTimeout(hideControlsTimerRef.current);
       hideControlsTimerRef.current = null;
     }
-    if (isPlaying) {
-      hideControlsTimerRef.current = setTimeout(() => {
-        setControlsVisible(false);
-      }, 5000);
-    }
-  }, [isPlaying]);
+    hideControlsTimerRef.current = setTimeout(() => {
+      setControlsVisible(false);
+    }, 3000);
+  }, []);
 
   const showControlsTemporarily = useCallback(() => {
     setControlsVisible(true);
@@ -362,6 +360,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       try {
         ytPlayerRef.current = new window.YT.Player(uniquePlayerId.current, {
           videoId: videoId,
+          host: 'https://www.youtube-nocookie.com',
           width: '100%',
           height: '100%',
           playerVars: {
@@ -562,12 +561,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   useEffect(() => {
     if (isPlaying) {
       resetHideTimer();
-    } else {
-      if (hideControlsTimerRef.current) {
-        clearTimeout(hideControlsTimerRef.current);
-        hideControlsTimerRef.current = null;
-      }
-      setControlsVisible(true);
     }
     prevPlayingRef.current = isPlaying;
   }, [isPlaying, resetHideTimer]);
@@ -780,26 +773,21 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       return;
     }
 
-    // Single Tap
+    // Single Tap: Toggle controls visibility (whether playing or paused)
     lastTapRef.current = { time: now, x: clientX, y: clientY };
 
-    // If the video is paused, tapping anywhere immediately resumes/starts playing
-    if (!isPlaying) {
-      togglePlay();
-      return;
-    }
-
-    // While playing, single tap toggles controls visibility
     setControlsVisible(prev => {
       const next = !prev;
-      if (!next) {
+      if (next) {
+        // Controls appeared: start 3-second auto-hide timer
+        resetHideTimer();
+      } else {
+        // Controls hidden: clear timer
         lastExplicitHideTimeRef.current = Date.now();
         if (hideControlsTimerRef.current) {
           clearTimeout(hideControlsTimerRef.current);
           hideControlsTimerRef.current = null;
         }
-      } else {
-        resetHideTimer();
       }
       return next;
     });
@@ -991,8 +979,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 style={{
                   pointerEvents: 'none',
                   userSelect: 'none',
-                  top: '-75px',
-                  height: 'calc(100% + 150px)',
+                  top: '-80px',
+                  height: 'calc(100% + 160px)',
                   width: '100%'
                 }}
               />
@@ -1071,23 +1059,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             />
           )}
 
-          {/* Dedicated Center Mask to permanently conceal YouTube's native pause icon whenever paused */}
-          {videoId && hasStarted && !isPlaying && (
-            <div 
-              className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none select-none"
-            >
-              <div 
-                className="rounded-full pointer-events-none"
-                style={{
-                  width: '108px',
-                  height: '108px',
-                  backgroundColor: '#000000',
-                  boxShadow: '0 0 24px 12px rgba(0, 0, 0, 0.95)'
-                }}
-              />
-            </div>
-          )}
-
           {/* =========================================================================
               CRITICAL: Transparent Touch Shield
               - Covers entire player canvas at z-26 (above video and masks)
@@ -1155,8 +1126,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 
             {/* Right side: Protected label + Close Button */}
             <div className="flex items-center gap-2 shrink-0">
-              <span className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold tracking-wider text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 select-none shadow-sm">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-bold tracking-wider text-[#00ff88] bg-[#00ff88]/20 border border-[#00ff88]/60 shadow-[0_0_12px_rgba(0,255,136,0.35)] select-none">
+                <span className="w-2 h-2 rounded-full bg-[#00ff88] shadow-[0_0_8px_#00ff88] animate-pulse" />
                 Protected
               </span>
 
@@ -1176,7 +1147,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             </div>
           </div>
 
-          {/* Center Play/Pause Button - Only the app's player button is visible; YouTube's native button is permanently covered */}
+          {/* Center Play/Pause Button - 100% Transparent Background, Clean Crisp Icon */}
           {!isDriveVideo && (
             <div 
               className={`absolute inset-0 z-30 flex items-center justify-center transition-opacity duration-200 ease-in-out pointer-events-none ${
@@ -1184,30 +1155,20 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               }`}
             >
               <div className="relative flex items-center justify-center pointer-events-auto">
-                {/* 100% Solid Opaque Black Backing Disc - Completely conceals YouTube's native 68x48 center button underneath */}
-                <div 
-                  className="absolute rounded-full pointer-events-none"
-                  style={{
-                    width: '104px',
-                    height: '104px',
-                    backgroundColor: '#000000',
-                    boxShadow: '0 0 24px 10px rgba(0,0,0,0.95)'
-                  }}
-                />
-
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     togglePlay();
                   }}
-                  className="relative z-10 w-11 h-11 sm:w-13 sm:h-13 rounded-full border-2 border-white/40 hover:border-white text-white flex items-center justify-center shadow-xl transition-all duration-150 hover:scale-105 active:scale-95 cursor-pointer drop-shadow-xl"
-                  style={{ backgroundColor: '#000000' }}
+                  className="relative z-10 p-1.5 sm:p-2 text-white flex items-center justify-center transition-transform duration-150 hover:scale-115 active:scale-95 cursor-pointer bg-transparent border-none outline-none focus:outline-none"
+                  style={{ backgroundColor: 'transparent' }}
                   title={isPlaying ? 'Pause' : 'Play'}
                 >
                   {isPlaying ? (
-                    <Pause className="w-5 h-5 sm:w-6 sm:h-6 fill-white text-white drop-shadow-md" />
+                    <Pause className="w-8 h-8 sm:w-10 sm:h-10 fill-white text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]" />
                   ) : (
-                    <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-white text-white ml-0.5 drop-shadow-md" />
+                    <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-white text-white ml-0.5 drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]" />
                   )}
                 </button>
               </div>
@@ -1273,12 +1234,13 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               {/* Timeline Track */}
               <div className="relative flex items-center w-full h-4 sm:h-5 cursor-pointer group">
                 {/* Multi-layered Track Base (Sharp, Crisp, Zero Blur) */}
-                <div className="absolute inset-x-0 flex items-center h-[5px] sm:h-[6px]">
-                  {/* Unplayed / Remaining Track: Pure Crisp Solid White (100% Opaque, Zero Blur) */}
+                <div className="absolute inset-x-0 flex items-center h-[6px] sm:h-[7px]">
+                  {/* Unplayed / Remaining Track: Pure Crisp Solid White (100% Opaque, Super Vivid, Zero Blur) */}
                   <div 
                     className="absolute inset-x-0 h-full rounded-full"
                     style={{ 
-                      backgroundColor: '#ffffff'
+                      backgroundColor: '#ffffff',
+                      boxShadow: '0 0 6px 1px rgba(255, 255, 255, 0.45)'
                     }}
                   />
 
@@ -1287,7 +1249,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                     className="absolute left-0 h-full rounded-full transition-[width] duration-300"
                     style={{ 
                       width: `${bufferedPercent}%`,
-                      backgroundColor: 'rgba(255, 255, 255, 0.9)'
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)'
                     }}
                   />
 
@@ -1397,9 +1359,9 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                     className="px-1.5 sm:px-2 py-1 rounded-lg text-white text-[11px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer hover:bg-white/20 active:bg-white/30 shrink-0 drop-shadow-md font-sans"
                     title="Playback Speed"
                   >
-                    <Gauge className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />
-                    <span className="whitespace-nowrap font-medium">Speed</span>
-                    <span className="hidden xs:inline text-[10px] font-mono text-emerald-300 font-bold">({playbackSpeed}x)</span>
+                    <Gauge className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#00ff88] drop-shadow-[0_0_8px_rgba(0,255,136,0.6)] shrink-0" />
+                    <span className="whitespace-nowrap font-medium text-white">Speed</span>
+                    <span className="text-[10px] font-mono text-[#00ff88] font-bold drop-shadow-[0_0_6px_rgba(0,255,136,0.4)]">({playbackSpeed}x)</span>
                   </button>
 
                   {/* Video Notes & Timestamp Bookmarks */}
