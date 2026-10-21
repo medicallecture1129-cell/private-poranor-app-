@@ -195,13 +195,16 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
   }, []);
 
-  // Autohide controls after 3 seconds while playing
+  // Autohide controls after 5 seconds while playing
   const resetHideTimer = useCallback(() => {
-    if (hideControlsTimerRef.current) clearTimeout(hideControlsTimerRef.current);
+    if (hideControlsTimerRef.current) {
+      clearTimeout(hideControlsTimerRef.current);
+      hideControlsTimerRef.current = null;
+    }
     if (isPlaying) {
       hideControlsTimerRef.current = setTimeout(() => {
         setControlsVisible(false);
-      }, 3000);
+      }, 5000);
     }
   }, [isPlaying]);
 
@@ -456,12 +459,16 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     if (isPlaying) {
       resetHideTimer();
     } else {
+      // If the video is paused, keep the top/bottom control panels fully visible until playback resumes
       setControlsVisible(true);
-      if (hideControlsTimerRef.current) clearTimeout(hideControlsTimerRef.current);
+      if (hideControlsTimerRef.current) {
+        clearTimeout(hideControlsTimerRef.current);
+        hideControlsTimerRef.current = null;
+      }
     }
   }, [isPlaying, resetHideTimer]);
 
-  // Instant Play / Pause toggle with immediate 3s control bar visibility
+  // Instant Play / Pause toggle with seamless state transition
   const togglePlay = () => {
     setHasStarted(true);
 
@@ -475,6 +482,10 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         html5VideoRef.current.pause();
         setIsPlaying(false);
         setControlsVisible(true);
+        if (hideControlsTimerRef.current) {
+          clearTimeout(hideControlsTimerRef.current);
+          hideControlsTimerRef.current = null;
+        }
       }
       return;
     }
@@ -484,6 +495,10 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         dispatchCommand('pauseVideo');
         setIsPlaying(false);
         setControlsVisible(true);
+        if (hideControlsTimerRef.current) {
+          clearTimeout(hideControlsTimerRef.current);
+          hideControlsTimerRef.current = null;
+        }
       } else {
         dispatchCommand('playVideo');
         setIsPlaying(true);
@@ -585,14 +600,18 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   };
 
   // Screen Tap Engine:
-  // 1. Single Tap: Toggles play/pause smoothly and shows control bar without any skip.
-  // 2. Double Tap: ONLY when tapped twice in rapid succession (< 300ms):
-  //    - Left side (< 48%): Rewind 10s (-10s)
-  //    - Right side (> 52%): Fast-forward 10s (+10s)
-  //    - Center: Toggle play/pause
+  // 1. Center Region: Direct Play/Pause toggle with NO icon overlay (silent and seamless).
+  // 2. Outside Region: Toggles top & bottom control panels (keeps visible for 5s, permanently while paused).
+  // 3. Double Tap: Left side = -10s rewind, Right side = +10s forward.
   const handleScreenTap = (clientX: number, clientY: number) => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
+
+    const relX = (clientX - rect.left) / rect.width;
+    const relY = (clientY - rect.top) / rect.height;
+
+    // Center Trigger Zone: horizontal 25% - 75%, vertical 20% - 80%
+    const isCenterRegion = relX >= 0.25 && relX <= 0.75 && relY >= 0.20 && relY <= 0.80;
 
     const now = Date.now();
     const timeSinceLast = now - lastTapRef.current.time;
@@ -608,25 +627,20 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       }
       lastTapRef.current = { time: 0, x: 0, y: 0 };
 
-      const relX = clientX - rect.left;
-      if (relX < rect.width * 0.48) {
+      if (relX < 0.35) {
         // Double tap left: Rewind 10s
         handleSkipBackward();
-      } else if (relX > rect.width * 0.52) {
+      } else if (relX > 0.65) {
         // Double tap right: Fast Forward 10s
         handleSkipForward();
       } else {
-        // Double tap center: toggle controls visibility without pausing
-        setControlsVisible(prev => {
-          const next = !prev;
-          if (next && isPlaying) resetHideTimer();
-          return next;
-        });
+        // Double tap center: directly toggle play/pause silently
+        togglePlay();
       }
       return;
     }
 
-    // First tap: register timestamp and position, wait 280ms for potential second tap
+    // First tap: register timestamp and position, wait 260ms for potential second tap
     lastTapRef.current = { time: now, x: clientX, y: clientY };
 
     if (singleTapTimerRef.current) {
@@ -636,15 +650,28 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     singleTapTimerRef.current = setTimeout(() => {
       singleTapTimerRef.current = null;
       lastTapRef.current = { time: 0, x: 0, y: 0 };
-      // Single tap: Strictly toggle controls visibility! NEVER toggle play/pause!
-      setControlsVisible(prev => {
-        const next = !prev;
-        if (next && isPlaying) {
-          resetHideTimer();
-        }
-        return next;
-      });
-    }, 280);
+
+      if (isCenterRegion) {
+        // 2. CENTER TOUCH FOR PLAY/PAUSE (NO ICON OVERLAY):
+        // Tapping/clicking exactly on the center region of the screen toggles Play/Pause directly.
+        // CRITICAL: Completely silent and seamless with ZERO big play/pause icons or animations!
+        togglePlay();
+      } else {
+        // 3. CONTROL PANEL DISPLAY & TIMEOUT FIX:
+        // Tapping anywhere ELSE toggles the visibility of the top and bottom control panels.
+        // Keep visible for 5 seconds when revealed while playing; keep permanently visible while paused.
+        setControlsVisible(prev => {
+          const next = !prev;
+          if (next && isPlaying) {
+            resetHideTimer(); // stays visible for 5 full seconds
+          } else if (!next && !isPlaying) {
+            // Keep control panels fully visible while paused!
+            return true;
+          }
+          return next;
+        });
+      }
+    }, 260);
   };
 
   const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
@@ -830,7 +857,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             maxHeight: isFullscreen ? 'min(100vh, calc(100vw * 9 / 16))' : 'none'
           }}
         >
-          {/* Case 1: YouTube video - In-App Playback with 100% Brand Shielding */}
+          {/* Case 1: YouTube video - Natural 16:9 In-App Fit with Object-Fit Contain */}
           {videoId && (
             <div className="absolute inset-0 w-full h-full overflow-hidden select-none pointer-events-none flex items-center justify-center bg-black">
               <iframe
@@ -838,13 +865,12 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 id={uniquePlayerId.current}
                 src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=${hasStarted ? 1 : 0}&enablejsapi=1&rel=0&playsinline=1&modestbranding=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`}
                 title={title}
-                className="border-0 pointer-events-none select-none"
+                className="w-full h-full border-0 absolute inset-0 pointer-events-none select-none"
                 style={{
                   position: 'absolute',
                   width: '100%',
                   height: '100%',
-                  transform: 'scale(1.32)',
-                  transformOrigin: 'center center',
+                  objectFit: 'contain',
                   pointerEvents: 'none',
                   userSelect: 'none'
                 }}
@@ -895,11 +921,9 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             />
           )}
 
-          {/* Permanent Top Protective Mask: Prevents any background YouTube title or channel header bleed */}
-          <div className="absolute top-0 inset-x-0 h-12 sm:h-14 bg-gradient-to-b from-black via-black/85 to-transparent pointer-events-none z-10" />
-
-          {/* Permanent Bottom Protective Mask: Prevents any background YouTube logo or card shelf bleed */}
-          <div className="absolute bottom-0 inset-x-0 h-12 sm:h-14 bg-gradient-to-t from-black via-black/85 to-transparent pointer-events-none z-10" />
+          {/* Subtle Top & Bottom Edge Vignettes: Keep video clear and uncropped */}
+          <div className="absolute top-0 inset-x-0 h-6 sm:h-8 bg-gradient-to-b from-black/75 to-transparent pointer-events-none z-10" />
+          <div className="absolute bottom-0 inset-x-0 h-6 sm:h-8 bg-gradient-to-t from-black/75 to-transparent pointer-events-none z-10" />
 
           {/* Transparent DOM Shield Overlay: Captures Taps/Gestures and Blocks Third-Party Extension Interception */}
           {!isDriveVideo && (

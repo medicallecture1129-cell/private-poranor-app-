@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Custom Clean Video Player</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: #0b0f19;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    /* Outer Player Container (Supports both inline card and fullscreen) */
+    .player-container {
+      position: relative;
+      width: 100%;
+      max-width: 960px;
+      background: #000000;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* Fullscreen Mode (Portrait & Landscape Mobile Centering) */
+    .player-container:fullscreen,
+    .player-container:-webkit-full-screen,
+    .player-container.is-fullscreen {
+      width: 100vw !important;
+      height: 100vh !important;
+      max-width: none !important;
+      border-radius: 0 !important;
+      border: none !important;
+      justify-content: space-between !important;
+    }
+
+    /* Video Stage Wrapper */
+    .video-stage {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      background-color: #000000;
+    }
+
+    .player-container:fullscreen .video-stage,
+    .player-container.is-fullscreen .video-stage {
+      flex: 1;
+      height: 100%;
+    }
+
+    /* 1. Video Canvas: 16:9 Aspect Ratio with object-fit: contain (Zero crop, zero zoom) */
+    .video-canvas {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #000000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .player-container:fullscreen .video-canvas,
+    .player-container.is-fullscreen .video-canvas {
+      max-width: min(100vw, calc(100vh * 16 / 9));
+      max-height: min(100vh, calc(100vw * 9 / 16));
+      margin: auto;
+    }
+
+    /* HTML5 Video: object-fit: contain */
+    .video-element {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #000000;
+      display: block;
+      pointer-events: none;
+    }
+
+    /* YouTube iframe wrapper: object-fit contain, zero crop */
+    .iframe-embed {
+      width: 100%;
+      height: 100%;
+      border: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+    }
+
+    /* Interactive Touch & Shield Overlay */
+    .touch-shield {
+      position: absolute;
+      inset: 0;
+      z-index: 15;
+      cursor: pointer;
+      background: transparent;
+    }
+
+    /* Subtle Edge Vignettes */
+    .edge-vignette-top {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 32px;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .edge-vignette-bottom {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 32px;
+      background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* Top Control Bar */
+    .top-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.75) 60%, transparent 100%);
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+
+    .top-bar.is-hidden {
+      opacity: 0;
+      transform: translateY(-100%);
+      pointer-events: none;
+    }
+
+    .video-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #f1f5f9;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 60%;
+    }
+
+    .badge-protected {
+      font-size: 11px;
+      font-weight: 600;
+      color: #38bdf8;
+      background: rgba(14, 165, 233, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      padding: 4px 10px;
+      border-radius: 8px;
+    }
+
+    /* Bottom Control Bar */
+    .bottom-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 30;
+      padding: 12px 18px 16px;
+      background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.8) 60%, transparent 100%);
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+
+    .bottom-bar.is-hidden {
+      opacity: 0;
+      transform: translateY(100%);
+      pointer-events: none;
+    }
+
+    /* Timeline Scrubber */
+    .progress-container {
+      position: relative;
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.25);
+      border-radius: 4px;
+      cursor: pointer;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: #2563eb;
+      border-radius: 4px;
+      transition: width 0.1s linear;
+    }
+
+    /* Controls Row */
+    .controls-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .controls-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-ctrl {
+      background: transparent;
+      border: none;
+      color: #ffffff;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s ease;
+    }
+
+    .btn-ctrl:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .btn-ctrl svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+    }
+
+    .time-display {
+      font-size: 12px;
+      font-family: monospace;
+      color: #cbd5e1;
+    }
+
+    /* Initial Start Button (Compact, No Subtitle Text) */
+    .initial-start-btn {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.6);
+      cursor: pointer;
+    }
+
+    .initial-start-btn.is-hidden {
+      display: none !important;
+    }
+
+    .circle-play-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: #2563eb;
+      box-shadow: 0 0 25px rgba(37, 99, 235, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s ease, background-color 0.2s ease;
+    }
+
+    .initial-start-btn:hover .circle-play-icon {
+      transform: scale(1.08);
+      background: #1d4ed8;
+    }
+
+    .circle-play-icon svg {
+      width: 22px;
+      height: 22px;
+      fill: #ffffff;
+      margin-left: 2px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Custom Video Player Element -->
+  <div class="player-container" id="playerContainer">
+    
+    <!-- Top Header Panel -->
+    <div class="top-bar" id="topBar">
+      <span class="video-title">Physics 01: Kinematics & Vector Lecture</span>
+      <span class="badge-protected">Protected In-App Player</span>
+    </div>
+
+    <!-- Video Stage Area (Centered in Fullscreen) -->
+    <div class="video-stage">
+      <div class="video-canvas" id="videoCanvas">
+        
+        <!-- Video Source (object-fit: contain) -->
+        <video 
+          class="video-element" 
+          id="videoElement"
+          playsinline 
+          preload="metadata"
+          src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+        ></video>
+
+        <!-- Subtle Top & Bottom Edge Vignettes -->
+        <div class="edge-vignette-top"></div>
+        <div class="edge-vignette-bottom"></div>
+
+        <!-- Initial Start Button (Compact, No Subtitle) -->
+        <div class="initial-start-btn" id="initialStartBtn">
+          <div class="circle-play-icon">
+            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          </div>
+        </div>
+
+        <!-- Transparent Click/Touch Shield Layer -->
+        <div class="touch-shield" id="touchShield"></div>
+
+      </div>
+    </div>
+
+    <!-- Bottom Controls Panel -->
+    <div class="bottom-bar" id="bottomBar">
+      <!-- Progress Bar / Scrubber -->
+      <div class="progress-container" id="progressContainer">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+
+      <!-- Controls Row -->
+      <div class="controls-row">
+        <div class="controls-group">
+          <!-- Play/Pause Button -->
+          <button class="btn-ctrl" id="btnPlayPause" title="Play/Pause">
+            <svg id="iconPlay" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="iconPause" viewBox="0 0 24 24" style="display:none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          </button>
+
+          <!-- Time Display -->
+          <span class="time-display" id="timeDisplay">0:00 / 0:00</span>
+        </div>
+
+        <div class="controls-group">
+          <!-- Fullscreen Toggle -->
+          <button class="btn-ctrl" id="btnFullscreen" title="Fullscreen">
+            <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Elements
+    const playerContainer = document.getElementById('playerContainer');
+    const video = document.getElementById('videoElement');
+    const topBar = document.getElementById('topBar');
+    const bottomBar = document.getElementById('bottomBar');
+    const initialStartBtn = document.getElementById('initialStartBtn');
+    const touchShield = document.getElementById('touchShield');
+    const btnPlayPause = document.getElementById('btnPlayPause');
+    const iconPlay = document.getElementById('iconPlay');
+    const iconPause = document.getElementById('iconPause');
+    const timeDisplay = document.getElementById('timeDisplay');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+    const btnFullscreen = document.getElementById('btnFullscreen');
+
+    let controlsTimeout = null;
+    let controlsVisible = true;
+    let hasStarted = false;
+
+    // Format seconds to mm:ss
+    function formatTime(seconds) {
+      if (isNaN(seconds)) return '0:00';
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+
+    // 3. CONTROL PANEL DISPLAY & 5-SECOND AUTO-HIDE TIMEOUT
+    function showControls() {
+      controlsVisible = true;
+      topBar.classList.remove('is-hidden');
+      bottomBar.classList.remove('is-hidden');
+
+      if (controlsTimeout) {
+        clearTimeout(controlsTimeout);
+        controlsTimeout = null;
+      }
+
+      // If playing, keep visible for 5 seconds before fading out.
+      // If paused, keep panels visible permanently until playback resumes!
+      if (!video.paused) {
+        controlsTimeout = setTimeout(() => {
+          hideControls();
+        }, 5000);
+      }
+    }
+
+    function hideControls() {
+      // Never auto-hide when video is paused
+      if (video.paused) return;
+
+      controlsVisible = false;
+      topBar.classList.add('is-hidden');
+      bottomBar.classList.add('is-hidden');
+    }
+
+    function toggleControls() {
+      if (controlsVisible) {
+        if (!video.paused) {
+          hideControls();
+        }
+      } else {
+        showControls();
+      }
+    }
+
+    // Play / Pause Toggle (Completely silent and seamless - ZERO overlay icons)
+    function togglePlay() {
+      hasStarted = true;
+      initialStartBtn.classList.add('is-hidden');
+
+      if (video.paused) {
+        video.play();
+        iconPlay.style.display = 'none';
+        iconPause.style.display = 'inline-block';
+        showControls(); // reveals controls and starts 5s timer
+      } else {
+        video.pause();
+        iconPlay.style.display = 'inline-block';
+        iconPause.style.display = 'none';
+        showControls(); // stays visible permanently while paused
+      }
+    }
+
+    // 2. CENTER TOUCH FOR PLAY/PAUSE (NO ICON OVERLAY)
+    // Tapping center region directly toggles Play/Pause.
+    // Tapping outside center region toggles the top/bottom control panels.
+    touchShield.addEventListener('click', (e) => {
+      const rect = touchShield.getBoundingClientRect();
+      const relX = (e.clientX - rect.left) / rect.width;
+      const relY = (e.clientY - rect.top) / rect.height;
+
+      // Define Center Trigger Zone (horizontal: 25%-75%, vertical: 20%-80%)
+      const isCenterRegion = relX >= 0.25 && relX <= 0.75 && relY >= 0.20 && relY <= 0.80;
+
+      if (isCenterRegion) {
+        // Tapping center toggles play/pause with ZERO status animations or icons!
+        togglePlay();
+      } else {
+        // Tapping outside center toggles control panel visibility
+        toggleControls();
+      }
+    });
+
+    // Initial button click
+    initialStartBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      togglePlay();
+    });
+
+    // Control bar button click
+    btnPlayPause.addEventListener('click', (e) => {
+      e.stopPropagation();
+      togglePlay();
+    });
+
+    // Progress bar update
+    video.addEventListener('timeupdate', () => {
+      if (video.duration) {
+        const percent = (video.currentTime / video.duration) * 100;
+        progressBar.style.width = `${percent}%`;
+        timeDisplay.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+      }
+    });
+
+    // Seek on scrubber click
+    progressContainer.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const rect = progressContainer.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const newTime = (clickX / rect.width) * video.duration;
+      video.currentTime = newTime;
+      showControls();
+    });
+
+    // Fullscreen Toggle
+    btnFullscreen.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!document.fullscreenElement) {
+        if (playerContainer.requestFullscreen) {
+          playerContainer.requestFullscreen();
+        } else if (playerContainer.webkitRequestFullscreen) {
+          playerContainer.webkitRequestFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    });
+
+    document.addEventListener('fullscreenchange', () => {
+      if (document.fullscreenElement) {
+        playerContainer.classList.add('is-fullscreen');
+      } else {
+        playerContainer.classList.remove('is-fullscreen');
+      }
+      showControls();
+    });
+
+    // Keyboard Shortcuts (Space for Play/Pause, F for Fullscreen)
+    document.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.key === 'k') {
+        e.preventDefault();
+        togglePlay();
+      } else if (e.key === 'f') {
+        e.preventDefault();
+        btnFullscreen.click();
+      }
+    });
+
+    // Reset controls timeout on mouse movement inside player
+    playerContainer.addEventListener('mousemove', () => {
+      showControls();
+    });
+  </script>
+</body>
+</html>
