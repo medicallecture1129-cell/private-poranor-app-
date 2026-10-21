@@ -2,28 +2,21 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Play, 
   Pause, 
-  Volume2, 
-  VolumeX, 
   Maximize, 
   Minimize, 
   X, 
   RotateCcw, 
   RotateCw, 
   Gauge, 
-  GraduationCap, 
   Sun, 
   Minus, 
   Plus, 
-  ShieldCheck, 
   Settings, 
   Check,
   Bookmark,
-  FileText,
   Trash2,
-  ExternalLink,
   Clock,
-  Sparkles,
-  Loader2
+  Volume2
 } from 'lucide-react';
 import { extractYouTubeId, getGoogleDriveEmbedUrl } from '../../utils/mediaUrl';
 import { useAuth } from '../../context/AuthContext';
@@ -80,8 +73,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const hyperSpeedIntervalRef = useRef<any>(null);
   const uniquePlayerId = useRef(`yt-player-${Math.random().toString(36).substring(2, 9)}`);
   
-  // Single-tap vs Double-tap debouncer
-  const singleTapTimerRef = useRef<any>(null);
+  // Tap tracker
   const lastTapRef = useRef<{ time: number; x: number; y: number }>({ time: 0, x: 0, y: 0 });
   const lastTouchEndTimeRef = useRef<number>(0);
 
@@ -101,7 +93,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [bufferedPercent, setBufferedPercent] = useState<number>(0);
-  const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(100);
   const [brightness, setBrightness] = useState(1); // 0.25 to 1.5
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
@@ -319,7 +310,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       isPlayerReadyRef.current = false;
     }
 
-    // 2. Prepare clean mount container
+    // 2. Prepare clean mount container (w-full h-full, zero cropping)
     const mountContainer = ytMountContainerRef.current;
     if (mountContainer) {
       mountContainer.innerHTML = '';
@@ -488,10 +479,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   // =========================================================================
   // 2.5x & 3.0x YouTube Speed Optimization (Max 3.0x, smooth keyframe stepping)
   // =========================================================================
-  // YouTube API natively supports up to 2.0x with smooth audio decoding.
-  // For speeds > 2.0x (e.g. 2.5x or 3.0x): we keep native playback rate at 2.0x
-  // and smoothly nudge forward by (targetSpeed - 2.0) * interval every 1200ms
-  // (1.2s cadence aligns with H.264/VP9 keyframes, preventing stutter or decoder stalls)
   useEffect(() => {
     if (hyperSpeedIntervalRef.current) {
       clearInterval(hyperSpeedIntervalRef.current);
@@ -536,7 +523,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         clearTimeout(hideControlsTimerRef.current);
         hideControlsTimerRef.current = null;
       }
-      // When newly paused, display controls initially; student can touch anywhere to hide them cleanly
       if (prevPlayingRef.current && !isPlaying) {
         setControlsVisible(true);
       }
@@ -592,7 +578,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
   };
 
-  // 10s Skip Backward (Double-tap left) - Smooth without pausing video
+  // 10s Skip Backward (Double-tap left)
   const handleSkipBackward = () => {
     if (isDirectVideo && html5VideoRef.current) {
       const newTime = Math.max(0, html5VideoRef.current.currentTime - 10);
@@ -618,7 +604,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
   };
 
-  // 10s Skip Forward (Double-tap right) - Smooth without pausing video
+  // 10s Skip Forward (Double-tap right)
   const handleSkipForward = () => {
     if (isDirectVideo && html5VideoRef.current) {
       const newTime = Math.min(duration || 999999, html5VideoRef.current.currentTime + 10);
@@ -679,7 +665,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         // Volume (0 to 100)
         const newVol = Math.min(100, Math.max(0, Math.round(touchStartRef.current.volume - deltaY * 0.4)));
         setVolume(newVol);
-        setIsMuted(newVol === 0);
 
         if (isDirectVideo && html5VideoRef.current) {
           html5VideoRef.current.volume = newVol / 100;
@@ -695,61 +680,44 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
   };
 
-  // Screen Tap Engine:
-  // 1. Single Tap: Smoothly toggles visibility of all player controls simultaneously.
-  // 2. Double Tap: Outer left = -10s, Outer right = +10s, Center = toggle play/pause.
+  // =========================================================================
+  // 5. INSTANT SCREEN TAP TOGGLE (NO SLUGGISH FADE-OUT, INSTANT SHOW/HIDE)
+  // =========================================================================
   const handleScreenTap = (clientX: number, clientY: number) => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
 
     const relX = (clientX - rect.left) / rect.width;
-
     const now = Date.now();
     const timeSinceLast = now - lastTapRef.current.time;
     const deltaX = Math.abs(clientX - lastTapRef.current.x);
     const deltaY = Math.abs(clientY - lastTapRef.current.y);
     const dist = Math.hypot(deltaX, deltaY);
 
-    // True Double Tap: tapped twice within 50ms - 320ms and within 70px proximity
-    if (timeSinceLast >= 50 && timeSinceLast < 320 && dist < 70) {
-      if (singleTapTimerRef.current) {
-        clearTimeout(singleTapTimerRef.current);
-        singleTapTimerRef.current = null;
-      }
+    // Double Tap detection (< 280ms)
+    if (timeSinceLast >= 50 && timeSinceLast < 280 && dist < 70) {
       lastTapRef.current = { time: 0, x: 0, y: 0 };
 
       if (relX < 0.35) {
-        // Double tap left: Rewind 10s
         handleSkipBackward();
       } else if (relX > 0.65) {
-        // Double tap right: Fast Forward 10s
         handleSkipForward();
       } else {
-        // Double tap center: toggle play/pause
         togglePlay();
       }
       return;
     }
 
-    // First tap: register timestamp and position, wait 240ms for potential second tap
+    // Single Tap: INSTANT toggle without waiting for timeout
     lastTapRef.current = { time: now, x: clientX, y: clientY };
 
-    if (singleTapTimerRef.current) {
-      clearTimeout(singleTapTimerRef.current);
-    }
-
-    singleTapTimerRef.current = setTimeout(() => {
-      singleTapTimerRef.current = null;
-      lastTapRef.current = { time: 0, x: 0, y: 0 };
-
-      setControlsVisible(prev => {
-        const next = !prev;
-        if (next && isPlaying) {
-          resetHideTimer();
-        }
-        return next;
-      });
-    }, 240);
+    setControlsVisible(prev => {
+      const next = !prev;
+      if (next && isPlaying) {
+        resetHideTimer();
+      }
+      return next;
+    });
   };
 
   const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
@@ -773,27 +741,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       return;
     }
     handleScreenTap(e.clientX, e.clientY);
-  };
-
-  const toggleMute = () => {
-    if (isDirectVideo && html5VideoRef.current) {
-      html5VideoRef.current.muted = !isMuted;
-      setIsMuted(!isMuted);
-      return;
-    }
-
-    if (videoId) {
-      if (ytPlayerRef.current) {
-        try {
-          if (isMuted) {
-            ytPlayerRef.current.unMute();
-          } else {
-            ytPlayerRef.current.mute();
-          }
-        } catch (e) {}
-      }
-      setIsMuted(!isMuted);
-    }
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -869,19 +816,30 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
   };
 
+  // =========================================================================
+  // 4. SMART TIMER DISPLAY & DURATION FORMAT
+  // - If video duration < 1 hour (< 3600s): MM:SS strictly (no hour portion)
+  // - If video duration >= 1 hour (>= 3600s): H:MM:SS
+  // =========================================================================
   const formatTime = (secs: number, totalDuration: number = duration) => {
     if (isNaN(secs) || secs < 0) return '00:00';
     const totalSecs = Math.floor(secs);
-    const h = Math.floor(totalSecs / 3600);
-    const m = Math.floor((totalSecs % 3600) / 60);
-    const s = Math.floor(totalSecs % 60);
     const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
 
-    // If total duration crosses 60 minutes (>= 3600 sec), format with hours (e.g. 1:27:50)
-    if (totalDuration >= 3600 || h > 0) {
-      return `${h}:${pad(m)}:${pad(s)}`;
+    // If total video duration is under 1 hour (< 3600 seconds):
+    // Strictly display MM:SS without any hour portion!
+    if (totalDuration < 3600) {
+      const m = Math.floor(totalSecs / 60);
+      const s = totalSecs % 60;
+      return `${pad(m)}:${pad(s)}`;
     }
-    return `${pad(m)}:${pad(s)}`;
+
+    // If total video duration is 1 hour or more (>= 3600 seconds):
+    // Display H:MM:SS
+    const h = Math.floor(totalSecs / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
+    return `${h}:${pad(m)}:${pad(s)}`;
   };
 
   const currentQualityLabel = QUALITY_OPTIONS.find(q => q.id === selectedQuality)?.label || 'Auto';
@@ -891,9 +849,9 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     <div 
       ref={containerRef}
       onMouseMove={handleMouseMove}
-      className={`relative w-full bg-black flex flex-col select-none overflow-hidden transition-all duration-300 ${
+      className={`relative w-full bg-black flex flex-col select-none overflow-hidden transition-all duration-200 ${
         isFullscreen 
-          ? 'fixed inset-0 w-screen h-screen max-w-none rounded-none z-[9999] justify-between' 
+          ? 'fixed inset-0 w-screen h-screen max-w-none rounded-none z-[9999] justify-center items-center' 
           : 'w-full rounded-2xl overflow-hidden justify-center'
       }`}
       style={{ borderRadius: isFullscreen ? 0 : '16px' }}
@@ -905,14 +863,14 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       onDragStart={(e) => e.preventDefault()}
     >
       {/* =========================================================================
-          1. TOP APP BAR: Dynamic Theme-Aware App Logo + Video Lecture Title + Close Button
+          1 & 3. TOP APP BAR: Floating Glass Capsule (NO DARK GRADIENT ON VIDEO)
           - Removed hardcoded "Medical Admission Hub"
           - Displays ONLY user-saved video lecture title
           - Theme-aware app logo dynamically changes color with App Theme
-          - Smooth fade-in and fade-out transition
+          - Instant toggle with controlsVisible
          ========================================================================= */}
       <div 
-        className={`absolute top-0 inset-x-0 z-30 px-3 sm:px-6 py-2.5 sm:py-3.5 bg-gradient-to-b from-black/85 via-black/55 to-transparent flex items-center justify-between text-white transition-opacity duration-300 ease-in-out ${
+        className={`absolute top-2.5 sm:top-3 inset-x-2.5 sm:inset-x-5 z-30 px-3 sm:px-4 py-2 rounded-xl sm:rounded-2xl bg-black/75 backdrop-blur-md border border-white/10 flex items-center justify-between text-white shadow-lg transition-opacity duration-100 ease-out ${
           controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
       >
@@ -938,7 +896,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           
           <div className="flex items-center min-w-0">
             <span 
-              className="font-bold text-xs sm:text-sm text-white truncate max-w-[220px] sm:max-w-md lg:max-w-xl" 
+              className="font-bold text-xs sm:text-sm text-white truncate max-w-[200px] sm:max-w-md lg:max-w-xl" 
               title={title}
             >
               {title || 'ভিডিও লেকচার'}
@@ -953,10 +911,10 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               e.stopPropagation();
               onClose();
             }}
-            className="p-1.5 sm:p-2 bg-white/10 hover:bg-white/20 active:bg-white/30 backdrop-blur-md rounded-full text-white/90 hover:text-white transition-all cursor-pointer border border-white/15 shrink-0 shadow-lg"
+            className="p-1.5 sm:p-2 bg-white/10 hover:bg-white/20 active:bg-white/30 rounded-full text-white/90 hover:text-white transition-colors cursor-pointer border border-white/15 shrink-0"
             title="Close Player"
           >
-            <X className="w-4 h-4 sm:w-5 sm:h-5" />
+            <X className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
           </button>
         )}
       </div>
@@ -964,16 +922,19 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       {/* Video Stage Container: Seamless, uncropped, zero dark border letterboxing */}
       <div 
         className={`w-full flex items-center justify-center relative overflow-hidden bg-black ${
-          isFullscreen ? 'flex-1 h-full' : ''
+          isFullscreen ? 'w-full h-full' : ''
         }`}
       >
-        {/* Video Canvas Container (16:9 natural aspect ratio, object-fit contain) */}
+        {/* =========================================================================
+            8. VIDEO CANVAS (16:9 Aspect Ratio, Zero Cropping, 100% Fit)
+            - Video is 100% visible, fitted properly without losing top or bottom portions
+           ========================================================================= */}
         <div 
           className={`relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden ${
             isFullscreen ? 'max-h-full max-w-full my-auto' : 'max-w-full'
           }`}
           style={{ 
-            filter: `brightness(${brightness})`,
+            filter: brightness !== 1 ? `brightness(${brightness})` : undefined,
             maxWidth: isFullscreen ? 'min(100vw, calc(100vh * 16 / 9))' : '100%',
             maxHeight: isFullscreen ? 'min(100vh, calc(100vw * 9 / 16))' : 'none'
           }}
@@ -981,17 +942,16 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           {/* =========================================================================
               Case 1: YouTube Video Player
               - Managed via YouTube IFrame Player API
-              - Scaled & positioned with offset to push YouTube's native header, channel title,
-                avatar, and bottom watermark OUTSIDE the canvas bounding box
-              - ALL dark tint/gradient overlays on the video REMOVED (Crystal clear original video)
-              - pointer-events: none on the entire iframe hierarchy prevents any external click
+              - 100% Width & 100% Height: ZERO Cropping! Fits lecture completely!
+              - NO dark gradient overlay on video: 100% bright & clear original picture!
+              - pointer-events: none prevents any external clicks
              ========================================================================= */}
           {videoId && (
             <div className="absolute inset-0 w-full h-full overflow-hidden select-none pointer-events-none flex items-center justify-center bg-black">
               {/* YouTube Player Mount Container (Programmatically managed by YT.Player) */}
               <div 
                 ref={ytMountContainerRef}
-                className="absolute w-[106%] h-[130%] -top-[15%] -left-[3%] pointer-events-none select-none flex items-center justify-center"
+                className="absolute inset-0 w-full h-full pointer-events-none select-none flex items-center justify-center"
                 style={{
                   pointerEvents: 'none',
                   userSelect: 'none'
@@ -1069,13 +1029,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               2. PURE SOLID BLACK COVER (Hide Initial Thumbnail, Channel Bar & Red Play Button)
               - Solid black overlay is 100% opaque until video playback actually starts
               - Completely shields the initial YouTube thumbnail and red play button
-              - Seamlessly dissolves (fade-out) once playing begins
+              - Disappears instantly as soon as playing begins
              ========================================================================= */}
           {videoId && !isPlaying && (
             <div 
-              className={`absolute inset-0 bg-black z-15 pointer-events-none transition-opacity duration-500 ${
-                hasStarted && isPlaying ? 'opacity-0' : 'opacity-100'
-              }`}
+              className="absolute inset-0 bg-black z-15 pointer-events-none"
             />
           )}
 
@@ -1111,7 +1069,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           {/* Buffering Indicator */}
           {isBuffering && (
             <div className="absolute inset-0 z-25 flex items-center justify-center pointer-events-none">
-              <div className="flex flex-col items-center gap-2 px-4 py-3 rounded-2xl bg-black/80 backdrop-blur-md border border-white/10 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex flex-col items-center gap-2 px-4 py-3 rounded-2xl bg-black/85 backdrop-blur-md border border-white/10 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
                 <div 
                   className="w-8 h-8 border-3 border-white/20 rounded-full animate-spin" 
                   style={{ borderTopColor: themePrimary }}
@@ -1122,10 +1080,10 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           )}
 
           {/* DEDICATED CENTER PLAY/PAUSE BUTTON:
-              Smoothly fades in and out with all other controls! */}
+              Toggles instantly with controlsVisible */}
           {!isDriveVideo && (
             <div 
-              className={`absolute inset-0 z-30 flex items-center justify-center transition-opacity duration-300 ease-in-out ${
+              className={`absolute inset-0 z-30 flex items-center justify-center transition-opacity duration-100 ease-out ${
                 controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
               }`}
             >
@@ -1134,7 +1092,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                   e.stopPropagation();
                   togglePlay();
                 }}
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-black/65 hover:bg-black/85 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-2xl transition-all transform hover:scale-110 active:scale-95 cursor-pointer"
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-black/70 hover:bg-black/85 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-2xl transition-transform hover:scale-110 active:scale-95 cursor-pointer"
                 title={isPlaying ? 'Pause' : 'Play'}
               >
                 {isPlaying ? (
@@ -1150,7 +1108,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           {skipFeedback && (
             <div 
               className={`absolute top-0 bottom-0 z-30 w-1/3 flex items-center justify-center pointer-events-none ${
-                skipFeedback.side === 'left' ? 'left-0 bg-gradient-to-r from-blue-600/30 to-transparent' : 'right-0 bg-gradient-to-l from-blue-600/30 to-transparent'
+                skipFeedback.side === 'left' ? 'left-0 bg-blue-600/20' : 'right-0 bg-blue-600/20'
               }`}
             >
               <div className="flex flex-col items-center text-white bg-black/90 px-4 py-2.5 rounded-2xl backdrop-blur-md shadow-2xl border border-white/15 animate-in fade-in zoom-in duration-150">
@@ -1184,34 +1142,37 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       </div>
 
       {/* =========================================================================
-          4 & 5. CLEAN BOTTOM CONTROL BAR & ADVANCED TIMELINE
-          - Smooth fade-in & fade-out with controlsVisible
-          - Flexbox single-line timer alignment (no text break/jumping)
+          1, 4, 6, 7. CLEAN BOTTOM CONTROL BAR (FLOATING CAPSULE, NO DARK GRADIENT)
+          - No dark gradient covering the video!
+          - Single-line timer (MM:SS when < 1h)
+          - Volume button REMOVED (Requirement 7)
+          - Fullscreen button safely bounded within screen boundaries (Requirement 6)
+          - Instant toggle with controlsVisible (Requirement 5)
          ========================================================================= */}
       {!isDriveVideo && (
         <div 
-          className={`absolute bottom-0 inset-x-0 z-30 px-3 sm:px-5 py-2.5 sm:py-3.5 bg-gradient-to-t from-black/90 via-black/60 to-transparent text-white transition-opacity duration-300 ease-in-out ${
+          className={`absolute bottom-2.5 sm:bottom-3 inset-x-2.5 sm:inset-x-5 z-30 px-3 sm:px-4 py-2.5 rounded-xl sm:rounded-2xl bg-black/80 backdrop-blur-md border border-white/10 text-white transition-opacity duration-100 ease-out shadow-xl ${
             controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-          } ${isFullscreen ? 'pb-4 sm:pb-6' : ''}`}
+          } ${isFullscreen ? 'mb-2 sm:mb-3' : ''}`}
+          style={{
+            paddingLeft: 'max(12px, env(safe-area-inset-left))',
+            paddingRight: 'max(12px, env(safe-area-inset-right))'
+          }}
         >
-          {/* ADVANCED TIMELINE / PROGRESS BAR STYLING:
-              - Played portion: Highlighted with the App's Theme Color (5.5px)
-              - Buffered portion: 3.5px translucent white loaded in advance
-              - Remaining unplayed portion: 2.5px thin faded line
-              - Scrubber dot: Always visible at front of line for intuitive seeking */}
+          {/* Timeline Track */}
           <div className="relative flex items-center w-full mb-2 h-5 cursor-pointer group">
             {/* Multi-layered Track Base */}
             <div className="absolute inset-x-0 flex items-center h-[5.5px]">
-              {/* 1. Unplayed Portion: Thin 2.5px faded background track */}
+              {/* Unplayed Portion */}
               <div className="absolute inset-x-0 h-[2.5px] bg-white/20 rounded-full overflow-hidden" />
 
-              {/* 2. Buffered Portion: 3.5px translucent white track loaded ahead */}
+              {/* Buffered Portion */}
               <div 
                 className="absolute left-0 h-[3.5px] bg-white/45 rounded-full transition-[width] duration-300"
                 style={{ width: `${bufferedPercent}%` }}
               />
 
-              {/* 3. Played Portion: Highlighted using App Theme Color (5.5px) */}
+              {/* Played Portion */}
               <div 
                 className="absolute left-0 h-[5.5px] rounded-full transition-[width] duration-75 shadow-md"
                 style={{ 
@@ -1222,7 +1183,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               />
             </div>
 
-            {/* Draggable Scrubber Dot (Thumb) - Always Visible at the front of played line */}
+            {/* Draggable Scrubber Thumb */}
             <div 
               className="absolute top-1/2 w-4 h-4 rounded-full border-2 border-white shadow-xl pointer-events-none transition-transform duration-75 -translate-x-1/2 -translate-y-1/2 z-10 group-hover:scale-125"
               style={{ 
@@ -1232,7 +1193,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               }}
             />
 
-            {/* Seamless Scrub Range Input */}
+            {/* Range Input */}
             <input
               type="range"
               min={0}
@@ -1243,13 +1204,10 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             />
           </div>
 
-          {/* Clean Controls Row */}
-          <div className="flex items-center justify-between gap-2 text-xs">
-            <div className="flex items-center gap-2 min-w-0 shrink-0">
-              {/* =========================================================================
-                  4. SINGLE-LINE TIMER ALIGNMENT (CSS Flexbox inline-flex, whitespace-nowrap)
-                  - Guaranteed never to wrap or break into two lines in any screen mode
-                 ========================================================================= */}
+          {/* Controls Row */}
+          <div className="flex items-center justify-between gap-1.5 sm:gap-3 text-xs w-full min-w-0">
+            {/* Left Section: Single-Line Timer Display (MM:SS if under 1h) */}
+            <div className="flex items-center min-w-0 shrink-0">
               <button
                 type="button"
                 onClick={(e) => {
@@ -1291,21 +1249,9 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                   )}
                 </span>
               </button>
-
-              {/* Mute / Unmute Toggle */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleMute();
-                }}
-                className="p-1 rounded-lg hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer shrink-0"
-                title={isMuted ? 'Unmute' : 'Mute'}
-              >
-                {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
-              </button>
             </div>
 
+            {/* Right Section: Compact buttons that never overflow in Fullscreen */}
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               {/* Quality Selector Button */}
               <button
@@ -1314,11 +1260,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                   window.history.pushState({ modal: 'quality' }, '');
                   setShowQualityMenu(true);
                 }}
-                className="px-2 sm:px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-mono text-[11px] sm:text-xs flex items-center gap-1 transition-all cursor-pointer border border-white/10 shrink-0"
+                className="px-2 sm:px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-mono text-[11px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer border border-white/10 shrink-0"
                 title="Resolution & Quality"
               >
-                <Settings className="w-3.5 h-3.5 text-blue-400" />
-                <span>{currentQualityLabel}</span>
+                <Settings className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                <span className="whitespace-nowrap">{currentQualityLabel}</span>
               </button>
 
               {/* Playback Speed Button (0.5x to 3.0x) */}
@@ -1328,11 +1274,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                   window.history.pushState({ modal: 'speed' }, '');
                   setShowSpeedMenu(true);
                 }}
-                className="px-2 sm:px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-mono text-[11px] sm:text-xs flex items-center gap-1 transition-all cursor-pointer border border-white/10 shrink-0"
+                className="px-2 sm:px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-mono text-[11px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer border border-white/10 shrink-0"
                 title="Playback Speed"
               >
-                <Gauge className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{playbackSpeed.toFixed(2)}x</span>
+                <Gauge className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span className="whitespace-nowrap">{playbackSpeed.toFixed(2)}x</span>
               </button>
 
               {/* Video Notes & Timestamp Bookmarks */}
@@ -1341,24 +1287,25 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                   e.stopPropagation();
                   setShowNotesPanel(prev => !prev);
                 }}
-                className={`px-2 sm:px-2.5 py-1 rounded-lg text-white font-medium text-[11px] sm:text-xs flex items-center gap-1 transition-all cursor-pointer border shrink-0 ${
+                className={`px-2 sm:px-2.5 py-1 rounded-lg text-white font-medium text-[11px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer border shrink-0 ${
                   showNotesPanel
                     ? 'bg-amber-500/30 border-amber-400 text-amber-300'
                     : 'bg-white/10 hover:bg-white/20 border-white/10'
                 }`}
                 title="Timestamp Notes & Bookmarks"
               >
-                <Bookmark className="w-3.5 h-3.5 text-amber-400" />
-                <span className="hidden sm:inline">নোটস ({videoNotes.length})</span>
+                <Bookmark className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span className="hidden sm:inline">নোটস</span>
+                <span className="text-[10px]">({videoNotes.length})</span>
               </button>
 
-              {/* Fullscreen Toggle */}
+              {/* Fullscreen Toggle Button (Properly bounded, never cut off) */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleFullscreen();
                 }}
-                className="p-1.5 rounded-lg hover:bg-white/10 text-white transition-colors cursor-pointer shrink-0"
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer shrink-0 border border-white/10"
                 title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
               >
                 {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
@@ -1464,9 +1411,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       )}
 
       {/* =========================================================================
-          6 & 7. PLAYBACK SPEED MODAL - Max 3.0x, Responsive & Compact for Landscape/Fullscreen
-          - Capped at 3.0x max with optimized smooth steps
-          - Bounded by max-h-[88vh] with internal scrolling to prevent cutting off in landscape
+          6. PLAYBACK SPEED MODAL - Max 3.0x, Responsive & Compact for Landscape/Fullscreen
          ========================================================================= */}
       {showSpeedMenu && (
         <div 
@@ -1491,7 +1436,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               </button>
             </div>
 
-            {/* Scrollable Content for small heights (e.g. mobile landscape) */}
+            {/* Scrollable Content */}
             <div className="overflow-y-auto pr-1 py-2 space-y-3 sm:space-y-4 flex-1">
               {/* Current Speed Display */}
               <div className="text-center py-0.5">
@@ -1587,8 +1532,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       )}
 
       {/* =========================================================================
-          7. VIDEO QUALITY MODAL - Responsive & Compact for Landscape/Fullscreen
-          - Bounded by max-h-[88vh] with internal scrolling to prevent cutting off in landscape
+          VIDEO QUALITY MODAL - Responsive & Compact for Landscape/Fullscreen
          ========================================================================= */}
       {showQualityMenu && (
         <div 
