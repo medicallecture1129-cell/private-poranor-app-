@@ -45,16 +45,16 @@ interface QualityOption {
 }
 
 const QUALITY_OPTIONS: QualityOption[] = [
-  { id: 'auto', label: 'Auto', desc: 'Automatic (Recommended)' },
-  { id: 'hd1080', label: '1080p', desc: 'Full HD Quality' },
-  { id: 'hd720', label: '720p', desc: 'High Definition' },
-  { id: 'large', label: '480p', desc: 'Standard Definition' },
-  { id: 'medium', label: '360p', desc: 'Medium Data' },
+  { id: 'auto', label: 'Auto', desc: 'Automatic' },
+  { id: 'hd1080', label: '1080p', desc: 'Full HD' },
+  { id: 'hd720', label: '720p', desc: 'HD Quality' },
+  { id: 'large', label: '480p', desc: 'SD 480p' },
+  { id: 'medium', label: '360p', desc: 'Medium 360p' },
   { id: 'small', label: '240p', desc: 'Data Saver' },
-  { id: 'tiny', label: '144p', desc: 'Ultra Low Data' }
+  { id: 'tiny', label: '144p', desc: 'Low Data' }
 ];
 
-// Presets capped at 3.0x as requested (0.5x, 0.75x, 1.0x, 1.25x, 1.5x, 2.0x, 2.5x, 3.0x)
+// Presets capped at 3.0x as requested (0.5x to 3.0x)
 const SPEED_PRESETS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0];
 
 export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
@@ -77,7 +77,9 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const lastTapRef = useRef<{ time: number; x: number; y: number }>({ time: 0, x: 0, y: 0 });
   const lastTouchEndTimeRef = useRef<number>(0);
 
-  // Touch gesture tracking for brightness (left) and volume (right)
+  // Gesture tracking refs for real-time smoothness
+  const currentBrightnessRef = useRef<number>(1);
+  const currentVolumeRef = useRef<number>(100);
   const touchStartRef = useRef<{ x: number; y: number; time: number; brightness: number; volume: number }>({
     x: 0,
     y: 0,
@@ -94,7 +96,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const [duration, setDuration] = useState(0);
   const [bufferedPercent, setBufferedPercent] = useState<number>(0);
   const [volume, setVolume] = useState(100);
-  const [brightness, setBrightness] = useState(1); // 0.25 to 1.5
+  const [brightness, setBrightness] = useState(1); // 0.2 to 1.5
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [selectedQuality, setSelectedQuality] = useState<string>('auto');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -121,6 +123,15 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const isDriveVideo = !videoId && url.includes('drive.google.com');
   const isDirectVideo = !videoId && !isDriveVideo;
   const videoIdentifier = videoId || url;
+
+  // Sync ref values with state
+  useEffect(() => {
+    currentBrightnessRef.current = brightness;
+  }, [brightness]);
+
+  useEffect(() => {
+    currentVolumeRef.current = volume;
+  }, [volume]);
 
   // Subscribe to Video Notes
   useEffect(() => {
@@ -198,7 +209,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   }, [resetHideTimer]);
 
   const handleMouseMove = useCallback(() => {
-    // Ignore synthetic mousemove fired by mobile touch events
     if (Date.now() - lastTouchEndTimeRef.current < 700) return;
     if (isPlaying) {
       showControlsTemporarily();
@@ -241,7 +251,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Prevent browser inspect / save shortcuts for content protection
       if (
         (e.ctrlKey || e.metaKey) && 
         (e.key === 's' || e.key === 'u' || e.key === 'S' || e.key === 'U')
@@ -293,7 +302,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     let isMounted = true;
     let pollInterval: any = null;
 
-    // Reset started/playing when video ID changes
     setIsPlaying(false);
     setHasStarted(false);
 
@@ -380,9 +388,19 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 setIsBuffering(false);
                 setControlsVisible(true);
               } else if (event.data === 0) {
+                // =============================================================
+                // 4. PREVENT YOUTUBE END-SCREEN "MORE VIDEOS" RECOMMENDATIONS:
+                // Immediately seek back to time 0 and pause so YouTube's
+                // end-screen grid of recommended videos NEVER appears!
+                // =============================================================
                 setIsPlaying(false);
                 setIsBuffering(false);
                 setControlsVisible(true);
+                try {
+                  event.target.seekTo(0, true);
+                  event.target.pauseVideo();
+                  setCurrentTime(0);
+                } catch (e) {}
               } else if (event.data === 3) {
                 setIsBuffering(true);
               }
@@ -462,9 +480,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 setBufferedPercent(Math.min(100, Math.max(0, frac * 100)));
               }
             }
-          } catch (err) {
-            // Player transitioning
-          }
+          } catch (err) {}
         }
       }, 500);
     } else {
@@ -487,7 +503,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 
     if (videoId && isPlaying && playbackSpeed > 2.0) {
       const intervalMs = 1200;
-      const extraSpeed = playbackSpeed - 2.0; // e.g. 0.5 for 2.5x, 1.0 for 3x
+      const extraSpeed = playbackSpeed - 2.0;
       const deltaSeconds = extraSpeed * (intervalMs / 1000);
 
       hyperSpeedIntervalRef.current = setInterval(() => {
@@ -530,7 +546,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     prevPlayingRef.current = isPlaying;
   }, [isPlaying, resetHideTimer]);
 
-  // Instant Play / Pause toggle with seamless state transition
+  // Instant Play / Pause toggle
   const togglePlay = () => {
     setHasStarted(true);
 
@@ -578,7 +594,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
   };
 
-  // 10s Skip Backward (Double-tap left)
+  // 10s Skip Backward
   const handleSkipBackward = () => {
     if (isDirectVideo && html5VideoRef.current) {
       const newTime = Math.max(0, html5VideoRef.current.currentTime - 10);
@@ -604,7 +620,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
   };
 
-  // 10s Skip Forward (Double-tap right)
+  // 10s Skip Forward
   const handleSkipForward = () => {
     if (isDirectVideo && html5VideoRef.current) {
       const newTime = Math.min(duration || 999999, html5VideoRef.current.currentTime + 10);
@@ -630,7 +646,9 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
   };
 
-  // Vertical Touch Swipe: Left side = Brightness, Right side = Volume
+  // =========================================================================
+  // 3. SWIPE GESTURES: Right Side = Volume, Left Side = Brightness
+  // =========================================================================
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     if (e.touches.length !== 1) return;
     const touch = e.touches[0];
@@ -638,8 +656,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       x: touch.clientX,
       y: touch.clientY,
       time: Date.now(),
-      brightness: brightness,
-      volume: volume
+      brightness: currentBrightnessRef.current,
+      volume: currentVolumeRef.current
     };
     isDraggingRef.current = false;
   };
@@ -650,20 +668,21 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     const deltaX = touch.clientX - touchStartRef.current.x;
     const deltaY = touch.clientY - touchStartRef.current.y;
 
-    if (Math.abs(deltaY) > 14 && Math.abs(deltaY) > Math.abs(deltaX)) {
+    if (Math.abs(deltaY) > 8 && Math.abs(deltaY) > Math.abs(deltaX)) {
       isDraggingRef.current = true;
       const rect = containerRef.current?.getBoundingClientRect();
       const isLeftSide = rect ? (touchStartRef.current.x < rect.left + rect.width / 2) : true;
-      const sensitivity = 0.005;
 
       if (isLeftSide) {
-        // Brightness (0.25 to 1.5)
-        const newBright = Math.min(1.5, Math.max(0.25, touchStartRef.current.brightness - deltaY * sensitivity));
+        // Brightness swipe (Left side): 0.2 to 1.5
+        const newBright = Math.min(1.5, Math.max(0.2, touchStartRef.current.brightness - deltaY * 0.004));
+        currentBrightnessRef.current = newBright;
         setBrightness(newBright);
         setGestureFeedback({ type: 'brightness', value: Math.round(newBright * 100) });
       } else {
-        // Volume (0 to 100)
-        const newVol = Math.min(100, Math.max(0, Math.round(touchStartRef.current.volume - deltaY * 0.4)));
+        // Volume swipe (Right side): 0 to 100
+        const newVol = Math.min(100, Math.max(0, Math.round(touchStartRef.current.volume - deltaY * 0.35)));
+        currentVolumeRef.current = newVol;
         setVolume(newVol);
 
         if (isDirectVideo && html5VideoRef.current) {
@@ -672,6 +691,9 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           if (ytPlayerRef.current && typeof ytPlayerRef.current.setVolume === 'function') {
             try {
               ytPlayerRef.current.setVolume(newVol);
+              if (newVol > 0 && typeof ytPlayerRef.current.unMute === 'function') {
+                ytPlayerRef.current.unMute();
+              }
             } catch (e) {}
           }
         }
@@ -680,8 +702,32 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
   };
 
+  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    lastTouchEndTimeRef.current = Date.now();
+
+    if (isDraggingRef.current) {
+      setTimeout(() => {
+        isDraggingRef.current = false;
+        setGestureFeedback(null);
+      }, 600);
+      return;
+    }
+
+    if (e.changedTouches.length === 1) {
+      const touch = e.changedTouches[0];
+      handleScreenTap(touch.clientX, touch.clientY);
+    }
+  };
+
+  const handleMouseClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (Date.now() - lastTouchEndTimeRef.current < 650) {
+      return;
+    }
+    handleScreenTap(e.clientX, e.clientY);
+  };
+
   // =========================================================================
-  // 5. INSTANT SCREEN TAP TOGGLE (NO SLUGGISH FADE-OUT, INSTANT SHOW/HIDE)
+  // 2. INSTANT CONTROLS TOGGLE ON TAP (ZERO LAG, SNAPPY SHOW/HIDE)
   // =========================================================================
   const handleScreenTap = (clientX: number, clientY: number) => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -708,7 +754,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       return;
     }
 
-    // Single Tap: INSTANT toggle without waiting for timeout
+    // Single Tap: INSTANT toggle without waiting
     lastTapRef.current = { time: now, x: clientX, y: clientY };
 
     setControlsVisible(prev => {
@@ -718,29 +764,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       }
       return next;
     });
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
-    setTimeout(() => setGestureFeedback(null), 800);
-    lastTouchEndTimeRef.current = Date.now();
-
-    if (isDraggingRef.current) {
-      isDraggingRef.current = false;
-      return;
-    }
-
-    if (e.changedTouches.length === 1) {
-      const touch = e.changedTouches[0];
-      handleScreenTap(touch.clientX, touch.clientY);
-    }
-  };
-
-  const handleMouseClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Ignore synthetic click generated by touch devices right after touchend
-    if (Date.now() - lastTouchEndTimeRef.current < 650) {
-      return;
-    }
-    handleScreenTap(e.clientX, e.clientY);
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -766,7 +789,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     if (isDirectVideo && html5VideoRef.current) {
       html5VideoRef.current.playbackRate = clamped;
     } else if (videoId) {
-      // In YouTube iframe, set base rate up to 2.0x (max supported natively by YouTube API)
       const baseRate = Math.min(2.0, clamped);
       if (ytPlayerRef.current && typeof ytPlayerRef.current.setPlaybackRate === 'function') {
         try {
@@ -816,26 +838,18 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
   };
 
-  // =========================================================================
-  // 4. SMART TIMER DISPLAY & DURATION FORMAT
-  // - If video duration < 1 hour (< 3600s): MM:SS strictly (no hour portion)
-  // - If video duration >= 1 hour (>= 3600s): H:MM:SS
-  // =========================================================================
+  // Smart Timer Display: MM:SS under 1 hour, H:MM:SS at 1+ hours
   const formatTime = (secs: number, totalDuration: number = duration) => {
     if (isNaN(secs) || secs < 0) return '00:00';
     const totalSecs = Math.floor(secs);
     const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
 
-    // If total video duration is under 1 hour (< 3600 seconds):
-    // Strictly display MM:SS without any hour portion!
     if (totalDuration < 3600) {
       const m = Math.floor(totalSecs / 60);
       const s = totalSecs % 60;
       return `${pad(m)}:${pad(s)}`;
     }
 
-    // If total video duration is 1 hour or more (>= 3600 seconds):
-    // Display H:MM:SS
     const h = Math.floor(totalSecs / 3600);
     const m = Math.floor((totalSecs % 3600) / 60);
     const s = totalSecs % 60;
@@ -863,31 +877,26 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       onDragStart={(e) => e.preventDefault()}
     >
       {/* =========================================================================
-          1 & 3. TOP APP BAR: Floating Glass Capsule (NO DARK GRADIENT ON VIDEO)
-          - Removed hardcoded "Medical Admission Hub"
-          - Displays ONLY user-saved video lecture title
-          - Theme-aware app logo dynamically changes color with App Theme
+          1. CLEAN TOP APP BAR (NO BORDER, NO SHADE, CRYSTAL CLEAR)
+          - No dark background box or container border!
+          - Floats seamlessly over the video with clean text and icons
           - Instant toggle with controlsVisible
          ========================================================================= */}
       <div 
-        className={`absolute top-2.5 sm:top-3 inset-x-2.5 sm:inset-x-5 z-30 px-3 sm:px-4 py-2 rounded-xl sm:rounded-2xl bg-black/75 backdrop-blur-md border border-white/10 flex items-center justify-between text-white shadow-lg transition-opacity duration-100 ease-out ${
+        className={`absolute top-2 sm:top-3 inset-x-0 z-30 px-3 sm:px-5 flex items-center justify-between text-white transition-opacity duration-100 ease-out pointer-events-auto ${
           controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
       >
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 pr-2">
-          {/* Theme-aware App Logo */}
+          {/* Dynamic Theme-Aware App Logo */}
           <div 
-            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 shadow-md transition-colors border"
-            style={{ 
-              backgroundColor: `${themePrimary}25`, 
-              borderColor: `${themePrimary}60`,
-              color: themePrimary 
-            }}
+            className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center shrink-0 drop-shadow-md"
+            style={{ color: themePrimary }}
           >
             <svg 
               viewBox="0 0 24 24" 
               fill="currentColor"
-              className="w-4 h-4 sm:w-4.5 sm:h-4.5"
+              className="w-4 h-4 sm:w-5 sm:h-5"
               style={{ color: themePrimary }}
             >
               <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/>
@@ -896,7 +905,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           
           <div className="flex items-center min-w-0">
             <span 
-              className="font-bold text-xs sm:text-sm text-white truncate max-w-[200px] sm:max-w-md lg:max-w-xl" 
+              className="font-bold text-xs sm:text-sm text-white truncate max-w-[200px] sm:max-w-md drop-shadow-md" 
               title={title}
             >
               {title || 'ভিডিও লেকচার'}
@@ -911,10 +920,10 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               e.stopPropagation();
               onClose();
             }}
-            className="p-1.5 sm:p-2 bg-white/10 hover:bg-white/20 active:bg-white/30 rounded-full text-white/90 hover:text-white transition-colors cursor-pointer border border-white/15 shrink-0"
+            className="p-1 sm:p-1.5 text-white/90 hover:text-white hover:bg-white/20 active:bg-white/30 rounded-full transition-colors cursor-pointer shrink-0 drop-shadow-md"
             title="Close Player"
           >
-            <X className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+            <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         )}
       </div>
@@ -925,10 +934,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           isFullscreen ? 'w-full h-full' : ''
         }`}
       >
-        {/* =========================================================================
-            8. VIDEO CANVAS (16:9 Aspect Ratio, Zero Cropping, 100% Fit)
-            - Video is 100% visible, fitted properly without losing top or bottom portions
-           ========================================================================= */}
+        {/* Video Canvas Container (16:9 natural aspect ratio, 100% uncropped fit) */}
         <div 
           className={`relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden ${
             isFullscreen ? 'max-h-full max-w-full my-auto' : 'max-w-full'
@@ -948,7 +954,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
              ========================================================================= */}
           {videoId && (
             <div className="absolute inset-0 w-full h-full overflow-hidden select-none pointer-events-none flex items-center justify-center bg-black">
-              {/* YouTube Player Mount Container (Programmatically managed by YT.Player) */}
               <div 
                 ref={ytMountContainerRef}
                 className="absolute inset-0 w-full h-full pointer-events-none select-none flex items-center justify-center"
@@ -972,7 +977,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             />
           )}
 
-          {/* Case 3: Direct video file (object-fit: contain, pre-buffering enabled) */}
+          {/* Case 3: Direct video file */}
           {isDirectVideo && (
             <video
               ref={html5VideoRef}
@@ -1025,12 +1030,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             />
           )}
 
-          {/* =========================================================================
-              2. PURE SOLID BLACK COVER (Hide Initial Thumbnail, Channel Bar & Red Play Button)
-              - Solid black overlay is 100% opaque until video playback actually starts
-              - Completely shields the initial YouTube thumbnail and red play button
-              - Disappears instantly as soon as playing begins
-             ========================================================================= */}
+          {/* Solid pure black cover to hide initial YouTube thumbnail & red button */}
           {videoId && !isPlaying && (
             <div 
               className="absolute inset-0 bg-black z-15 pointer-events-none"
@@ -1038,12 +1038,10 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           )}
 
           {/* =========================================================================
-              CRITICAL: Transparent Overlay Div (Transparent Shield)
-              - Placed over the entire video canvas at z-20 (above video)
-              - pointer-events: auto ensures ALL clicks, taps, and gestures are intercepted
-              - Physically blocks ANY click from reaching the YouTube iframe underneath
-              - Redirection to YouTube or opening channel link is 100% prevented
-              - Intercepts single-tap to toggle controls, double-tap for ±10s seek, drag for brightness/volume
+              CRITICAL: Transparent Touch Shield
+              - Covers entire player canvas at z-20 (above video)
+              - pointer-events: auto captures clicks and swipe gestures
+              - Prevents any redirect to YouTube
              ========================================================================= */}
           {!isDriveVideo && (
             <div 
@@ -1079,8 +1077,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             </div>
           )}
 
-          {/* DEDICATED CENTER PLAY/PAUSE BUTTON:
-              Toggles instantly with controlsVisible */}
+          {/* Center Play/Pause Button */}
           {!isDriveVideo && (
             <div 
               className={`absolute inset-0 z-30 flex items-center justify-center transition-opacity duration-100 ease-out ${
@@ -1092,13 +1089,13 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                   e.stopPropagation();
                   togglePlay();
                 }}
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-black/70 hover:bg-black/85 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-2xl transition-transform hover:scale-110 active:scale-95 cursor-pointer"
+                className="w-14 h-14 sm:w-18 sm:h-18 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-xs border border-white/20 text-white flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 cursor-pointer drop-shadow-lg"
                 title={isPlaying ? 'Pause' : 'Play'}
               >
                 {isPlaying ? (
-                  <Pause className="w-8 h-8 sm:w-10 sm:h-10 fill-white" />
+                  <Pause className="w-7 h-7 sm:w-9 sm:h-9 fill-white" />
                 ) : (
-                  <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-white ml-1" />
+                  <Play className="w-7 h-7 sm:w-9 sm:h-9 fill-white ml-1" />
                 )}
               </button>
             </div>
@@ -1124,16 +1121,16 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 
           {/* Brightness & Volume HUD Feedback */}
           {gestureFeedback && (
-            <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-black/85 backdrop-blur-md text-white shadow-2xl pointer-events-none border border-white/10 animate-in fade-in duration-150">
+            <div className="absolute top-12 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-black/90 backdrop-blur-md text-white shadow-2xl pointer-events-none border border-white/15 animate-in fade-in duration-150">
               {gestureFeedback.type === 'brightness' ? (
                 <>
                   <Sun className="w-4 h-4 text-amber-400" />
-                  <span className="text-xs font-bold font-mono">Brightness: {gestureFeedback.value}%</span>
+                  <span className="text-xs font-bold font-mono">ব্রাইটনেস: {gestureFeedback.value}%</span>
                 </>
               ) : (
                 <>
                   <Volume2 className="w-4 h-4 text-blue-400" />
-                  <span className="text-xs font-bold font-mono">Volume: {gestureFeedback.value}%</span>
+                  <span className="text-xs font-bold font-mono">ভলিউম: {gestureFeedback.value}%</span>
                 </>
               )}
             </div>
@@ -1142,54 +1139,53 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       </div>
 
       {/* =========================================================================
-          1, 4, 6, 7. CLEAN BOTTOM CONTROL BAR (FLOATING CAPSULE, NO DARK GRADIENT)
-          - No dark gradient covering the video!
-          - Single-line timer (MM:SS when < 1h)
-          - Volume button REMOVED (Requirement 7)
-          - Fullscreen button safely bounded within screen boundaries (Requirement 6)
-          - Instant toggle with controlsVisible (Requirement 5)
+          1 & 5. CLEAN BOTTOM CONTROL BAR (ZERO BORDER, ZERO DARK SHADE, 100% RESPONSIVE)
+          - No dark background box or container border!
+          - Floats seamlessly with crystal clarity
+          - Responsive single-row layout where Fullscreen button is never cut off
+          - Instant toggle on tap
          ========================================================================= */}
       {!isDriveVideo && (
         <div 
-          className={`absolute bottom-2.5 sm:bottom-3 inset-x-2.5 sm:inset-x-5 z-30 px-3 sm:px-4 py-2.5 rounded-xl sm:rounded-2xl bg-black/80 backdrop-blur-md border border-white/10 text-white transition-opacity duration-100 ease-out shadow-xl ${
+          className={`absolute bottom-1.5 sm:bottom-2 inset-x-0 z-30 px-2 sm:px-4 flex flex-col gap-1 text-white transition-opacity duration-100 ease-out pointer-events-auto ${
             controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-          } ${isFullscreen ? 'mb-2 sm:mb-3' : ''}`}
+          } ${isFullscreen ? 'mb-1 sm:mb-2' : ''}`}
           style={{
-            paddingLeft: 'max(12px, env(safe-area-inset-left))',
-            paddingRight: 'max(12px, env(safe-area-inset-right))'
+            paddingLeft: 'max(8px, env(safe-area-inset-left))',
+            paddingRight: 'max(8px, env(safe-area-inset-right))',
+            paddingBottom: isFullscreen ? 'max(6px, env(safe-area-inset-bottom))' : '2px'
           }}
         >
           {/* Timeline Track */}
-          <div className="relative flex items-center w-full mb-2 h-5 cursor-pointer group">
+          <div className="relative flex items-center w-full h-4 cursor-pointer group">
             {/* Multi-layered Track Base */}
-            <div className="absolute inset-x-0 flex items-center h-[5.5px]">
+            <div className="absolute inset-x-0 flex items-center h-[4px]">
               {/* Unplayed Portion */}
-              <div className="absolute inset-x-0 h-[2.5px] bg-white/20 rounded-full overflow-hidden" />
+              <div className="absolute inset-x-0 h-[2px] bg-white/25 rounded-full overflow-hidden" />
 
               {/* Buffered Portion */}
               <div 
-                className="absolute left-0 h-[3.5px] bg-white/45 rounded-full transition-[width] duration-300"
+                className="absolute left-0 h-[3px] bg-white/50 rounded-full transition-[width] duration-300"
                 style={{ width: `${bufferedPercent}%` }}
               />
 
               {/* Played Portion */}
               <div 
-                className="absolute left-0 h-[5.5px] rounded-full transition-[width] duration-75 shadow-md"
+                className="absolute left-0 h-[4px] rounded-full transition-[width] duration-75 shadow-sm"
                 style={{ 
                   width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
                   backgroundColor: themePrimary,
-                  boxShadow: `0 0 10px ${themePrimary}99`
+                  boxShadow: `0 0 8px ${themePrimary}`
                 }}
               />
             </div>
 
             {/* Draggable Scrubber Thumb */}
             <div 
-              className="absolute top-1/2 w-4 h-4 rounded-full border-2 border-white shadow-xl pointer-events-none transition-transform duration-75 -translate-x-1/2 -translate-y-1/2 z-10 group-hover:scale-125"
+              className="absolute top-1/2 w-3.5 h-3.5 rounded-full border border-white shadow-md pointer-events-none transition-transform duration-75 -translate-x-1/2 -translate-y-1/2 z-10 group-hover:scale-125"
               style={{ 
                 left: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
-                backgroundColor: themePrimary,
-                boxShadow: `0 0 8px ${themePrimary}, 0 2px 6px rgba(0,0,0,0.6)`
+                backgroundColor: themePrimary
               }}
             />
 
@@ -1204,8 +1200,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             />
           </div>
 
-          {/* Controls Row */}
-          <div className="flex items-center justify-between gap-1.5 sm:gap-3 text-xs w-full min-w-0">
+          {/* Controls Row: Compact, Responsive, Never Overflowing */}
+          <div className="flex items-center justify-between gap-1 w-full min-w-0">
             {/* Left Section: Single-Line Timer Display (MM:SS if under 1h) */}
             <div className="flex items-center min-w-0 shrink-0">
               <button
@@ -1220,7 +1216,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                   whiteSpace: 'nowrap',
                   flexShrink: 0
                 }}
-                className="font-mono text-xs sm:text-sm text-slate-200 tracking-wide font-medium cursor-pointer hover:text-white transition-colors px-1.5 py-0.5 rounded-md hover:bg-white/10 active:scale-95 select-none border border-transparent hover:border-white/15 whitespace-nowrap shrink-0"
+                className="font-mono text-[11px] sm:text-xs text-slate-100 tracking-tight font-medium cursor-pointer hover:text-white transition-colors px-1 py-0.5 rounded select-none whitespace-nowrap shrink-0 drop-shadow-md"
                 title={showRemainingTime ? 'ক্লিক করে অতিক্রান্ত সময় দেখুন' : 'ক্লিক করে অবশিষ্ট সময় দেখুন'}
               >
                 <span 
@@ -1228,31 +1224,31 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                     display: 'inline-flex', 
                     alignItems: 'center', 
                     whiteSpace: 'nowrap', 
-                    gap: '4px' 
+                    gap: '3px' 
                   }}
                   className="whitespace-nowrap"
                 >
                   {showRemainingTime ? (
                     <>
-                      <span className="font-bold whitespace-nowrap" style={{ color: themePrimary }}>
+                      <span className="font-bold whitespace-nowrap drop-shadow-md" style={{ color: themePrimary }}>
                         -{formatTime(Math.max(0, duration - currentTime), duration)}
                       </span>
-                      <span className="text-slate-400 whitespace-nowrap">/</span>
-                      <span className="text-slate-400 whitespace-nowrap">{formatTime(duration, duration)}</span>
+                      <span className="text-slate-300 whitespace-nowrap drop-shadow-md">/</span>
+                      <span className="text-slate-300 whitespace-nowrap drop-shadow-md">{formatTime(duration, duration)}</span>
                     </>
                   ) : (
                     <>
-                      <span className="whitespace-nowrap">{formatTime(currentTime, duration)}</span>
-                      <span className="text-slate-400 whitespace-nowrap">/</span>
-                      <span className="text-slate-400 whitespace-nowrap">{formatTime(duration, duration)}</span>
+                      <span className="whitespace-nowrap drop-shadow-md">{formatTime(currentTime, duration)}</span>
+                      <span className="text-slate-300 whitespace-nowrap drop-shadow-md">/</span>
+                      <span className="text-slate-300 whitespace-nowrap drop-shadow-md">{formatTime(duration, duration)}</span>
                     </>
                   )}
                 </span>
               </button>
             </div>
 
-            {/* Right Section: Compact buttons that never overflow in Fullscreen */}
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Right Section: Compact buttons that fit effortlessly on any mobile screen */}
+            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
               {/* Quality Selector Button */}
               <button
                 onClick={(e) => {
@@ -1260,11 +1256,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                   window.history.pushState({ modal: 'quality' }, '');
                   setShowQualityMenu(true);
                 }}
-                className="px-2 sm:px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-mono text-[11px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer border border-white/10 shrink-0"
+                className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-white font-mono text-[10px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer hover:bg-white/15 shrink-0 drop-shadow-md"
                 title="Resolution & Quality"
               >
-                <Settings className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                <span className="whitespace-nowrap">{currentQualityLabel}</span>
+                <Settings className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-400 shrink-0" />
+                <span className="hidden xs:inline whitespace-nowrap">{currentQualityLabel}</span>
               </button>
 
               {/* Playback Speed Button (0.5x to 3.0x) */}
@@ -1274,11 +1270,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                   window.history.pushState({ modal: 'speed' }, '');
                   setShowSpeedMenu(true);
                 }}
-                className="px-2 sm:px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-mono text-[11px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer border border-white/10 shrink-0"
+                className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-white font-mono text-[10px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer hover:bg-white/15 shrink-0 drop-shadow-md"
                 title="Playback Speed"
               >
-                <Gauge className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span className="whitespace-nowrap">{playbackSpeed.toFixed(2)}x</span>
+                <Gauge className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400 shrink-0" />
+                <span className="whitespace-nowrap">{playbackSpeed}x</span>
               </button>
 
               {/* Video Notes & Timestamp Bookmarks */}
@@ -1287,28 +1283,28 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                   e.stopPropagation();
                   setShowNotesPanel(prev => !prev);
                 }}
-                className={`px-2 sm:px-2.5 py-1 rounded-lg text-white font-medium text-[11px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer border shrink-0 ${
+                className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-white text-[10px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer shrink-0 drop-shadow-md ${
                   showNotesPanel
-                    ? 'bg-amber-500/30 border-amber-400 text-amber-300'
-                    : 'bg-white/10 hover:bg-white/20 border-white/10'
+                    ? 'text-amber-300 bg-amber-500/25'
+                    : 'hover:bg-white/15'
                 }`}
                 title="Timestamp Notes & Bookmarks"
               >
-                <Bookmark className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <Bookmark className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 shrink-0" />
                 <span className="hidden sm:inline">নোটস</span>
                 <span className="text-[10px]">({videoNotes.length})</span>
               </button>
 
-              {/* Fullscreen Toggle Button (Properly bounded, never cut off) */}
+              {/* Fullscreen Toggle Button (Safely bounded, never cut off on mobile) */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleFullscreen();
                 }}
-                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer shrink-0 border border-white/10"
+                className="p-1 sm:p-1.5 rounded-md hover:bg-white/15 text-white transition-colors cursor-pointer shrink-0 drop-shadow-md"
                 title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
               >
-                {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+                {isFullscreen ? <Minimize className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Maximize className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
               </button>
             </div>
           </div>
@@ -1319,12 +1315,12 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       {showNotesPanel && (
         <div 
           onClick={(e) => e.stopPropagation()}
-          className={`absolute right-3 sm:right-5 w-80 max-w-[85%] max-h-[85vh] bg-slate-900/98 backdrop-blur-md border border-white/15 rounded-2xl shadow-2xl z-40 flex flex-col overflow-hidden text-white animate-in slide-in-from-right duration-200 ${
-            isFullscreen ? 'top-14 bottom-16' : 'top-12 bottom-14'
+          className={`absolute right-2 sm:right-4 w-72 sm:w-80 max-w-[88%] max-h-[82vh] bg-slate-900/98 backdrop-blur-md border border-white/15 rounded-2xl shadow-2xl z-40 flex flex-col overflow-hidden text-white animate-in slide-in-from-right duration-150 ${
+            isFullscreen ? 'top-12 bottom-14' : 'top-10 bottom-12'
           }`}
         >
           {/* Panel Header */}
-          <div className="p-3.5 border-b border-white/10 flex items-center justify-between bg-black/30 shrink-0">
+          <div className="p-3 border-b border-white/10 flex items-center justify-between bg-black/40 shrink-0">
             <div className="flex items-center gap-2">
               <Bookmark className="w-4 h-4 text-amber-400" />
               <h4 className="font-bold text-xs sm:text-sm">ক্লাস নোটস ও বুকমার্ক</h4>
@@ -1338,7 +1334,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           </div>
 
           {/* Input Form to Capture current second */}
-          <form onSubmit={handleCreateNote} className="p-3 border-b border-white/10 space-y-2 bg-black/20 shrink-0">
+          <form onSubmit={handleCreateNote} className="p-2.5 border-b border-white/10 space-y-2 bg-black/20 shrink-0">
             <div className="flex items-center justify-between text-[11px] text-slate-400">
               <span>টাইমস্ট্যাম্প:</span>
               <span className="font-mono font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20">
@@ -1351,7 +1347,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 placeholder="এই সময়ে নোট লিখুন..."
                 value={newNoteInput}
                 onChange={(e) => setNewNoteInput(e.target.value)}
-                className="flex-1 px-3 py-1.5 rounded-xl bg-white/10 border border-white/15 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                className="flex-1 px-2.5 py-1.5 rounded-xl bg-white/10 border border-white/15 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
                 maxLength={120}
               />
               <button
@@ -1365,10 +1361,10 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           </form>
 
           {/* Notes List */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          <div className="flex-1 overflow-y-auto p-2.5 space-y-2">
             {videoNotes.length === 0 ? (
-              <div className="text-center py-8 text-slate-500 text-xs space-y-1">
-                <Clock className="w-6 h-6 mx-auto text-slate-600 mb-1" />
+              <div className="text-center py-6 text-slate-500 text-xs space-y-1">
+                <Clock className="w-5 h-5 mx-auto text-slate-600 mb-1" />
                 <p>কোনো নোট যোগ করা হয়নি।</p>
                 <p className="text-[10px]">লেকচার চলাকালে যেকোনো মুহূর্তে নোট নিন।</p>
               </div>
@@ -1376,7 +1372,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               videoNotes.map((note) => (
                 <div
                   key={note.id}
-                  className="p-2.5 rounded-xl bg-white/5 border border-white/10 hover:border-amber-400/40 transition-colors group space-y-1"
+                  className="p-2 rounded-xl bg-white/5 border border-white/10 hover:border-amber-400/40 transition-colors group space-y-1"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <button
@@ -1411,7 +1407,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       )}
 
       {/* =========================================================================
-          6. PLAYBACK SPEED MODAL - Max 3.0x, Responsive & Compact for Landscape/Fullscreen
+          PLAYBACK SPEED MODAL - Responsive & Compact for Landscape/Fullscreen
          ========================================================================= */}
       {showSpeedMenu && (
         <div 
@@ -1444,7 +1440,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                   className="text-3xl sm:text-4xl font-extrabold font-mono tracking-tight"
                   style={{ color: 'var(--theme-primary)' }}
                 >
-                  {playbackSpeed.toFixed(2)}x
+                  {playbackSpeed}x
                 </span>
                 <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
                   Precision speed control (0.5x – 3.0x)
@@ -1485,7 +1481,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                   onClick={() => handleSetSpeed(1.0)}
                   className="px-3 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold transition-colors cursor-pointer"
                 >
-                  Normal (1.0x)
+                  Normal (1x)
                 </button>
                 <button
                   onClick={() => handleSetSpeed(playbackSpeed + 0.05)}
@@ -1495,7 +1491,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 </button>
               </div>
 
-              {/* Quick Presets Grid (0.5x, 0.75x, 1.0x, 1.25x, 1.5x, 2.0x, 2.5x, 3.0x) */}
+              {/* Quick Presets Grid (0.5x to 3.0x) */}
               <div className="grid grid-cols-4 gap-1.5 pt-1 border-t border-slate-800">
                 {SPEED_PRESETS.map((preset) => {
                   const isMatch = Math.abs(playbackSpeed - preset) < 0.005;
@@ -1510,7 +1506,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                         color: isMatch ? '#ffffff' : '#cbd5e1'
                       }}
                     >
-                      {preset.toFixed(2)}x
+                      {preset}x
                     </button>
                   );
                 })}
