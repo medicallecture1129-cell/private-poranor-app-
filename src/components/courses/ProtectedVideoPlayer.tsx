@@ -96,6 +96,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const [hasStarted, setHasStarted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [bufferedPercent, setBufferedPercent] = useState<number>(0);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(100);
   const [brightness, setBrightness] = useState(1); // 0.25 to 1.5
@@ -212,6 +213,14 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     setControlsVisible(true);
     resetHideTimer();
   }, [resetHideTimer]);
+
+  const handleMouseMove = useCallback(() => {
+    // Ignore synthetic mousemove fired by mobile touch events
+    if (Date.now() - lastTouchEndTimeRef.current < 700) return;
+    if (isPlaying) {
+      showControlsTemporarily();
+    }
+  }, [isPlaying, showControlsTemporarily]);
 
   // Handle hardware back button to dismiss modals
   useEffect(() => {
@@ -373,6 +382,9 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           if (typeof data.info.duration === 'number' && data.info.duration > 0) {
             setDuration(data.info.duration);
           }
+          if (typeof data.info.videoLoadedFraction === 'number') {
+            setBufferedPercent(Math.min(100, Math.max(0, data.info.videoLoadedFraction * 100)));
+          }
           if (typeof data.info.playerState === 'number') {
             // 1 = PLAYING, 2 = PAUSED, 0 = ENDED
             if (data.info.playerState === 1) {
@@ -406,12 +418,21 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     };
   }, [videoId]);
 
-  // Periodic polling for YouTube player state & duration
+  // Periodic polling for YouTube player state, duration & buffered progress
   useEffect(() => {
     if (videoId && isPlaying) {
       pollTimerRef.current = setInterval(() => {
         dispatchCommand('getCurrentTime');
         dispatchCommand('getDuration');
+        dispatchCommand('getVideoLoadedFraction');
+        if (ytPlayerRef.current && typeof ytPlayerRef.current.getVideoLoadedFraction === 'function') {
+          try {
+            const frac = ytPlayerRef.current.getVideoLoadedFraction();
+            if (typeof frac === 'number') {
+              setBufferedPercent(Math.min(100, Math.max(0, frac * 100)));
+            }
+          } catch {}
+        }
       }, 1000);
     } else {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
@@ -454,18 +475,22 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     };
   }, [videoId, isPlaying, playbackSpeed, duration, dispatchCommand]);
 
+  const prevPlayingRef = useRef(isPlaying);
   // Controls auto-hide timer management
   useEffect(() => {
     if (isPlaying) {
       resetHideTimer();
     } else {
-      // If the video is paused, keep the top/bottom control panels fully visible until playback resumes
-      setControlsVisible(true);
       if (hideControlsTimerRef.current) {
         clearTimeout(hideControlsTimerRef.current);
         hideControlsTimerRef.current = null;
       }
+      // When newly paused, display controls initially; student can touch anywhere to hide them cleanly
+      if (prevPlayingRef.current && !isPlaying) {
+        setControlsVisible(true);
+      }
     }
+    prevPlayingRef.current = isPlaying;
   }, [isPlaying, resetHideTimer]);
 
   // Instant Play / Pause toggle with seamless state transition
@@ -649,8 +674,14 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 
       // SINGLE-TAP TOGGLE: Tapping anywhere on the video screen toggles the visibility
       // of the ENTIRE control interface (Center Play/Pause button & Bottom control bar) simultaneously!
-      // HIDE EVERYTHING ON TAP: Tapping again anywhere hides the entire control overlay completely.
-      setControlsVisible(prev => !prev);
+      // HIDE EVERYTHING ON TAP: Tapping again anywhere hides the entire control overlay completely (including when paused).
+      setControlsVisible(prev => {
+        const next = !prev;
+        if (next && isPlaying) {
+          resetHideTimer();
+        }
+        return next;
+      });
     }, 240);
   };
 
@@ -771,7 +802,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const videoPlayerMarkup = (
     <div 
       ref={containerRef}
-      onMouseMove={showControlsTemporarily}
+      onMouseMove={handleMouseMove}
       className={`relative w-full bg-black flex flex-col select-none overflow-hidden transition-all duration-300 ${
         isFullscreen 
           ? 'fixed inset-0 w-screen h-screen max-w-none rounded-none z-[9999] justify-between' 
@@ -822,20 +853,24 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             maxHeight: isFullscreen ? 'min(100vh, calc(100vw * 9 / 16))' : 'none'
           }}
         >
-          {/* Case 1: YouTube video - Natural 16:9 In-App Fit with Object-Fit Contain */}
+          {/* Case 1: YouTube video - Natural 16:9 In-App Fit with all external branding & overlays completely hidden */}
           {videoId && (
             <div className="absolute inset-0 w-full h-full overflow-hidden select-none pointer-events-none flex items-center justify-center bg-black">
+              {/* Top edge barrier: completely blocks YouTube title bar, channel avatar, and share button */}
+              <div className="absolute top-0 inset-x-0 h-10 sm:h-14 bg-gradient-to-b from-black via-black/70 to-transparent pointer-events-none z-10" />
+
               <iframe
                 ref={iframeRef}
                 id={uniquePlayerId.current}
-                src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=${hasStarted ? 1 : 0}&enablejsapi=1&rel=0&playsinline=1&modestbranding=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`}
+                src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=${hasStarted ? 1 : 0}&enablejsapi=1&rel=0&playsinline=1&modestbranding=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&showinfo=0&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`}
                 title={title}
-                className="w-full h-full border-0 absolute inset-0 pointer-events-none select-none"
+                className="border-0 pointer-events-none select-none"
                 style={{
                   position: 'absolute',
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'contain',
+                  top: '-10%',
+                  left: '-2%',
+                  width: '104%',
+                  height: '120%',
                   pointerEvents: 'none',
                   userSelect: 'none'
                 }}
@@ -843,6 +878,9 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
               />
+
+              {/* Bottom edge barrier: completely blocks YouTube 'More videos' shelf, recommendations, and logo */}
+              <div className="absolute bottom-0 inset-x-0 h-10 sm:h-14 bg-gradient-to-t from-black via-black/70 to-transparent pointer-events-none z-10" />
             </div>
           )}
 
@@ -858,19 +896,44 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             />
           )}
 
-          {/* Case 3: Direct video file (object-fit: contain) */}
+          {/* Case 3: Direct video file (object-fit: contain, pre-buffering enabled) */}
           {isDirectVideo && (
             <video
               ref={html5VideoRef}
               src={url}
+              preload="auto"
               playsInline
               controlsList="nodownload nofullscreen noplaybackrate"
               disablePictureInPicture
               onContextMenu={(e) => e.preventDefault()}
               onDragStart={(e) => e.preventDefault()}
+              onProgress={() => {
+                if (html5VideoRef.current && html5VideoRef.current.duration) {
+                  const v = html5VideoRef.current;
+                  const cur = v.currentTime;
+                  for (let i = 0; i < v.buffered.length; i++) {
+                    if (v.buffered.start(i) <= cur && cur <= v.buffered.end(i)) {
+                      const pct = (v.buffered.end(i) / v.duration) * 100;
+                      setBufferedPercent(Math.min(100, Math.max(0, pct)));
+                      break;
+                    }
+                  }
+                }
+              }}
               onTimeUpdate={() => {
                 if (html5VideoRef.current) {
-                  setCurrentTime(html5VideoRef.current.currentTime);
+                  const cur = html5VideoRef.current.currentTime;
+                  setCurrentTime(cur);
+                  if (html5VideoRef.current.duration) {
+                    const v = html5VideoRef.current;
+                    for (let i = 0; i < v.buffered.length; i++) {
+                      if (v.buffered.start(i) <= cur && cur <= v.buffered.end(i)) {
+                        const pct = (v.buffered.end(i) / v.duration) * 100;
+                        setBufferedPercent(Math.min(100, Math.max(0, pct)));
+                        break;
+                      }
+                    }
+                  }
                 }
               }}
               onLoadedMetadata={() => {
@@ -969,20 +1032,36 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full pointer-events-none'
           } ${isFullscreen ? 'pb-4 sm:pb-6' : ''}`}
         >
-          {/* 5. ADVANCED TIMELINE / PROGRESS BAR STYLING:
-              - Played portion: Highlighted with bold, bright solid red track
-              - Remaining unplayed portion: Rendered as thinner (2px), lighter/faded background line */}
-          <div className="relative flex items-center w-full mb-2 h-4 cursor-pointer group">
-            {/* Unplayed Portion: Thin 2px faded background track */}
-            <div className="absolute inset-x-0 h-[2.5px] group-hover:h-[4px] bg-white/25 rounded-full overflow-hidden transition-all">
-              {/* Played Portion: Bold, bright, solid-colored line (4px red track) */}
+          {/* ADVANCED TIMELINE / PROGRESS BAR STYLING:
+              - Played portion: Noticeably thicker (5.5px), bold and highlighted solid red (#ef4444)
+              - Buffered portion: 3.5px translucent white loaded in advance to prevent pausing/stuttering
+              - Remaining unplayed portion: 2.5px thin faded line */}
+          <div className="relative flex items-center w-full mb-2 h-5 cursor-pointer group">
+            {/* Multi-layered Track Base */}
+            <div className="absolute inset-x-0 flex items-center h-[5.5px]">
+              {/* 1. Unplayed Portion: Thin 2.5px faded background track */}
+              <div className="absolute inset-x-0 h-[2.5px] bg-white/20 rounded-full overflow-hidden" />
+
+              {/* 2. Buffered Portion: 3.5px translucent white track loaded ahead */}
               <div 
-                className="h-full bg-red-600 rounded-full transition-[width] duration-75 shadow-xs"
+                className="absolute left-0 h-[3.5px] bg-white/45 rounded-full transition-[width] duration-300"
+                style={{ width: `${bufferedPercent}%` }}
+              />
+
+              {/* 3. Played Portion: 5.5px bold, bright, highlighted solid red track */}
+              <div 
+                className="absolute left-0 h-[5.5px] bg-red-600 rounded-full transition-[width] duration-75 shadow-[0_0_8px_rgba(239,68,68,0.7)]"
                 style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
               />
             </div>
 
-            {/* Seamless Scrub Input Overlay */}
+            {/* Scrubber Knob / Thumb indicator */}
+            <div 
+              className="absolute top-1/2 w-3.5 h-3.5 bg-red-600 rounded-full border-2 border-white shadow-lg pointer-events-none transition-transform duration-100 -translate-x-1/2 -translate-y-1/2 group-hover:scale-125"
+              style={{ left: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+            />
+
+            {/* Seamless Scrub Range Input */}
             <input
               type="range"
               min={0}

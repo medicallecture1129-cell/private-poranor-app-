@@ -164,23 +164,31 @@
       position: absolute;
       inset-x: 0;
       height: 2.5px;
-      background: rgba(255, 255, 255, 0.25);
+      background: rgba(255, 255, 255, 0.2);
       border-radius: 4px;
       overflow: hidden;
-      transition: height 0.15s ease;
     }
 
-    .timeline-container:hover .timeline-track-unplayed {
-      height: 4.5px;
+    /* Buffered Portion: 3.5px translucent white loaded in advance */
+    .timeline-track-buffered {
+      position: absolute;
+      left: 0;
+      height: 3.5px;
+      width: 0%;
+      background: rgba(255, 255, 255, 0.45);
+      border-radius: 4px;
+      transition: width 0.25s ease;
     }
 
-    /* Played Portion: Bold, bright, solid-colored red line (#ef4444) */
+    /* Played Portion: Bold, bright, solid-colored red line (5.5px #ef4444) */
     .timeline-track-played {
-      height: 100%;
+      position: absolute;
+      left: 0;
+      height: 5.5px;
       width: 0%;
       background: #ef4444;
       border-radius: 4px;
-      box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+      box-shadow: 0 0 8px rgba(239, 68, 68, 0.7);
       transition: width 0.08s linear;
     }
 
@@ -333,11 +341,11 @@
       <!-- 4 & 5. Clean Bottom Control Bar -->
       <div class="bottom-bar" id="bottomBar">
         
-        <!-- 5. Advanced Timeline: Distinguishes Bold Bright Red Played vs Thin Faded Unplayed -->
+        <!-- 5. Advanced Timeline: 5.5px bold played vs 3.5px buffer vs 2.5px unplayed -->
         <div class="timeline-container" id="timelineContainer">
-          <div class="timeline-track-unplayed">
-            <div class="timeline-track-played" id="timelinePlayed"></div>
-          </div>
+          <div class="timeline-track-unplayed"></div>
+          <div class="timeline-track-buffered" id="timelineBuffered"></div>
+          <div class="timeline-track-played" id="timelinePlayed"></div>
           <div class="timeline-thumb" id="timelineThumb"></div>
           <input 
             type="range" 
@@ -384,6 +392,7 @@
     const centerIconPause = document.getElementById('centerIconPause');
     const bottomBar = document.getElementById('bottomBar');
     const timelineInput = document.getElementById('timelineInput');
+    const timelineBuffered = document.getElementById('timelineBuffered');
     const timelinePlayed = document.getElementById('timelinePlayed');
     const timelineThumb = document.getElementById('timelineThumb');
     const timeDisplay = document.getElementById('timeDisplay');
@@ -429,6 +438,17 @@
         timelinePlayed.style.width = `${percent}%`;
         timelineThumb.style.left = `${percent}%`;
         timelineInput.value = percent;
+
+        // Buffer pre-loading tracker
+        if (video.buffered.length > 0) {
+          for (let i = 0; i < video.buffered.length; i++) {
+            if (video.buffered.start(i) <= cur && cur <= video.buffered.end(i)) {
+              const bufPct = (video.buffered.end(i) / dur) * 100;
+              timelineBuffered.style.width = `${Math.min(100, bufPct)}%`;
+              break;
+            }
+          }
+        }
       }
     }
 
@@ -446,14 +466,14 @@
       // If playing, auto-hide controls after 5 seconds of inactivity
       if (!video.paused) {
         autoHideTimer = setTimeout(() => {
-          hideControls();
+          hideControls(true);
         }, 5000);
       }
     }
 
-    function hideControls() {
-      // If paused, keep controls visible until resumed
-      if (video.paused) return;
+    function hideControls(isTimer = false) {
+      // Inactivity timer will NOT auto-hide if paused, but manual screen tap CAN hide even when paused
+      if (isTimer && video.paused) return;
 
       controlsVisible = false;
       centerPlayWrapper.classList.add('is-hidden');
@@ -462,7 +482,7 @@
 
     function toggleControls() {
       if (controlsVisible) {
-        hideControls();
+        hideControls(false);
       } else {
         showControls();
       }
@@ -548,6 +568,7 @@
 
     video.addEventListener('timeupdate', updateTimeDisplay);
     video.addEventListener('loadedmetadata', updateTimeDisplay);
+    video.addEventListener('progress', updateTimeDisplay);
 
     // Playback Speed Toggle
     btnSpeed.addEventListener('click', (e) => {
