@@ -6,8 +6,6 @@ import {
   generateBatchSets, 
   generateAdmissionStylePDF, 
   generateSolutionKeyPDF,
-  downloadExamPdfSmart,
-  downloadPdfBlob,
   buildUnmeshStyleHtml,
   toBengaliNumber
 } from '../../utils/omrPdfGenerator';
@@ -100,8 +98,8 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [activeTab, setActiveTab] = useState<'sets_list' | 'preview' | 'answer_key' | 'master_set'>('sets_list');
 
-  // Preview page toggle (Page 1 vs Page 2 vs Page 3)
-  const [previewPage, setPreviewPage] = useState<1 | 2 | 3>(1);
+  // Preview page toggle (Page 1 vs Page 2)
+  const [previewPage, setPreviewPage] = useState<1 | 2>(1);
   const [previewQrUrl, setPreviewQrUrl] = useState<string>('');
 
   // Batch generation input (e.g. 15 sets)
@@ -302,12 +300,22 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
     ? generatedSets[selectedSetCode] 
     : (availableSetCodes.length > 0 ? generatedSets[availableSetCodes[0]] : null);
 
-  // Download 3-Page Admission Style PDF matching Demo Layout
+  // Download 2-Page 8-Column Admission Style PDF
   const handleDownloadAdmissionPDF = async (set: OfflineExamSet) => {
     setIsGeneratingPdf(true);
     try {
-      await downloadExamPdfSmart(normalizedExam, set, set.setCode);
-      toastSuccess(`সেট "${set.setCode}" এর ওএমআর ও ৩-পৃষ্ঠার প্রশ্নপত্র PDF ডাউনলোড শুরু হয়েছে!`);
+      const blob = await generateAdmissionStylePDF(normalizedExam, set, {
+        appName: 'মেডিকেল ও বিশ্ববিদ্যালয় ভর্তি পরীক্ষা পোর্টাল'
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `OMR_${(normalizedExam.title || 'Exam').replace(/\s+/g, '_')}_${set.setCode}_2Page_8Col.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toastSuccess(`সেট "${set.setCode}" এর ২-পেজ ৮-কলাম ওএমআর ও প্রশ্ন পিডিএফ ডাউনলোড শুরু হয়েছে!`);
     } catch (err: unknown) {
       console.error('PDF generation error:', err);
       toastError(err instanceof Error ? err.message : 'পিডিএফ তৈরি করতে ব্যর্থ হয়েছে');
@@ -321,9 +329,14 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
     setIsGeneratingPdf(true);
     try {
       const blob = await generateSolutionKeyPDF(normalizedExam, set);
-      const safeExamTitle = (normalizedExam.title || 'Exam').replace(/[^a-zA-Z0-9_-]/g, '_');
-      const filename = `Solution_Key_${safeExamTitle}_${set.setCode}.pdf`;
-      downloadPdfBlob(blob, filename);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Solution_Key_${(normalizedExam.title || 'Exam').replace(/\s+/g, '_')}_${set.setCode}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
       toastSuccess(`সেট "${set.setCode}" এর শিক্ষক সলিউশন কি পিডিএফ ডাউনলোড হয়েছে!`);
     } catch (err: unknown) {
       console.error('Solution Key PDF error:', err);
@@ -709,7 +722,7 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
                         previewPage === 1 ? 'bg-blue-600 text-white' : 'text-slate-500'
                       }`}
                     >
-                      ১নং পৃষ্ঠা (OMR + প্রশ্ন ১-২৪)
+                      ১ম পৃষ্ঠা (OMR + প্রশ্ন ১-৫৩)
                     </button>
                     <button
                       type="button"
@@ -718,16 +731,7 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
                         previewPage === 2 ? 'bg-blue-600 text-white' : 'text-slate-500'
                       }`}
                     >
-                      ২নং পৃষ্ঠা (প্রশ্ন ২৫-৬২)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPreviewPage(3)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
-                        previewPage === 3 ? 'bg-blue-600 text-white' : 'text-slate-500'
-                      }`}
-                    >
-                      ৩নং পৃষ্ঠা (প্রশ্ন ৬৩-১০০)
+                      ২য় পৃষ্ঠা (প্রশ্ন ৫৪-১০০ + নির্দেশাবলী)
                     </button>
                   </div>
 
@@ -737,7 +741,7 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
                     className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-50"
                   >
                     <Download className="w-4 h-4" />
-                    <span>{isGeneratingPdf ? 'পিডিএফ তৈরি হচ্ছে...' : '৩-পৃষ্ঠার ডেমো PDF ডাউনলোড'}</span>
+                    <span>{isGeneratingPdf ? 'পিডিএফ তৈরি হচ্ছে...' : '২-পেজ প্রিন্ট-রেডি PDF ডাউনলোড'}</span>
                   </button>
 
                   <button
@@ -745,7 +749,7 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
                     className="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
                   >
                     <KeyRound className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>টিচার সলিউশন</span>
+                    <span>টিচার কি</span>
                   </button>
                 </div>
               </div>
@@ -755,17 +759,15 @@ export const OmrGeneratorModal: React.FC<OmrGeneratorModalProps> = ({
                 <div 
                   className="bg-white shadow-2xl origin-top transition-transform"
                   style={{
-                    width: '794px',
-                    minWidth: '794px',
-                    height: '1123px',
+                    width: '1122px',
+                    minWidth: '1122px',
+                    height: '793px',
                     boxSizing: 'border-box'
                   }}
                   dangerouslySetInnerHTML={{
                     __html: previewPage === 1 
                       ? buildUnmeshStyleHtml(exam, currentSet, previewQrUrl).page1Html 
-                      : previewPage === 2
-                      ? buildUnmeshStyleHtml(exam, currentSet, previewQrUrl).page2Html
-                      : buildUnmeshStyleHtml(exam, currentSet, previewQrUrl).page3Html
+                      : buildUnmeshStyleHtml(exam, currentSet, previewQrUrl).page2Html
                   }}
                 />
               </div>

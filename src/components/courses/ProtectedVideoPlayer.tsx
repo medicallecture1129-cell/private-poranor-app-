@@ -19,7 +19,7 @@ import {
   Volume2,
   GraduationCap
 } from 'lucide-react';
-import { extractYouTubeId, getGoogleDriveEmbedUrl, getYouTubeThumbnail } from '../../utils/mediaUrl';
+import { extractYouTubeId, getGoogleDriveEmbedUrl } from '../../utils/mediaUrl';
 import { useAuth } from '../../context/AuthContext';
 import { subscribeVideoNotes, addVideoNote, deleteVideoNote } from '../../services/db';
 import { VideoNote } from '../../types';
@@ -77,6 +77,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   // Tap tracker
   const lastTapRef = useRef<{ time: number; x: number; y: number }>({ time: 0, x: 0, y: 0 });
   const lastTouchEndTimeRef = useRef<number>(0);
+  const lastExplicitHideTimeRef = useRef<number>(0);
 
   // Gesture tracking refs for real-time smoothness
   const currentBrightnessRef = useRef<number>(1);
@@ -196,17 +197,15 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
   };
 
-  // Autohide controls after 3 seconds while playing
+  // Autohide controls after 3 seconds of inactivity
   const resetHideTimer = useCallback(() => {
     if (hideControlsTimerRef.current) {
       clearTimeout(hideControlsTimerRef.current);
       hideControlsTimerRef.current = null;
     }
-    if (isPlayingRef.current) {
-      hideControlsTimerRef.current = setTimeout(() => {
-        setControlsVisible(false);
-      }, 3000);
-    }
+    hideControlsTimerRef.current = setTimeout(() => {
+      setControlsVisible(false);
+    }, 3000);
   }, []);
 
   const showControlsTemporarily = useCallback(() => {
@@ -216,6 +215,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 
   const handleMouseMove = useCallback(() => {
     if (Date.now() - lastTouchEndTimeRef.current < 700) return;
+    if (Date.now() - lastExplicitHideTimeRef.current < 1500) return;
     if (isPlaying) {
       showControlsTemporarily();
     }
@@ -360,6 +360,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       try {
         ytPlayerRef.current = new window.YT.Player(uniquePlayerId.current, {
           videoId: videoId,
+          host: 'https://www.youtube-nocookie.com',
           width: '100%',
           height: '100%',
           playerVars: {
@@ -411,14 +412,12 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               } else if (event.data === 2) {
                 setIsPlaying(false);
                 setIsBuffering(false);
-                if (hideControlsTimerRef.current) {
-                  clearTimeout(hideControlsTimerRef.current);
-                  hideControlsTimerRef.current = null;
-                }
+                setControlsVisible(true);
               } else if (event.data === 0) {
                 // =============================================================
-                // Video Ended: Seek back to 0, pause, and reset hasStarted
-                // so the thumbnail poster permanently blocks end-screen grid!
+                // 4. PREVENT YOUTUBE END-SCREEN "MORE VIDEOS" RECOMMENDATIONS:
+                // Immediately seek back to time 0, pause, and reset hasStarted
+                // so the solid black cover permanently blocks end-screen grid!
                 // =============================================================
                 setIsPlaying(false);
                 setHasStarted(false);
@@ -560,19 +559,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const prevPlayingRef = useRef(isPlaying);
   // Controls auto-hide timer management
   useEffect(() => {
-    if (isPlaying && controlsVisible) {
+    if (isPlaying) {
       resetHideTimer();
-    } else {
-      if (hideControlsTimerRef.current) {
-        clearTimeout(hideControlsTimerRef.current);
-        hideControlsTimerRef.current = null;
-      }
-      if (prevPlayingRef.current && !isPlaying) {
-        setControlsVisible(true);
-      }
     }
     prevPlayingRef.current = isPlaying;
-  }, [isPlaying, controlsVisible, resetHideTimer]);
+  }, [isPlaying, resetHideTimer]);
 
   // Instant Play / Pause toggle
   const togglePlay = () => {
@@ -782,16 +773,17 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       return;
     }
 
-    // Single Tap: INSTANT toggle of Title Bar, Center Play/Pause, and Bottom Control Bar
+    // Single Tap: Toggle controls visibility (whether playing or paused)
     lastTapRef.current = { time: now, x: clientX, y: clientY };
 
     setControlsVisible(prev => {
       const next = !prev;
       if (next) {
-        if (isPlayingRef.current) {
-          resetHideTimer();
-        }
+        // Controls appeared: start 3-second auto-hide timer
+        resetHideTimer();
       } else {
+        // Controls hidden: clear timer
+        lastExplicitHideTimeRef.current = Date.now();
         if (hideControlsTimerRef.current) {
           clearTimeout(hideControlsTimerRef.current);
           hideControlsTimerRef.current = null;
@@ -913,6 +905,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     <div 
       ref={containerRef}
       onMouseMove={handleMouseMove}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          handleMouseClick(e);
+        }
+      }}
       className={`relative w-full bg-black flex flex-col select-none overflow-hidden ${
         isFullscreen 
           ? 'fixed inset-0 w-screen h-screen max-w-none rounded-none z-[9999] justify-center items-center' 
@@ -928,6 +925,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     >
       {/* Video Stage Container: Seamless, uncropped, zero dark border letterboxing */}
       <div 
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            handleMouseClick(e);
+          }
+        }}
         className={`w-full flex items-center justify-center relative overflow-hidden bg-black ${
           isFullscreen ? 'w-full h-full' : ''
         }`}
@@ -973,15 +975,13 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               `}</style>
               <div 
                 ref={ytMountContainerRef}
-                className="absolute inset-x-0 w-full pointer-events-none select-none flex items-center justify-center"
+                className="absolute inset-x-0 w-full pointer-events-none select-none flex items-center justify-center overflow-hidden"
                 style={{
                   pointerEvents: 'none',
                   userSelect: 'none',
-                  top: '-52px',
-                  height: 'calc(100% + 104px)',
-                  width: '100%',
-                  opacity: hasStarted ? 1 : 0,
-                  transition: 'opacity 0.25s ease'
+                  top: '-80px',
+                  height: 'calc(100% + 160px)',
+                  width: '100%'
                 }}
               />
             </div>
@@ -1052,24 +1052,16 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             />
           )}
 
-          {/* Video Poster Thumbnail before first play - Completely eliminates YouTube's default center button */}
+          {/* Solid pure black cover to hide initial YouTube thumbnail & red button until first play */}
           {videoId && !hasStarted && (
             <div 
-              className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden bg-black select-none"
-              style={{ zIndex: 25 }}
-            >
-              <img 
-                src={getYouTubeThumbnail(videoId)} 
-                alt={title}
-                className="w-full h-full object-cover opacity-90 select-none pointer-events-none"
-              />
-              <div className="absolute inset-0 bg-black/40 pointer-events-none" />
-            </div>
+              className="absolute inset-0 bg-black z-25 pointer-events-none"
+            />
           )}
 
           {/* =========================================================================
               CRITICAL: Transparent Touch Shield
-              - Covers entire player canvas at z-index 26 (above video & poster)
+              - Covers entire player canvas at z-26 (above video and masks)
               - pointer-events: auto captures clicks and swipe gestures
               - Prevents any redirect to YouTube
              ========================================================================= */}
@@ -1088,8 +1080,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 e.stopPropagation();
                 return false;
               }}
-              className="absolute inset-0 cursor-pointer pointer-events-auto bg-transparent select-none touch-none"
-              style={{ zIndex: 26, WebkitTouchCallout: 'none', userSelect: 'none' }}
+              className="absolute inset-0 z-26 cursor-pointer pointer-events-auto bg-transparent select-none touch-none"
+              style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
               aria-label="Video playback surface shield"
             />
           )}
@@ -1100,10 +1092,14 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               - Unified toggle with controlsVisible
              ========================================================================= */}
           <div 
-            className={`absolute top-0 inset-x-0 pt-3 sm:pt-4 pb-8 sm:pb-10 px-3 sm:px-4 flex items-center justify-between text-white bg-gradient-to-b from-black from-55% via-black/85 to-transparent transition-opacity duration-200 ease-in-out pointer-events-auto ${
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                handleScreenTap(e.clientX, e.clientY);
+              }
+            }}
+            className={`absolute top-0 inset-x-0 z-30 pt-3 sm:pt-4 pb-8 sm:pb-10 px-3 sm:px-4 flex items-center justify-between text-white bg-gradient-to-b from-black from-55% via-black/85 to-transparent transition-opacity duration-200 ease-in-out ${
               controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
             }`}
-            style={{ zIndex: 30 }}
           >
             <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 pr-2">
               {/* Official Exam Portal App Icon */}
@@ -1128,44 +1124,54 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               </div>
             </div>
 
-            {/* Close Button */}
-            {onClose && !isInline && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onClose();
-                }}
-                className="p-1 sm:p-1.5 text-white/90 hover:text-white hover:bg-white/20 active:bg-white/30 rounded-full transition-colors cursor-pointer shrink-0 drop-shadow-md"
-                title="Close Player"
-              >
-                <X className="w-4 h-4 sm:w-5 sm:h-5" />
-              </button>
-            )}
+            {/* Right side: Protected label + Close Button */}
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-bold tracking-wider text-[#00ff88] bg-[#00ff88]/20 border border-[#00ff88]/60 shadow-[0_0_12px_rgba(0,255,136,0.35)] select-none">
+                <span className="w-2 h-2 rounded-full bg-[#00ff88] shadow-[0_0_8px_#00ff88] animate-pulse" />
+                Protected
+              </span>
+
+              {/* Close Button */}
+              {onClose && !isInline && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClose();
+                  }}
+                  className="p-1 sm:p-1.5 text-white/90 hover:text-white hover:bg-white/20 active:bg-white/30 rounded-full transition-colors cursor-pointer shrink-0 drop-shadow-md"
+                  title="Close Player"
+                >
+                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Center Play/Pause Button - Compact & Transparent */}
+          {/* Center Play/Pause Button - 100% Transparent Background, Clean Crisp Icon */}
           {!isDriveVideo && (
             <div 
-              className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 ease-in-out ${
-                controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+              className={`absolute inset-0 z-30 flex items-center justify-center transition-opacity duration-200 ease-in-out pointer-events-none ${
+                controlsVisible ? 'opacity-100' : 'opacity-0'
               }`}
-              style={{ zIndex: 30 }}
             >
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  togglePlay();
-                }}
-                className="w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 border-white/40 hover:border-white/80 text-white flex items-center justify-center shadow-lg transition-all duration-150 hover:scale-105 active:scale-95 cursor-pointer drop-shadow-lg bg-transparent"
-                style={{ backgroundColor: 'transparent' }}
-                title={isPlaying ? 'Pause' : 'Play'}
-              >
-                {isPlaying ? (
-                  <Pause className="w-6 h-6 sm:w-7 sm:h-7 fill-white text-white drop-shadow-md" />
-                ) : (
-                  <Play className="w-6 h-6 sm:w-7 sm:h-7 fill-white text-white ml-0.5 drop-shadow-md" />
-                )}
-              </button>
+              <div className="relative flex items-center justify-center pointer-events-auto">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    togglePlay();
+                  }}
+                  className="relative z-10 p-1.5 sm:p-2 text-white flex items-center justify-center transition-transform duration-150 hover:scale-115 active:scale-95 cursor-pointer bg-transparent border-none outline-none focus:outline-none"
+                  style={{ backgroundColor: 'transparent' }}
+                  title={isPlaying ? 'Pause' : 'Play'}
+                >
+                  {isPlaying ? (
+                    <Pause className="w-8 h-8 sm:w-10 sm:h-10 fill-white text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]" />
+                  ) : (
+                    <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-white text-white ml-0.5 drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]" />
+                  )}
+                </button>
+              </div>
             </div>
           )}
 
@@ -1211,46 +1217,60 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
              ========================================================================= */}
           {!isDriveVideo && (
             <div 
-              className={`absolute bottom-0 inset-x-0 pt-8 pb-2 sm:pb-3 px-2 sm:px-4 flex flex-col gap-1 text-white bg-gradient-to-t from-black from-65% via-black/85 to-transparent transition-opacity duration-200 ease-in-out pointer-events-auto ${
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  handleScreenTap(e.clientX, e.clientY);
+                }
+              }}
+              className={`absolute bottom-0 inset-x-0 z-30 pt-8 pb-2 sm:pb-3 px-2 sm:px-4 flex flex-col gap-1 text-white bg-gradient-to-t from-black from-65% via-black/85 to-transparent transition-opacity duration-200 ease-in-out ${
                 controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
               }`}
               style={{
-                zIndex: 30,
                 paddingLeft: 'max(8px, env(safe-area-inset-left))',
                 paddingRight: 'max(8px, env(safe-area-inset-right))',
                 paddingBottom: 'max(4px, env(safe-area-inset-bottom))'
               }}
             >
               {/* Timeline Track */}
-              <div className="relative flex items-center w-full h-3.5 cursor-pointer group">
-                {/* Multi-layered Track Base */}
-                <div className="absolute inset-x-0 flex items-center h-[4px]">
-                  {/* Unplayed Portion */}
-                  <div className="absolute inset-x-0 h-[2px] bg-white/25 rounded-full overflow-hidden" />
+              <div className="relative flex items-center w-full h-4 sm:h-5 cursor-pointer group">
+                {/* Multi-layered Track Base (Sharp, Crisp, Zero Blur) */}
+                <div className="absolute inset-x-0 flex items-center h-[6px] sm:h-[7px]">
+                  {/* Unplayed / Remaining Track: Pure Crisp Solid White (100% Opaque, Super Vivid, Zero Blur) */}
+                  <div 
+                    className="absolute inset-x-0 h-full rounded-full"
+                    style={{ 
+                      backgroundColor: '#ffffff',
+                      boxShadow: '0 0 6px 1px rgba(255, 255, 255, 0.45)'
+                    }}
+                  />
 
                   {/* Buffered Portion */}
                   <div 
-                    className="absolute left-0 h-[3px] bg-white/50 rounded-full transition-[width] duration-300"
-                    style={{ width: `${bufferedPercent}%` }}
+                    className="absolute left-0 h-full rounded-full transition-[width] duration-300"
+                    style={{ 
+                      width: `${bufferedPercent}%`,
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)'
+                    }}
                   />
 
-                  {/* Played Portion */}
+                  {/* Played Portion: Sharp, Crisp App Theme Color (ZERO BLUR, 100% Solid) */}
                   <div 
-                    className="absolute left-0 h-[4px] rounded-full transition-[width] duration-75 shadow-sm"
+                    className="absolute left-0 h-full rounded-full transition-[width] duration-75"
                     style={{ 
                       width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
-                      backgroundColor: themePrimary,
-                      boxShadow: `0 0 8px ${themePrimary}`
+                      backgroundColor: themePrimary
                     }}
                   />
                 </div>
 
                 {/* Draggable Scrubber Thumb */}
                 <div 
-                  className="absolute top-1/2 w-3.5 h-3.5 rounded-full border border-white shadow-md pointer-events-none transition-transform duration-75 -translate-x-1/2 -translate-y-1/2 z-10 group-hover:scale-125"
+                  className="absolute top-1/2 w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full pointer-events-none transition-transform duration-75 -translate-x-1/2 -translate-y-1/2 z-10 group-hover:scale-125"
                   style={{ 
                     left: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
-                    backgroundColor: themePrimary
+                    backgroundColor: themePrimary,
+                    border: '2.5px solid #ffffff',
+                    boxShadow: '0 1px 4px rgba(0, 0, 0, 0.4)'
                   }}
                 />
 
@@ -1282,7 +1302,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                       flexShrink: 0
                     }}
                     className="font-mono text-[11px] sm:text-xs text-slate-100 tracking-tight font-medium cursor-pointer hover:text-white transition-colors px-1 py-0.5 rounded select-none whitespace-nowrap shrink-0 drop-shadow-md"
-                    title={showRemainingTime ? 'ক্লিক করে অতিক্রান্ত সময় দেখুন' : 'ক্লিক করে অবশিষ্ট সময় দেখুন'}
+                    title={showRemainingTime ? 'Click to show elapsed time' : 'Click to show remaining time'}
                   >
                     <span 
                       style={{ 
@@ -1312,7 +1332,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                   </button>
                 </div>
 
-                {/* Right Section: Compact buttons with larger, clearer icons */}
+                {/* Right Section: Compact buttons with name labels in English */}
                 <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                   {/* Quality Selector Button */}
                   <button
@@ -1321,11 +1341,12 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                       window.history.pushState({ modal: 'quality' }, '');
                       setShowQualityMenu(true);
                     }}
-                    className="px-2 py-1 rounded-lg text-white font-mono text-[11px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer hover:bg-white/20 active:bg-white/30 shrink-0 drop-shadow-md"
+                    className="px-1.5 sm:px-2 py-1 rounded-lg text-white text-[11px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer hover:bg-white/20 active:bg-white/30 shrink-0 drop-shadow-md font-sans"
                     title="Resolution & Quality"
                   >
-                    <Settings className="w-4 h-4 text-blue-400 shrink-0" />
-                    <span className="hidden xs:inline whitespace-nowrap">{currentQualityLabel}</span>
+                    <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400 shrink-0" />
+                    <span className="whitespace-nowrap font-medium">Quality</span>
+                    <span className="hidden xs:inline text-[10px] font-mono text-blue-300 font-bold">({currentQualityLabel})</span>
                   </button>
 
                   {/* Playback Speed Button (0.5x to 3.0x) */}
@@ -1335,11 +1356,12 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                       window.history.pushState({ modal: 'speed' }, '');
                       setShowSpeedMenu(true);
                     }}
-                    className="px-2 py-1 rounded-lg text-white font-mono text-[11px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer hover:bg-white/20 active:bg-white/30 shrink-0 drop-shadow-md"
+                    className="px-1.5 sm:px-2 py-1 rounded-lg text-white text-[11px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer hover:bg-white/20 active:bg-white/30 shrink-0 drop-shadow-md font-sans"
                     title="Playback Speed"
                   >
-                    <Gauge className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="whitespace-nowrap font-bold">{playbackSpeed}x</span>
+                    <Gauge className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#00ff88] drop-shadow-[0_0_8px_rgba(0,255,136,0.6)] shrink-0" />
+                    <span className="whitespace-nowrap font-medium text-white">Speed</span>
+                    <span className="text-[10px] font-mono text-[#00ff88] font-bold drop-shadow-[0_0_6px_rgba(0,255,136,0.4)]">({playbackSpeed}x)</span>
                   </button>
 
                   {/* Video Notes & Timestamp Bookmarks */}
@@ -1348,16 +1370,16 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                       e.stopPropagation();
                       setShowNotesPanel(prev => !prev);
                     }}
-                    className={`px-2 py-1 rounded-lg text-white text-[11px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer shrink-0 drop-shadow-md ${
+                    className={`px-1.5 sm:px-2 py-1 rounded-lg text-white text-[11px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer shrink-0 drop-shadow-md font-sans ${
                       showNotesPanel
                         ? 'text-amber-300 bg-amber-500/30'
                         : 'hover:bg-white/20 active:bg-white/30'
                     }`}
                     title="Timestamp Notes & Bookmarks"
                   >
-                    <Bookmark className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span className="hidden sm:inline">নোটস</span>
-                    <span className="text-[10px] font-bold">({videoNotes.length})</span>
+                    <Bookmark className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
+                    <span className="whitespace-nowrap font-medium">Note</span>
+                    <span className="hidden xs:inline text-[10px] font-bold text-amber-300">({videoNotes.length})</span>
                   </button>
 
                   {/* Fullscreen Toggle Button */}
@@ -1390,7 +1412,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           <div className="p-3 border-b border-white/10 flex items-center justify-between bg-black/40 shrink-0">
             <div className="flex items-center gap-2">
               <Bookmark className="w-4 h-4 text-amber-400" />
-              <h4 className="font-bold text-xs sm:text-sm">ক্লাস নোটস ও বুকমার্ক</h4>
+              <h4 className="font-bold text-xs sm:text-sm">Class Notes & Bookmarks</h4>
             </div>
             <button
               onClick={() => setShowNotesPanel(false)}
@@ -1403,7 +1425,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           {/* Input Form to Capture current second */}
           <form onSubmit={handleCreateNote} className="p-2.5 border-b border-white/10 space-y-2 bg-black/20 shrink-0">
             <div className="flex items-center justify-between text-[11px] text-slate-400">
-              <span>টাইমস্ট্যাম্প:</span>
+              <span>Timestamp:</span>
               <span className="font-mono font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20">
                 ⏱ {formatTime(currentTime)}
               </span>
@@ -1411,7 +1433,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             <div className="flex gap-1.5">
               <input
                 type="text"
-                placeholder="এই সময়ে নোট লিখুন..."
+                placeholder="Write a note at this timestamp..."
                 value={newNoteInput}
                 onChange={(e) => setNewNoteInput(e.target.value)}
                 className="flex-1 px-2.5 py-1.5 rounded-xl bg-white/10 border border-white/15 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
@@ -1422,7 +1444,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 disabled={isSavingNote || !newNoteInput.trim()}
                 className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs disabled:opacity-50 cursor-pointer shrink-0 transition-colors"
               >
-                {isSavingNote ? '...' : 'যোগ'}
+                {isSavingNote ? '...' : 'Add'}
               </button>
             </div>
           </form>
@@ -1432,8 +1454,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             {videoNotes.length === 0 ? (
               <div className="text-center py-6 text-slate-500 text-xs space-y-1">
                 <Clock className="w-5 h-5 mx-auto text-slate-600 mb-1" />
-                <p>কোনো নোট যোগ করা হয়নি।</p>
-                <p className="text-[10px]">লেকচার চলাকালে যেকোনো মুহূর্তে নোট নিন।</p>
+                <p>No notes added yet.</p>
+                <p className="text-[10px]">Take notes anytime during the lecture.</p>
               </div>
             ) : (
               videoNotes.map((note) => (
@@ -1446,7 +1468,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                       type="button"
                       onClick={() => jumpToTime(note.timestampSeconds)}
                       className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-400/15 hover:bg-amber-400/30 text-amber-300 font-mono font-bold text-[10px] border border-amber-400/30 cursor-pointer transition-all"
-                      title="ক্লিক করে এই অংশে জাম্প করুন"
+                      title="Click to jump to this timestamp"
                     >
                       <Play className="w-2.5 h-2.5 fill-current" />
                       <span>{note.timestampFormatted}</span>
@@ -1455,7 +1477,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                       type="button"
                       onClick={() => handleDeleteNote(note.id)}
                       className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-400 transition-opacity cursor-pointer"
-                      title="মুছে ফেলুন"
+                      title="Delete note"
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>
@@ -1501,7 +1523,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 
             {/* Current Speed Display */}
             <div className="flex items-center justify-between px-1">
-              <span className="text-[11px] text-slate-400 font-medium">প্লেব্যাক গতি:</span>
+              <span className="text-[11px] text-slate-400 font-medium">Speed:</span>
               <span 
                 className="text-xl sm:text-2xl font-extrabold font-mono tracking-tight"
                 style={{ color: 'var(--theme-primary, #3b82f6)' }}
@@ -1572,7 +1594,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 className="w-full py-1.5 rounded-xl text-white font-bold text-xs cursor-pointer shadow-md transition-all"
                 style={{ backgroundColor: 'var(--theme-primary, #3b82f6)' }}
               >
-                সম্পন্ন
+                Done
               </button>
             </div>
           </div>
@@ -1643,7 +1665,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 className="w-full py-1.5 rounded-xl text-white font-bold text-xs cursor-pointer shadow-md transition-all"
                 style={{ backgroundColor: 'var(--theme-primary, #3b82f6)' }}
               >
-                বন্ধ করুন
+                Close
               </button>
             </div>
           </div>

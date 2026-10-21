@@ -2,10 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import jsQR from 'jsqr';
 import { Exam, StudentUser, OfflineExamSet, ExamSubmission, StudentAnswer } from '../../types';
 import { submitExamAnswers, addNotification } from '../../services/db';
-import { generateShuffledSet } from '../../utils/omrPdfGenerator';
+import { generateShuffledSet, toBengaliNumber } from '../../utils/omrPdfGenerator';
 import { 
   processOmrImageComputerVision, 
   detectCornerRegistrationMarkers, 
+  CANONICAL_WIDTH, 
+  CANONICAL_HEIGHT,
   OmrScanDetectionResult
 } from '../../utils/omrCvEngine';
 import { useToast } from '../../context/ToastContext';
@@ -16,13 +18,17 @@ import {
   X, 
   AlertCircle, 
   Scan, 
+  UserCheck, 
+  Sparkles, 
+  Check, 
   Send,
   Trophy,
+  Award,
+  QrCode,
+  Lock,
   ShieldCheck,
-  Check,
-  Edit2,
-  User,
-  RotateCcw
+  Eye,
+  FileCheck
 } from 'lucide-react';
 
 interface OmrScannerModalProps {
@@ -49,11 +55,11 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
   // Student identification
   const [rollNoInput, setRollNoInput] = useState<string>('');
   const [matchedStudent, setMatchedStudent] = useState<StudentUser | null>(null);
-  const [isEditingStudentId, setIsEditingStudentId] = useState<boolean>(false);
 
-  // Student's marked bubbles: { [questionNumber]: 'A' | 'B' | 'C' | 'D' | null }
+  // Student's marked bubbles on this OMR sheet: { [questionNumber]: 'A' | 'B' | 'C' | 'D' | null }
+  // READ-ONLY and LOCKED once evaluated by Computer Vision!
   const [markedAnswers, setMarkedAnswers] = useState<Record<number, 'A' | 'B' | 'C' | 'D' | null>>({});
-  const [, setMultipleMarkedList] = useState<number[]>([]);
+  const [multipleMarkedList, setMultipleMarkedList] = useState<number[]>([]);
   const [scanConfidence, setScanConfidence] = useState<number>(0);
   const [cvErrorMessage, setCvErrorMessage] = useState<string | null>(null);
 
@@ -64,7 +70,7 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
   const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [liveMarkersFound, setLiveMarkersFound] = useState<boolean>(false);
-  const [, setCapturedPhotoUrl] = useState<string | null>(null);
+  const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(null);
   const [isEvaluating, setIsEvaluating] = useState<boolean>(false);
 
   // Determine available set codes from exam
@@ -72,7 +78,7 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
     if (exam.offlineSets && exam.offlineSets.length > 0) {
       return exam.offlineSets.map(s => s.setCode);
     }
-    return ['Set-01', 'Set-02', 'Set-03', 'Set-04'];
+    return ['Set-1', 'Set-2', 'Set-A', 'Set-B'];
   }, [exam]);
 
   // Set default set code
@@ -84,12 +90,9 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
 
   // Current set for selectedSetCode
   const currentSet: OfflineExamSet = React.useMemo(() => {
-    const code = selectedSetCode || availableSetCodes[0] || 'Set-01';
+    const code = selectedSetCode || availableSetCodes[0] || 'Set-1';
     if (exam.offlineSets && exam.offlineSets.length > 0) {
-      const found = exam.offlineSets.find(s => 
-        s.setCode.toUpperCase() === code.toUpperCase() ||
-        s.setCode.replace(/^Set-?/i, 'Set-').toUpperCase() === code.replace(/^Set-?/i, 'Set-').toUpperCase()
-      );
+      const found = exam.offlineSets.find(s => s.setCode === code);
       if (found) return found;
     }
     return generateShuffledSet(exam, code);
@@ -147,7 +150,7 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
       setIsCameraActive(true);
       runLiveFrameLoop();
     } catch (err: unknown) {
-      console.warn('Camera start notice:', err);
+      console.warn('Camera start error:', err);
       setCameraError('ক্যামেরা চালু করা সম্ভব হয়নি। অনুগ্রহ করে ওএমআরের ছবি আপলোড অপশনটি ব্যবহার করুন।');
       setActiveMode('upload');
     }
@@ -190,7 +193,7 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
           handleDetectedQrData(code.data);
         }
 
-        // Check corner markers
+        // Check if 4 registration markers are within view
         const markers = detectCornerRegistrationMarkers(canvas);
         setLiveMarkersFound(!!markers);
       }
@@ -201,26 +204,30 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
     animFrameRef.current = requestAnimationFrame(runLiveFrameLoop);
   };
 
-  // Process decoded QR payload
+  // Process decoded QR payload with strict validation
   const handleDetectedQrData = (rawData: string) => {
     if (detectedQrData === rawData) return;
     setDetectedQrData(rawData);
 
+    let parsedExamId: string | null = null;
     let setCode: string | null = null;
 
-    // Format: OMR:examId:setCode
-    if (rawData.startsWith('OMR:')) {
+    // Format: OMR:examId:setCode or UNMESH:SET:examId:setCode
+    if (rawData.startsWith('OMR:') || rawData.startsWith('UNMESH:')) {
       const parts = rawData.split(':');
       if (parts.length >= 3) {
+        parsedExamId = parts[1];
         setCode = parts[2];
       } else {
         setCode = parts[parts.length - 1];
       }
     } else {
+      // JSON format
       try {
         const parsed = JSON.parse(rawData);
-        if (parsed.set || parsed.s || parsed.setCode) {
-          setCode = parsed.set || parsed.s || parsed.setCode;
+        if (parsed.examId) parsedExamId = parsed.examId;
+        if (parsed.set || parsed.s) {
+          setCode = parsed.set || parsed.s;
         }
       } catch {
         const match = rawData.match(/SET-?([A-Za-z0-9_-]+)/i);
@@ -230,13 +237,22 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
       }
     }
 
-    if (setCode) {
-      setSelectedSetCode(setCode);
-      toastSuccess(`✓ কিউআর কোড স্ক্যান সম্পন্ন! সেট: ${setCode}`);
+    // Step 2 Validation: Check if QR matches this exam and has a valid answer key
+    if (parsedExamId && parsedExamId !== exam.id && !exam.id.includes(parsedExamId) && !parsedExamId.includes(exam.id.slice(0, 16))) {
+      toastError(`Invalid or Unregistered Question Set QR: এই কিউআর কোডটি অন্য কোনো পরীক্ষার (ID: ${parsedExamId.slice(0, 8)})!`);
+      return;
     }
+
+    if (!setCode) {
+      toastError('Invalid or Unregistered Question Set QR: কিউআর কোডে কোনো সেট শনাক্ত করা যায়নি!');
+      return;
+    }
+
+    setSelectedSetCode(setCode);
+    toastSuccess(`✓ কিউআর কোড স্ক্যান সম্পন্ন! সেট: ${setCode}`);
   };
 
-  // Capture photo from video stream
+  // Capture photo from video stream and execute Computer Vision evaluation
   const capturePhotoAndEvaluate = () => {
     if (!videoRef.current) return;
     setCvErrorMessage(null);
@@ -259,10 +275,12 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
         handleDetectedQrData(qr.data);
       }
     } catch (e) {
-      console.warn('QR decode on capture notice:', e);
+      console.warn('QR decode on capture failed:', e);
     }
 
     stopCamera();
+
+    // Execute Rigid Computer Vision Pipeline
     executeComputerVisionPipeline(canvas);
   };
 
@@ -293,7 +311,7 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
               handleDetectedQrData(qr.data);
             }
           } catch (err) {
-            console.warn('QR read notice:', err);
+            console.warn('QR read failed on uploaded image:', err);
           }
 
           executeComputerVisionPipeline(canvas);
@@ -304,20 +322,28 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
     reader.readAsDataURL(file);
   };
 
-  // Computer Vision Evaluation
+  /**
+   * RIGID COMPUTER VISION EVALUATION PIPELINE:
+   * 1. Anchor Point & Grid Detection (4 corner black registration squares).
+   * 2. Perspective warp to canonical standard.
+   * 3. Student ID evaluation.
+   * 4. 100 questions thresholding (>60% dark pixel density).
+   * 5. If markers missing/hand in the way: rigid rejection.
+   */
   const executeComputerVisionPipeline = (sourceCanvas: HTMLCanvasElement) => {
     const cvResult: OmrScanDetectionResult = processOmrImageComputerVision(sourceCanvas);
 
     if (!cvResult.success || !cvResult.markersFound) {
       setCvErrorMessage(
         cvResult.errorMessage || 
-        'ওএমআর শিটের ফ্রেম বা মার্কার সনাক্ত করা যায়নি। অনুগ্রহ করে শিটটি সমতলভাবে ক্যামেরার সামনে ধরুন।'
+        'No valid OMR grid detected — ওএমআর শিটের ৪টি কর্নার মার্কার (Black Registration Squares) সঠিকভাবে সনাক্ত করা যায়নি। অনুগ্রহ করে শিটটি সোজাভাবে ফ্রেমে রাখুন (হাতের আঙুল বা ছায়া যেন কোণায় না থাকে)।'
       );
       toastError('ওএমআর কর্নার মার্কার সনাক্ত করা যায়নি!');
       return;
     }
 
-    if (cvResult.studentId && cvResult.studentId !== '000000') {
+    // Set auto-decoded Student ID if found
+    if (cvResult.studentId) {
       setRollNoInput(cvResult.studentId);
     }
 
@@ -325,20 +351,12 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
     setMultipleMarkedList(cvResult.multipleMarkedQuestions);
     setScanConfidence(cvResult.confidenceScore);
     setActiveMode('results');
-    toastSuccess('✓ ওএমআর শিট সফলভাবে মূল্যায়ন সম্পন্ন হয়েছে!');
-  };
-
-  // Teacher manual override for a question bubble (if faintly filled)
-  const handleToggleAnswer = (qNum: number, opt: 'A' | 'B' | 'C' | 'D') => {
-    setMarkedAnswers(prev => ({
-      ...prev,
-      [qNum]: prev[qNum] === opt ? null : opt
-    }));
+    toastSuccess('✓ ওএমআর শিট সফলভাবে মূল্যায়ন ও লক করা হয়েছে!');
   };
 
   // Score Calculation based on exact Answer Key mapping
-  const totalQuestions = currentSet.questions.length || 100;
-  const markPerQ = exam.markPerQuestion || 1.0;
+  const totalQuestions = currentSet.questions.length;
+  const markPerQ = exam.markPerQuestion || (exam.totalMarks / (totalQuestions || 1));
   const penalty = markPerQ * (exam.negativeMarkPercentage !== undefined ? exam.negativeMarkPercentage : 0.25);
 
   let correctCount = 0;
@@ -358,14 +376,13 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
 
   const rawScore = correctCount * markPerQ - wrongCount * penalty;
   const marksObtained = Math.max(0, Number(rawScore.toFixed(2)));
-  const totalMarks = exam.totalMarks || totalQuestions;
-  const percentage = (marksObtained / (totalMarks || 1)) * 100;
-  const isPassed = marksObtained >= (exam.passMark || (totalMarks * 0.4));
+  const percentage = (marksObtained / (exam.totalMarks || 1)) * 100;
+  const isPassed = marksObtained >= (exam.passMark || (exam.totalMarks * 0.4));
 
-  // Submit Result: Save to Database & Student Profile
+  // Publish to Database and Student Profile
   const handlePublishEvaluation = async () => {
     if (!rollNoInput.trim()) {
-      toastError('অনুগ্রহ করে শিক্ষার্থীর রোল নম্বর বা আইডি প্রদান করুন');
+      toastError('অনুগ্রহ করে শিক্ষার্থীর রোল নম্বর / আইডি যাচাই করুন');
       return;
     }
 
@@ -373,7 +390,7 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
     try {
       const targetStudent = matchedStudent || students.find(s => s.rollNo === rollNoInput.trim());
       const studentId = targetStudent ? targetStudent.id : `student_roll_${rollNoInput.trim()}`;
-      const studentName = targetStudent ? targetStudent.name : `শিক্ষার্থী (রোল: ${rollNoInput.trim()})`;
+      const studentName = targetStudent ? targetStudent.name : `শিক্ষার্থী (আইডি: ${rollNoInput.trim()})`;
       const studentEmail = targetStudent?.email || `${rollNoInput.trim()}@examportal.com`;
 
       const answers: StudentAnswer[] = currentSet.questions.map((q) => {
@@ -398,12 +415,12 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
         rollNo: rollNoInput.trim(),
         courseId: exam.courseId,
         marksObtained: marksObtained,
-        totalMarks: totalMarks,
+        totalMarks: exam.totalMarks,
         correctCount: correctCount,
         wrongCount: wrongCount,
         skippedCount: skippedCount,
         percentage: Number(percentage.toFixed(1)),
-        isLive: false,
+        isLive: true,
         isOfflineOMR: true,
         setCode: currentSet.setCode,
         startTime: Date.now() - (exam.durationMinutes * 60 * 1000),
@@ -414,22 +431,18 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
 
       const savedSub = await submitExamAnswers(submissionData);
 
-      // In-app notification to student profile
+      // In-app notification to student
       await addNotification({
         title: `ওএমআর রেজাল্ট প্রকাশিত: ${exam.title}`,
-        message: `আপনার অফলাইন ওএমআর শিট (${currentSet.setCode}) মূল্যায়ন সম্পন্ন হয়েছে! প্রাপ্ত নম্বর: ${marksObtained} / ${totalMarks} (${isPassed ? 'পাস' : 'ফেল'})।`,
+        message: `আপনার অফলাইন ওএমআর শিট (সেট: ${currentSet.setCode}) মূল্যায়ন সম্পন্ন হয়েছে! প্রাপ্ত নম্বর: ${marksObtained} / ${exam.totalMarks} (${isPassed ? 'পাস' : 'ফেল'})।`,
         type: 'result',
         linkTab: 'results',
         read: false
       });
 
-      toastSuccess(`ফলাফল সফলভাবে "${studentName}" এর প্রোফাইল ও অফলাইন রেজাল্ট ডাটাবেজে সংরক্ষণ করা হয়েছে!`);
+      toastSuccess(`ফলাফল সফলভাবে "${studentName}" এর প্রোফাইলে ও লিডারবোর্ডে যুক্ত হয়েছে!`);
       if (onSubmissionCreated) onSubmissionCreated(savedSub);
-      
-      // Reset for next student
-      setRollNoInput('');
-      setMatchedStudent(null);
-      setActiveMode('camera');
+      onClose();
     } catch (err: unknown) {
       console.error('Publish error:', err);
       toastError(err instanceof Error ? err.message : 'ফলাফল সংরক্ষণ করতে সমস্যা হয়েছে');
@@ -445,17 +458,17 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
       <div className="w-full max-w-5xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[92vh]">
         
         {/* Header */}
-        <div className="p-5 sm:p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4 bg-gradient-to-r from-blue-900/10 via-indigo-900/5 to-transparent">
+        <div className="p-5 sm:p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4 bg-gradient-to-r from-red-900/10 via-rose-900/5 to-transparent">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-600/30">
+            <div className="w-11 h-11 rounded-2xl bg-red-600 text-white flex items-center justify-center shadow-lg shadow-red-600/30">
               <Scan className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-[10px] font-extrabold uppercase tracking-wider">
-                  Mobile Camera OMR & QR Evaluation Engine
+                <span className="px-2.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300 text-[10px] font-extrabold uppercase tracking-wider">
+                  Unmesh Style Computer Vision OMR Engine
                 </span>
-                <span className="text-xs text-slate-400">• ইউনিক সেট কিউআর ও ৬-ডিজিট রোল ভেরিফিকেশন</span>
+                <span className="text-xs text-slate-400">• ৪-পয়েন্ট অ্যাঙ্কর ডিটেকশন ও লকড রেজাল্ট</span>
               </div>
               <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white mt-0.5">
                 {exam.title}
@@ -477,33 +490,33 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
             onClick={() => setActiveMode('camera')}
             className={`pb-3 px-3 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
               activeMode === 'camera'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                ? 'border-red-600 text-red-600 dark:text-red-400'
                 : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
             <Camera className="w-4 h-4" />
-            <span>ক্যামেরা OMR স্ক্যানার</span>
+            <span>ক্যামেরা ভিউফাইন্ডার ও কর্নার ডিটেক্টর</span>
           </button>
 
           <button
             onClick={() => setActiveMode('upload')}
             className={`pb-3 px-3 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
               activeMode === 'upload'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                ? 'border-red-600 text-red-600 dark:text-red-400'
                 : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
             <Upload className="w-4 h-4" />
-            <span>ছবি আপলোড করুন</span>
+            <span>ওএমআরের ছবি আপলোড</span>
           </button>
 
           {activeMode === 'results' && (
             <button
               onClick={() => setActiveMode('results')}
-              className="pb-3 px-3 text-xs sm:text-sm font-bold border-b-2 border-emerald-600 text-emerald-600 dark:text-emerald-400 flex items-center gap-2 cursor-pointer shrink-0"
+              className="pb-3 px-3 text-xs sm:text-sm font-bold border-b-2 border-red-600 text-red-600 dark:text-red-400 flex items-center gap-2 cursor-pointer shrink-0"
             >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>ইভালুয়েশন ও ফলাফল রিভিউ</span>
+              <Lock className="w-4 h-4" />
+              <span>লকড ফলাফল ও বাবল প্রিভিউ (Read-Only)</span>
             </button>
           )}
         </div>
@@ -511,18 +524,18 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
         {/* Body Content */}
         <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-5">
           
-          {/* Error Message if Marker Missing */}
+          {/* Error Message if Anchor Points / Markers Missing */}
           {cvErrorMessage && (
-            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 flex items-start gap-3 text-amber-800 dark:text-amber-200 text-xs">
-              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-amber-600" />
+            <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-800/60 flex items-start gap-3 text-red-700 dark:text-red-300 text-xs">
+              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-red-600" />
               <div className="space-y-1">
-                <span className="font-extrabold text-sm block">ওএমআর অ্যালাইনমেন্ট নোটিশ</span>
+                <span className="font-extrabold text-sm block">ওএমআর গ্রিড সনাক্তকরণ ব্যর্থ (Grid Detection Error)</span>
                 <p className="leading-relaxed">{cvErrorMessage}</p>
               </div>
             </div>
           )}
 
-          {/* MODE 1: CAMERA SCANNER */}
+          {/* MODE 1: CAMERA SCANNER WITH RIGID 4-CORNER VIEWFINDER */}
           {activeMode === 'camera' && (
             <div className="space-y-4">
               <div className="relative aspect-video max-w-2xl mx-auto rounded-3xl overflow-hidden bg-black border-2 border-slate-800 shadow-2xl flex items-center justify-center">
@@ -533,27 +546,32 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
                   className="w-full h-full object-cover"
                 />
 
-                {/* Viewfinder Overlay */}
+                {/* Strict 4-Corner Anchor Viewfinder Overlay */}
                 <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-between p-6">
+                  
+                  {/* 4 Corner Markers Indicators */}
                   <div className="w-full flex justify-between">
-                    <div className={`w-8 h-8 border-t-4 border-l-4 rounded-tl-lg transition-colors ${liveMarkersFound ? 'border-emerald-400 bg-emerald-400/20' : 'border-blue-500'}`} />
-                    <div className={`w-8 h-8 border-t-4 border-r-4 rounded-tr-lg transition-colors ${liveMarkersFound ? 'border-emerald-400 bg-emerald-400/20' : 'border-blue-500'}`} />
+                    <div className={`w-8 h-8 border-t-4 border-l-4 rounded-tl-lg transition-colors ${liveMarkersFound ? 'border-emerald-400 bg-emerald-400/20' : 'border-red-500'}`} />
+                    <div className={`w-8 h-8 border-t-4 border-r-4 rounded-tr-lg transition-colors ${liveMarkersFound ? 'border-emerald-400 bg-emerald-400/20' : 'border-red-500'}`} />
                   </div>
 
-                  <div className="border border-white/40 bg-black/50 backdrop-blur-xs px-4 py-2 rounded-2xl text-center text-white text-xs max-w-sm">
-                    {selectedSetCode ? (
+                  {/* Center Guidance Box */}
+                  <div className="border border-white/40 bg-black/40 backdrop-blur-xs px-4 py-2 rounded-2xl text-center text-white text-xs max-w-sm">
+                    {liveMarkersFound ? (
                       <span className="text-emerald-300 font-extrabold flex items-center justify-center gap-1.5">
                         <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                        <span>ডিটেক্টেড সেট: {selectedSetCode}</span>
+                        <span>✓ ৪টি কর্নার মার্কার সনাক্ত হয়েছে! এবার ছবি তুলুন</span>
                       </span>
                     ) : (
-                      <span>ওএমআর শিটের উপরের QR কোড ও বৃত্তগুলো ফ্রেমের সোজা রাখুন</span>
+                      <span>
+                        ওএমআরের ৪টি কোণার <strong>কালো মার্কার বক্স</strong> ফ্রেমের ভেতরে রাখুন
+                      </span>
                     )}
                   </div>
 
                   <div className="w-full flex justify-between">
-                    <div className={`w-8 h-8 border-b-4 border-l-4 rounded-bl-lg transition-colors ${liveMarkersFound ? 'border-emerald-400 bg-emerald-400/20' : 'border-blue-500'}`} />
-                    <div className={`w-8 h-8 border-b-4 border-r-4 rounded-br-lg transition-colors ${liveMarkersFound ? 'border-emerald-400 bg-emerald-400/20' : 'border-blue-500'}`} />
+                    <div className={`w-8 h-8 border-b-4 border-l-4 rounded-bl-lg transition-colors ${liveMarkersFound ? 'border-emerald-400 bg-emerald-400/20' : 'border-red-500'}`} />
+                    <div className={`w-8 h-8 border-b-4 border-r-4 rounded-br-lg transition-colors ${liveMarkersFound ? 'border-emerald-400 bg-emerald-400/20' : 'border-red-500'}`} />
                   </div>
                 </div>
 
@@ -563,7 +581,7 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
                     <p className="text-sm font-semibold">{cameraError || 'ক্যামেরা চালু করা হচ্ছে...'}</p>
                     <button
                       onClick={startCamera}
-                      className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shadow-md"
+                      className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs cursor-pointer shadow-md"
                     >
                       ক্যামেরা পুনরায় চালু করুন
                     </button>
@@ -576,10 +594,10 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
                 <button
                   type="button"
                   onClick={capturePhotoAndEvaluate}
-                  className="w-full py-3 px-6 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-sm shadow-xl shadow-blue-600/30 flex items-center justify-center gap-2 cursor-pointer transition-all"
+                  className="w-full py-3 px-6 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-black text-sm shadow-xl shadow-red-600/30 flex items-center justify-center gap-2 cursor-pointer transition-all"
                 >
                   <Scan className="w-5 h-5" />
-                  <span>ওএমআর শিট স্ক্যান ও রেজাল্ট বের করুন</span>
+                  <span>ওএমআর শিটের ছবি তুলুন ও মূল্যায়ন করুন</span>
                 </button>
               </div>
             </div>
@@ -588,15 +606,15 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
           {/* MODE 2: UPLOAD IMAGE */}
           {activeMode === 'upload' && (
             <div className="max-w-xl mx-auto space-y-4">
-              <label className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-3xl p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:border-blue-500 bg-slate-50/50 dark:bg-slate-800/40 transition-colors">
-                <div className="w-16 h-16 rounded-2xl bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-3 shadow-md">
+              <label className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-3xl p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:border-red-500 dark:hover:border-red-400 bg-slate-50/50 dark:bg-slate-800/40 transition-colors">
+                <div className="w-16 h-16 rounded-2xl bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 flex items-center justify-center mb-3 shadow-md">
                   <Upload className="w-8 h-8" />
                 </div>
                 <h4 className="font-bold text-base text-slate-900 dark:text-white">
-                  ওএমআর শিটের ছবি আপলোড করুন
+                  ওএমআর শিটের পরিষ্কার ছবি আপলোড করুন
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
-                  কম্পিউটার ভিশন স্বয়ংক্রিয়ভাবে কিউআর কোড (সেট নম্বর), ৬-ডিজিট স্টুডেন্ট আইডি ও ১০০টি উত্তর বৃত্ত পড়ে রেজাল্ট বের করবে।
+                  কম্পিউটার ভিশন ইঞ্জিন শিটের ৪টি কর্নার মার্কার ও কিউআর কোড বিশ্লেষণ করে স্বয়ংক্রিয়ভাবে খাতা মূল্যায়ন করবে।
                 </p>
                 <input
                   type="file"
@@ -604,102 +622,67 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
                   onChange={handleFileUpload}
                   className="hidden"
                 />
-                <span className="mt-4 px-5 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-xs shadow-md">
+                <span className="mt-4 px-5 py-2.5 rounded-xl bg-red-600 text-white font-bold text-xs shadow-md">
                   গ্যালারি / ডিভাইস থেকে ছবি বাছুন
                 </span>
               </label>
             </div>
           )}
 
-          {/* MODE 3: RESULTS REVIEW & SUBMISSION */}
+          {/* MODE 3: LOCKED RESULTS REVIEW (STRICTLY READ-ONLY) */}
           {activeMode === 'results' && (
             <div className="space-y-5">
               
-              {/* Summary Banner */}
-              <div className="p-4 rounded-2xl bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs border border-slate-700 shadow-md">
+              {/* UI LOCKING BANNER */}
+              <div className="p-3.5 rounded-2xl bg-slate-900 text-white flex items-center justify-between gap-3 text-xs border border-slate-700 shadow-md">
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+                  <Lock className="w-4 h-4 text-amber-400 shrink-0" />
                   <span className="font-bold text-slate-200">
-                    ওএমআর স্ক্যান সফল: সঠিক উত্তর ও ভরাটকৃত বৃত্ত স্বয়ংক্রিয়ভাবে মেলানো হয়েছে।
+                    লকড ওএমআর মূল্যায়ন প্রিভিউ (Read-Only): খাতার বৃত্ত ভরাট কম্পিউটার ভিশন দ্বারা লক করা হয়েছে, কোনো ম্যানুয়াল পরিবর্তন প্রযোজ্য নয়।
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-mono text-emerald-300 font-bold bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-800/60">
-                    Accuracy Score: {Math.round(scanConfidence * 100)}%
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span className="text-[11px] font-mono text-emerald-300 font-bold">
+                    কনফিডেন্স: {Math.round(scanConfidence * 100)}%
                   </span>
                 </div>
               </div>
 
-              {/* Student Identification & Set Selector */}
+              {/* Student Identification & Score Summary */}
               <div className="p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   
-                  {/* Set Selector */}
+                  {/* Decoded Set Code */}
                   <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                    <span className="text-[10px] font-bold text-slate-400 block uppercase">সেট কোড (QR Decoded Set)</span>
-                    <div className="flex items-center gap-2 mt-1">
-                      <select
-                        value={selectedSetCode}
-                        onChange={(e) => setSelectedSetCode(e.target.value)}
-                        className="w-full bg-slate-100 dark:bg-slate-800 font-black font-mono text-blue-600 dark:text-blue-400 text-sm py-1 px-2 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-hidden"
-                      >
-                        {availableSetCodes.map(code => (
-                          <option key={code} value={code}>{code}</option>
-                        ))}
-                      </select>
-                    </div>
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">সেট কোড (Decoded Set)</span>
+                    <span className="text-base font-black font-mono text-red-600 dark:text-red-400 mt-0.5 block">
+                      {currentSet.setCode}
+                    </span>
                   </div>
 
-                  {/* Student ID */}
+                  {/* Student ID (Auto-decoded from OMR bubble grid) */}
                   <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">স্টুডেন্ট আইডি (৬-ডিজিট)</span>
-                      <button
-                        type="button"
-                        onClick={() => setIsEditingStudentId(!isEditingStudentId)}
-                        className="text-[10px] text-blue-500 font-bold hover:underline flex items-center gap-1 cursor-pointer"
-                      >
-                        <Edit2 className="w-3 h-3" />
-                        <span>{isEditingStudentId ? 'সম্পন্ন' : 'পরিবর্তন'}</span>
-                      </button>
-                    </div>
-                    {isEditingStudentId ? (
-                      <input
-                        type="text"
-                        value={rollNoInput}
-                        onChange={(e) => setRollNoInput(e.target.value)}
-                        placeholder="রোল নম্বর লিখুন"
-                        className="w-full mt-1 px-2.5 py-1 text-sm font-mono font-bold rounded-lg border border-blue-500 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white"
-                        autoFocus
-                      />
-                    ) : (
-                      <span className="text-base font-black font-mono text-slate-900 dark:text-white mt-1 block">
-                        {rollNoInput || 'আইডি পাওয়া যায়নি (ম্যানুয়াল দিন)'}
-                      </span>
-                    )}
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">স্টুডেন্ট আইডি (Student ID)</span>
+                    <span className="text-base font-black font-mono text-slate-900 dark:text-white mt-0.5 block">
+                      {rollNoInput || 'ডিটেক্টেড হয়নি'}
+                    </span>
                   </div>
 
                   {/* Matched Profile */}
                   <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                    <span className="text-[10px] font-bold text-slate-400 block uppercase">শিক্ষার্থীর তথ্য</span>
-                    <div className="flex items-center gap-2 mt-1">
-                      <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 flex items-center justify-center font-bold text-xs shrink-0">
-                        <User className="w-4 h-4" />
-                      </div>
-                      <div className="truncate">
-                        <div className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                          {matchedStudent ? matchedStudent.name : 'অফলাইন পরীক্ষার্থী'}
-                        </div>
-                        <div className="text-[10px] text-slate-400 truncate">
-                          {matchedStudent?.college || 'প্রতিষ্ঠান'}
-                        </div>
-                      </div>
-                    </div>
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">শিক্ষার্থীর নাম</span>
+                    <span className="text-sm font-black text-slate-900 dark:text-white mt-0.5 block truncate">
+                      {matchedStudent ? matchedStudent.name : 'অফলাইন পরীক্ষার্থী'}
+                    </span>
+                    <span className="text-[10px] text-slate-500 block truncate">
+                      {matchedStudent?.college || 'প্রতিষ্ঠান'}
+                    </span>
                   </div>
 
                 </div>
 
-                {/* Score Breakdown (Evaluation Engine) */}
+                {/* Score Breakdown */}
                 <div className="pt-3 border-t border-slate-200 dark:border-slate-700 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
                   <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
                     <span className="text-[10px] text-slate-400 font-bold block">সঠিক উত্তর (+{markPerQ.toFixed(1)})</span>
@@ -713,21 +696,22 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
                     <span className="text-[10px] text-slate-400 font-bold block">বাদ দেওয়া</span>
                     <span className="text-lg font-black text-slate-500">{skippedCount} টি</span>
                   </div>
-                  <div className="p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800">
-                    <span className="text-[10px] text-blue-700 dark:text-blue-300 font-bold block">চূড়ান্ত প্রাপ্ত নম্বর</span>
-                    <span className="text-xl font-black text-blue-600 dark:text-blue-400 font-mono">
-                      {marksObtained} / {totalMarks}
+                  <div className="p-3 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800">
+                    <span className="text-[10px] text-red-700 dark:text-red-300 font-bold block">চূড়ান্ত প্রাপ্ত নম্বর</span>
+                    <span className="text-xl font-black text-red-700 dark:text-red-300 font-mono">
+                      {marksObtained} / {exam.totalMarks}
                     </span>
                   </div>
                 </div>
 
               </div>
 
-              {/* 100 QUESTIONS OMR BUBBLE GRID BREAKDOWN */}
+              {/* 100 QUESTIONS OMR BUBBLE GRID: STRICTLY READ-ONLY AND LOCKED */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                    <span>১০০টি প্রশ্নের বাবল ও সঠিক উত্তর ব্রেকডাউন ({currentSet.setCode})</span>
+                    <Lock className="w-4 h-4 text-red-600" />
+                    <span>১০০টি ওএমআর বাবল শিট (Read-Only Locked Preview)</span>
                   </h4>
                   <div className="flex items-center gap-3 text-[11px]">
                     <span className="flex items-center gap-1 text-emerald-600 font-bold">
@@ -745,6 +729,7 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
                   </div>
                 </div>
 
+                {/* 4-Column Grid matching Unmesh Sheet */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2 max-h-[44vh] overflow-y-auto p-3 border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900/50">
                   {currentSet.questions.map((q) => {
                     const qNum = q.questionNumber;
@@ -756,7 +741,7 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
                     return (
                       <div
                         key={qNum}
-                        className={`p-2 rounded-xl border text-xs flex flex-col justify-between transition-all ${
+                        className={`p-2 rounded-xl border text-xs flex flex-col justify-between select-none ${
                           isCorrect
                             ? 'bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800'
                             : isWrong
@@ -768,33 +753,30 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
                           <span className="font-mono font-black text-slate-700 dark:text-slate-300 text-[11px]">
                             {qNum}.
                           </span>
-                          <span className="text-[10px] font-bold text-slate-500">
+                          <span className="text-[10px] font-bold text-slate-400">
                             সঠিক: <strong className="text-emerald-600">{correctOpt}</strong>
                           </span>
                         </div>
 
-                        {/* 4 Interactive Bubbles for Review/Adjust */}
-                        <div className="flex items-center justify-between gap-1">
-                          {(['A', 'B', 'C', 'D'] as const).map((opt) => {
+                        {/* 4 LOCKED bubbles (pointer-events-none ensures no edits) */}
+                        <div className="flex items-center justify-between gap-1 pointer-events-none">
+                          {['A', 'B', 'C', 'D'].map((opt) => {
                             const isMarkedThis = marked === opt;
                             const isThisCorrectOpt = correctOpt === opt;
 
                             return (
-                              <button
+                              <div
                                 key={opt}
-                                type="button"
-                                onClick={() => handleToggleAnswer(qNum, opt)}
-                                className={`w-5 h-5 min-w-5 min-h-5 rounded-full font-mono text-[9px] font-black leading-none flex items-center justify-center shrink-0 overflow-hidden cursor-pointer transition-all ${
+                                className={`w-5 h-5 rounded-full font-mono text-[9px] font-black flex items-center justify-center ${
                                   isMarkedThis && isThisCorrectOpt
-                                    ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-400/50'
+                                    ? 'bg-emerald-600 text-white shadow-xs'
                                     : isMarkedThis && !isThisCorrectOpt
-                                    ? 'bg-rose-600 text-white shadow-xs ring-2 ring-rose-400/50'
-                                    : 'border border-slate-300 dark:border-slate-700 text-slate-400 hover:border-blue-400'
+                                    ? 'bg-rose-600 text-white shadow-xs'
+                                    : 'border border-slate-300 dark:border-slate-700 text-slate-400'
                                 }`}
-                                title={`Mark option ${opt}`}
                               >
-                                <span className="leading-none select-none">{opt}</span>
-                              </button>
+                                {opt}
+                              </div>
                             );
                           })}
                         </div>
@@ -804,15 +786,15 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
                 </div>
               </div>
 
-              {/* Submit Result Button */}
-              <div className="p-5 rounded-3xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
+              {/* Publish to Database Action */}
+              <div className="p-5 rounded-3xl bg-gradient-to-r from-red-600 to-rose-700 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
                 <div>
                   <h4 className="font-black text-base flex items-center gap-2">
                     <Trophy className="w-5 h-5 text-amber-300" />
-                    <span>Submit Result & Push to Student Profile</span>
+                    <span>ফলাফল সংরক্ষণ ও শিক্ষার্থীর প্রোফাইলে প্রকাশ করুন</span>
                   </h4>
-                  <p className="text-xs text-blue-100 mt-0.5">
-                    রোল <strong>{rollNoInput || '...'}</strong> এর প্রোফাইলে ও অফলাইন এক্সাম মেরিট লিস্টে প্রাপ্ত নম্বর যুক্ত হবে।
+                  <p className="text-xs text-red-100 mt-0.5">
+                    রোল <strong>{rollNoInput || '...'}</strong> এর প্রোফাইলে ও সেন্ট্রাল কম্বাইন্ড মেরিট লিস্টে প্রাপ্ত নম্বর যুক্ত হবে।
                   </p>
                 </div>
 
@@ -820,20 +802,19 @@ export const OmrScannerModal: React.FC<OmrScannerModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveMode('camera')}
-                    className="px-4 py-2.5 rounded-xl bg-black/20 hover:bg-black/30 text-white font-bold text-xs cursor-pointer transition-colors flex items-center gap-1.5"
+                    className="px-4 py-2.5 rounded-xl bg-black/20 hover:bg-black/30 text-white font-bold text-xs cursor-pointer transition-colors"
                   >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>পরবর্তী খাতা স্ক্যান</span>
+                    পরবর্তী খাতা স্ক্যান
                   </button>
 
                   <button
                     type="button"
                     onClick={handlePublishEvaluation}
                     disabled={isEvaluating}
-                    className="px-6 py-2.5 rounded-xl bg-white text-blue-950 font-black text-sm shadow-md hover:bg-blue-50 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                    className="px-6 py-2.5 rounded-xl bg-white text-red-950 font-black text-sm shadow-md hover:bg-red-50 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
                   >
-                    <Send className="w-4 h-4 text-blue-600" />
-                    <span>{isEvaluating ? 'সংরক্ষণ হচ্ছে...' : 'Submit Result'}</span>
+                    <Send className="w-4 h-4 text-red-600" />
+                    <span>{isEvaluating ? 'সংরক্ষণ হচ্ছে...' : 'ফলাফল প্রকাশ ও সেভ করুন'}</span>
                   </button>
                 </div>
               </div>

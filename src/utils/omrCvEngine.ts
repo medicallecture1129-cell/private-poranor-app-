@@ -1,12 +1,13 @@
 /**
- * OMR Computer Vision Engine for Unique OMR Sheet
- * Strictly tuned to the Layout of Unique_omr__543b9b86.pdf:
+ * OMR Computer Vision Engine (Unmesh / Udvash Style)
  * 
- * 1. 4 Corner Registration Square Fiducial Markers (Top-Left, Top-Right, Bottom-Left, Bottom-Right)
- * 2. Bilinear Perspective Warp to Canonical A4 Portrait (800 x 1130 px)
- * 3. 6-Digit Student ID Grid (6 columns x 10 rows: 0 to 9 bubbles)
- * 4. 100-Question OMR Bubble Grid (4 columns of 25 questions each: 1-25, 26-50, 51-75, 76-100)
- * 5. Adaptive Otsu Thresholding and Dark Fill Density Analysis
+ * Features:
+ * 1. Rigid 4-Corner Fiducial Marker Detection (solid black alignment squares).
+ * 2. Perspective / Geometric Normalization of OMR bounding box.
+ * 3. Strict Dark-Pixel Thresholding (minimum 60-65% filled density to prevent false positives from skin/hands/shadows).
+ * 4. Automatic Student ID (0-9 numeric bubble columns) decoding.
+ * 5. 100 MCQ Bubble Grid evaluation (4 sub-columns: 1-25, 26-50, 51-75, 76-100).
+ * 6. Rigid rejection when markers are occluded or missing.
  */
 
 export interface Point {
@@ -21,6 +22,17 @@ export interface CornerMarkers {
   bottomRight: Point;
 }
 
+export interface BubbleEvaluationResult {
+  markedOption: 'A' | 'B' | 'C' | 'D' | null;
+  isMultiple: boolean;
+  densities: {
+    A: number;
+    B: number;
+    C: number;
+    D: number;
+  };
+}
+
 export interface OmrScanDetectionResult {
   success: boolean;
   errorMessage?: string;
@@ -32,16 +44,16 @@ export interface OmrScanDetectionResult {
   warpedCanvas?: HTMLCanvasElement;
 }
 
-// Canonical Warped Dimensions for Portrait A4
-export const CANONICAL_WIDTH = 800;
-export const CANONICAL_HEIGHT = 1130;
+// Canonical Warped Dimensions for the OMR Column
+export const CANONICAL_WIDTH = 640;
+export const CANONICAL_HEIGHT = 960;
 
-// Minimum fill density threshold to consider a bubble marked
-const MIN_FILL_THRESHOLD = 0.45;
-const DOMINANCE_MARGIN = 0.14;
+// Bubble fill threshold: bubble must have at least 55-60% black/dark fill relative to paper
+const MIN_FILL_THRESHOLD = 0.52;
+const DOMINANCE_MARGIN = 0.18; // Marked bubble must be at least 18% darker than next highest
 
 /**
- * Convert RGBA image data to binary grayscale with Otsu's adaptive threshold
+ * Convert an RGBA image data to binary grayscale with Otsu's adaptive threshold
  */
 export function binarizeImageData(
   data: Uint8ClampedArray,
@@ -54,12 +66,13 @@ export function binarizeImageData(
 
   // 1. Grayscale conversion + Histogram
   for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+    // Luminance formula
     const gray = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
     grayscale[j] = gray;
     histogram[gray]++;
   }
 
-  // 2. Otsu's optimal threshold
+  // 2. Otsu's algorithm to calculate optimal global threshold
   let sum = 0;
   for (let t = 0; t < 256; t++) {
     sum += t * histogram[t];
@@ -88,9 +101,10 @@ export function binarizeImageData(
     }
   }
 
-  threshold = Math.max(65, Math.min(threshold, 185));
+  // Fallback clamping
+  threshold = Math.max(70, Math.min(threshold, 180));
 
-  // 3. Binary mask (1 for dark/ink, 0 for white paper)
+  // 3. Binary mask (1 for dark, 0 for white paper)
   const binary = new Uint8Array(pixelCount);
   for (let i = 0; i < pixelCount; i++) {
     binary[i] = grayscale[i] < threshold ? 1 : 0;
@@ -113,22 +127,25 @@ export function detectCornerRegistrationMarkers(
   const imgData = ctx.getImageData(0, 0, width, height);
   const { binary } = binarizeImageData(imgData.data, width, height);
 
-  const searchMarginX = Math.round(width * 0.22);
-  const searchMarginY = Math.round(height * 0.22);
+  // Search in the 4 quadrant zones for solid black squares
+  const searchMarginX = Math.round(width * 0.28);
+  const searchMarginY = Math.round(height * 0.25);
 
   const findSquareInZone = (
     minX: number,
     maxX: number,
     minY: number,
-    maxY: number
+    maxY: number,
+    cornerType: 'tl' | 'tr' | 'bl' | 'br'
   ): Point | null => {
     let bestPoint: Point | null = null;
     let maxDarkDensity = 0;
-    const boxSize = Math.max(10, Math.round(Math.min(width, height) * 0.022));
+    const boxSize = Math.max(12, Math.round(Math.min(width, height) * 0.024)); // expected marker size in px
 
     const step = 4;
     for (let y = minY; y <= maxY - boxSize; y += step) {
       for (let x = minX; x <= maxX - boxSize; x += step) {
+        // Measure density inside box
         let darkCount = 0;
         let total = 0;
         for (let by = 0; by < boxSize; by += 2) {
@@ -140,7 +157,8 @@ export function detectCornerRegistrationMarkers(
         }
 
         const density = darkCount / total;
-        if (density > 0.60 && density > maxDarkDensity) {
+        // Square must be mostly solid black (>70%)
+        if (density > 0.65 && density > maxDarkDensity) {
           maxDarkDensity = density;
           bestPoint = { x: x + boxSize / 2, y: y + boxSize / 2 };
         }
@@ -151,30 +169,32 @@ export function detectCornerRegistrationMarkers(
   };
 
   // 1. Top-Left zone
-  let tl = findSquareInZone(4, searchMarginX, 4, searchMarginY);
+  const tl = findSquareInZone(5, searchMarginX, 5, searchMarginY, 'tl');
   // 2. Top-Right zone
-  let tr = findSquareInZone(width - searchMarginX, width - 4, 4, searchMarginY);
+  const tr = findSquareInZone(width - searchMarginX, width - 5, 5, searchMarginY, 'tr');
   // 3. Bottom-Left zone
-  let bl = findSquareInZone(4, searchMarginX, height - searchMarginY, height - 4);
+  const bl = findSquareInZone(5, searchMarginX, height - searchMarginY, height - 5, 'bl');
   // 4. Bottom-Right zone
-  let br = findSquareInZone(width - searchMarginX, width - 4, height - searchMarginY, height - 4);
+  const br = findSquareInZone(width - searchMarginX, width - 5, height - searchMarginY, height - 5, 'br');
 
-  // If corner markers are not isolated due to tight framing or slight crop,
-  // gracefully fall back to full image rectangle with margins
+  // If any of the 4 registration marks are obscured or missing (e.g. hand in frame), fail!
   if (!tl || !tr || !bl || !br) {
-    // Check if the image has reasonable aspect ratio (portrait)
-    const aspect = height / width;
-    if (aspect > 1.15 && aspect < 1.7) {
-      // Use fallback upright corners
-      const padX = width * 0.025;
-      const padY = height * 0.025;
-      return {
-        topLeft: { x: padX, y: padY },
-        topRight: { x: width - padX, y: padY },
-        bottomLeft: { x: padX, y: height - padY },
-        bottomRight: { x: width - padX, y: height - padY }
-      };
-    }
+    return null;
+  }
+
+  // Geometric sanity check: points must form a roughly upright rectangle
+  const topWidth = Math.hypot(tr.x - tl.x, tr.y - tl.y);
+  const bottomWidth = Math.hypot(br.x - bl.x, br.y - bl.y);
+  const leftHeight = Math.hypot(bl.x - tl.x, bl.y - tl.y);
+  const rightHeight = Math.hypot(br.x - tr.x, br.y - tr.y);
+
+  if (topWidth < width * 0.35 || bottomWidth < width * 0.35 || leftHeight < height * 0.45) {
+    return null;
+  }
+
+  // Verify aspect ratio
+  const ratio = (leftHeight + rightHeight) / (topWidth + bottomWidth);
+  if (ratio < 0.9 || ratio > 2.2) {
     return null;
   }
 
@@ -194,6 +214,7 @@ export function warpOmrSheet(
   const ctx = output.getContext('2d');
   if (!ctx) return output;
 
+  // Use bilinear interpolation / perspective mapping
   const srcCtx = sourceCanvas.getContext('2d');
   if (!srcCtx) return output;
 
@@ -205,7 +226,7 @@ export function warpOmrSheet(
 
   const { topLeft: tl, topRight: tr, bottomLeft: bl, bottomRight: br } = markers;
 
-  // Bilinear interpolation for each output pixel
+  // Bilinear mapping for every output pixel
   for (let y = 0; y < CANONICAL_HEIGHT; y++) {
     const v = y / (CANONICAL_HEIGHT - 1);
     const leftX = tl.x + v * (bl.x - tl.x);
@@ -239,7 +260,7 @@ export function warpOmrSheet(
 }
 
 /**
- * Measure dark pixel fill density inside a circular bubble
+ * Measure the filled dark pixel density inside a circular bubble
  */
 export function measureBubbleFillDensity(
   binary: Uint8Array,
@@ -251,8 +272,9 @@ export function measureBubbleFillDensity(
   let darkCount = 0;
   let totalCount = 0;
 
-  // Measure core region (inner 75% to ignore the printed border ring)
-  const innerR2 = (radius * 0.75) * (radius * 0.75);
+  const r2 = radius * radius;
+  // Inner core radius (ignore outer border stroke to avoid measuring the printed circle line)
+  const innerR2 = (radius * 0.78) * (radius * 0.78);
 
   const startY = Math.max(0, Math.floor(centerY - radius));
   const endY = Math.min(Math.floor(centerY + radius), Math.floor(binary.length / width) - 1);
@@ -277,29 +299,29 @@ export function measureBubbleFillDensity(
 }
 
 /**
- * Decode 6-Digit Student ID from Left Top Box in Canonical Portrait (800 x 1130)
- * Student ID Box:
- * X: ~40px to ~205px
- * Y: ~50px to ~175px
- * 6 columns of digits 0 to 9
+ * Read the 6-Digit Student ID OMR Grid
+ * Single Student ID field with numeric columns 0-9 to shade
  */
 export function decodeStudentIdFromGrid(
   binary: Uint8Array,
   width: number,
   height: number
 ): { studentId: string; confidence: number } {
+  // Geometric positions normalized in Canonical Canvas (640 x 960)
+  // Student ID grid is located below the header / QR code
+  // X range: ~12% to ~78% width, Y range: ~18% to ~31% height
   const numDigits = 6;
-  const startX = width * 0.052;
-  const endX = width * 0.245;
+  const startX = width * 0.16;
+  const endX = width * 0.82;
   const colStep = (endX - startX) / (numDigits - 1);
 
-  const startY = height * 0.054;
-  const endY = height * 0.155;
-  const rowStep = (endY - startY) / 9; // 0 to 9
+  const startY = height * 0.20;
+  const endY = height * 0.305;
+  const rowStep = (endY - startY) / 9; // Digits 0 to 9
 
-  const bubbleRadius = Math.round(width * 0.009); // ~7.5px
+  const bubbleRadius = Math.round(width * 0.016); // ~10px radius
 
-  const resultDigits: string[] = [];
+  let resultDigits: string[] = [];
   let totalConfidence = 0;
 
   for (let col = 0; col < numDigits; col++) {
@@ -321,10 +343,12 @@ export function decodeStudentIdFromGrid(
       }
     }
 
-    if (maxDensity >= MIN_FILL_THRESHOLD && (maxDensity - secondMaxDensity >= DOMINANCE_MARGIN || maxDensity > 0.65)) {
+    // Require strict minimum fill and dominance margin
+    if (maxDensity >= MIN_FILL_THRESHOLD && (maxDensity - secondMaxDensity >= DOMINANCE_MARGIN || maxDensity > 0.70)) {
       resultDigits.push(String(selectedDigit));
       totalConfidence += maxDensity;
     } else {
+      // If not filled cleanly, mark as '0' or placeholder
       resultDigits.push('0');
       totalConfidence += 0.3;
     }
@@ -337,13 +361,11 @@ export function decodeStudentIdFromGrid(
 }
 
 /**
- * Decode 100-Question OMR Bubble Sheet Grid in Canonical Portrait (800 x 1130)
- * 4 Columns:
- * Col 0: Q 1 to 25
- * Col 1: Q 26 to 50
- * Col 2: Q 51 to 75
- * Col 3: Q 76 to 100
- * Y range: ~195px to ~485px (~17.5% to ~43.0% of height)
+ * Read 100 Questions OMR Grid (Unmesh Layout: 4 Sub-columns of 25 Questions)
+ * Sub-col 1: Q1 to Q25
+ * Sub-col 2: Q26 to Q50
+ * Sub-col 3: Q51 to Q75
+ * Sub-col 4: Q76 to Q100
  */
 export function decode100QuestionsOmrGrid(
   binary: Uint8Array,
@@ -357,34 +379,35 @@ export function decode100QuestionsOmrGrid(
   const markedAnswers: Record<number, 'A' | 'B' | 'C' | 'D' | null> = {};
   const multipleMarked: number[] = [];
 
-  const gridStartY = height * 0.198;
-  const gridEndY = height * 0.435;
-  const rowStep = (gridEndY - gridStartY) / 24; // 25 rows
+  // OMR 100 Grid occupies Canonical Canvas Y range: ~34.5% to ~93.5%
+  const gridStartY = height * 0.355;
+  const gridEndY = height * 0.945;
+  const rowStep = (gridEndY - gridStartY) / 24; // 25 rows (0 to 24)
 
-  const subColWidth = (width * 0.94) / 4;
-  const gridLeft = width * 0.035;
-  const bubbleRadius = Math.round(width * 0.0075); // ~6px
+  // 4 Sub-Columns horizontally
+  const subColWidth = width / 4;
+  const bubbleRadius = Math.round(width * 0.014); // ~9px radius
 
   let measuredCount = 0;
   let totalFillDensity = 0;
 
   for (let sc = 0; sc < 4; sc++) {
-    const scLeft = gridLeft + sc * subColWidth;
-    const ansStartX = scLeft + subColWidth * 0.34;
-    const ansEndX = scLeft + subColWidth * 0.94;
-    const optStep = (ansEndX - ansStartX) / 3; // A, B, C, D
+    const scStartX = sc * subColWidth + subColWidth * 0.28;
+    const scEndX = (sc + 1) * subColWidth - subColWidth * 0.05;
+    const optStep = (scEndX - scStartX) / 3; // A, B, C, D
 
     for (let r = 0; r < 25; r++) {
       const qNum = sc * 25 + r + 1;
       const cy = gridStartY + r * rowStep;
 
       const densities: Record<'A' | 'B' | 'C' | 'D', number> = {
-        A: measureBubbleFillDensity(binary, width, ansStartX + 0 * optStep, cy, bubbleRadius),
-        B: measureBubbleFillDensity(binary, width, ansStartX + 1 * optStep, cy, bubbleRadius),
-        C: measureBubbleFillDensity(binary, width, ansStartX + 2 * optStep, cy, bubbleRadius),
-        D: measureBubbleFillDensity(binary, width, ansStartX + 3 * optStep, cy, bubbleRadius)
+        A: measureBubbleFillDensity(binary, width, scStartX + 0 * optStep, cy, bubbleRadius),
+        B: measureBubbleFillDensity(binary, width, scStartX + 1 * optStep, cy, bubbleRadius),
+        C: measureBubbleFillDensity(binary, width, scStartX + 2 * optStep, cy, bubbleRadius),
+        D: measureBubbleFillDensity(binary, width, scStartX + 3 * optStep, cy, bubbleRadius)
       };
 
+      // Find highest and second highest
       const opts: Array<'A' | 'B' | 'C' | 'D'> = ['A', 'B', 'C', 'D'];
       const sorted = opts.slice().sort((a, b) => densities[b] - densities[a]);
       const topOpt = sorted[0];
@@ -392,39 +415,46 @@ export function decode100QuestionsOmrGrid(
       const secondOpt = sorted[1];
       const secondDensity = densities[secondOpt];
 
+      // Strict fill criteria
       const isMarked = topDensity >= MIN_FILL_THRESHOLD;
-      const isMultiple = isMarked && secondDensity >= MIN_FILL_THRESHOLD && (topDensity - secondDensity < 0.10);
+      const isMultiple = isMarked && secondDensity >= MIN_FILL_THRESHOLD && (topDensity - secondDensity < 0.12);
 
       if (isMultiple) {
         multipleMarked.push(qNum);
-        markedAnswers[qNum] = null;
-      } else if (isMarked && (topDensity - secondDensity >= DOMINANCE_MARGIN || topDensity > 0.65)) {
+        markedAnswers[qNum] = null; // Multiple filling is invalid
+      } else if (isMarked && (topDensity - secondDensity >= DOMINANCE_MARGIN || topDensity > 0.68)) {
         markedAnswers[qNum] = topOpt;
         totalFillDensity += topDensity;
         measuredCount++;
       } else {
+        // Completely unfilled or empty/skin tone
         markedAnswers[qNum] = null;
       }
     }
   }
 
-  const avgFillConfidence = measuredCount > 0 ? totalFillDensity / measuredCount : 0.85;
+  const avgFillConfidence = measuredCount > 0 ? totalFillDensity / measuredCount : 0.8;
 
   return { markedAnswers, multipleMarked, avgFillConfidence };
 }
 
 /**
- * Full Pipeline for OMR Processing
+ * Complete End-to-End OMR Evaluation Pipeline:
+ * 1. Find 4 registration corner squares.
+ * 2. Warp OMR to standard upright canonical canvas.
+ * 3. Evaluate Student ID.
+ * 4. Evaluate 100 questions.
  */
 export function processOmrImageComputerVision(
   sourceCanvas: HTMLCanvasElement
 ): OmrScanDetectionResult {
+  // Step 1: Detect 4 corner registration markers
   const markers = detectCornerRegistrationMarkers(sourceCanvas);
 
   if (!markers) {
     return {
       success: false,
-      errorMessage: 'ওএমআর শিটের ৪টি কর্নার মার্কার সনাক্ত করা যায়নি। অনুগ্রহ করে শিটটি সোজাভাবে রাখুন এবং কোনো বস্তু দিয়ে যেন কোণা ঢাকা না থাকে।',
+      errorMessage: 'ওএমআর শিটের ৪টি কর্নার মার্কার (Black Registration Squares) সনাক্ত করা যায়নি। অনুগ্রহ করে শিটটি সোজাভাবে রাখুন এবং কোনো হাত বা বস্তু দিয়ে যেন ওএমআরের কোণা ঢাকা না থাকে।',
       markedAnswers: {},
       multipleMarkedQuestions: [],
       markersFound: false,
@@ -432,12 +462,13 @@ export function processOmrImageComputerVision(
     };
   }
 
+  // Step 2: Perspective warp to Canonical 640x960 Canvas
   const warpedCanvas = warpOmrSheet(sourceCanvas, markers);
   const warpedCtx = warpedCanvas.getContext('2d');
   if (!warpedCtx) {
     return {
       success: false,
-      errorMessage: 'ক্যানভাস প্রসেসিং ব্যর্থ হয়েছে',
+      errorMessage: 'ইমেজ প্রসেসিং ফেইল্ড',
       markedAnswers: {},
       multipleMarkedQuestions: [],
       markersFound: false,
@@ -448,7 +479,10 @@ export function processOmrImageComputerVision(
   const warpedImgData = warpedCtx.getImageData(0, 0, CANONICAL_WIDTH, CANONICAL_HEIGHT);
   const { binary } = binarizeImageData(warpedImgData.data, CANONICAL_WIDTH, CANONICAL_HEIGHT);
 
+  // Step 3: Decode 6-digit Student ID
   const { studentId, confidence: idConfidence } = decodeStudentIdFromGrid(binary, CANONICAL_WIDTH, CANONICAL_HEIGHT);
+
+  // Step 4: Decode 100 Questions Bubble Grid
   const { markedAnswers, multipleMarked, avgFillConfidence } = decode100QuestionsOmrGrid(binary, CANONICAL_WIDTH, CANONICAL_HEIGHT);
 
   const overallConfidence = (idConfidence + avgFillConfidence) / 2;

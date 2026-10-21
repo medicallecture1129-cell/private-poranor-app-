@@ -1,5 +1,5 @@
 // Service Worker for Exam Portal PWA - Auto-Update Enabled for Installed PWAs
-const CACHE_NAME = 'exam-portal-app-v6';
+const CACHE_NAME = 'exam-portal-app-v11';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
