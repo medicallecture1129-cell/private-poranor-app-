@@ -19,7 +19,7 @@ import {
   Volume2,
   GraduationCap
 } from 'lucide-react';
-import { extractYouTubeId, getGoogleDriveEmbedUrl } from '../../utils/mediaUrl';
+import { extractYouTubeId, getGoogleDriveEmbedUrl, getYouTubeThumbnail } from '../../utils/mediaUrl';
 import { useAuth } from '../../context/AuthContext';
 import { subscribeVideoNotes, addVideoNote, deleteVideoNote } from '../../services/db';
 import { VideoNote } from '../../types';
@@ -196,18 +196,18 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
   };
 
-  // Autohide controls after 5 seconds while playing
+  // Autohide controls after 3 seconds while playing
   const resetHideTimer = useCallback(() => {
     if (hideControlsTimerRef.current) {
       clearTimeout(hideControlsTimerRef.current);
       hideControlsTimerRef.current = null;
     }
-    if (isPlaying) {
+    if (isPlayingRef.current) {
       hideControlsTimerRef.current = setTimeout(() => {
         setControlsVisible(false);
-      }, 5000);
+      }, 3000);
     }
-  }, [isPlaying]);
+  }, []);
 
   const showControlsTemporarily = useCallback(() => {
     setControlsVisible(true);
@@ -411,12 +411,14 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               } else if (event.data === 2) {
                 setIsPlaying(false);
                 setIsBuffering(false);
-                setControlsVisible(true);
+                if (hideControlsTimerRef.current) {
+                  clearTimeout(hideControlsTimerRef.current);
+                  hideControlsTimerRef.current = null;
+                }
               } else if (event.data === 0) {
                 // =============================================================
-                // 4. PREVENT YOUTUBE END-SCREEN "MORE VIDEOS" RECOMMENDATIONS:
-                // Immediately seek back to time 0, pause, and reset hasStarted
-                // so the solid black cover permanently blocks end-screen grid!
+                // Video Ended: Seek back to 0, pause, and reset hasStarted
+                // so the thumbnail poster permanently blocks end-screen grid!
                 // =============================================================
                 setIsPlaying(false);
                 setHasStarted(false);
@@ -558,7 +560,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const prevPlayingRef = useRef(isPlaying);
   // Controls auto-hide timer management
   useEffect(() => {
-    if (isPlaying) {
+    if (isPlaying && controlsVisible) {
       resetHideTimer();
     } else {
       if (hideControlsTimerRef.current) {
@@ -570,7 +572,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       }
     }
     prevPlayingRef.current = isPlaying;
-  }, [isPlaying, resetHideTimer]);
+  }, [isPlaying, controlsVisible, resetHideTimer]);
 
   // Instant Play / Pause toggle
   const togglePlay = () => {
@@ -780,13 +782,20 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       return;
     }
 
-    // Single Tap: INSTANT toggle without waiting
+    // Single Tap: INSTANT toggle of Title Bar, Center Play/Pause, and Bottom Control Bar
     lastTapRef.current = { time: now, x: clientX, y: clientY };
 
     setControlsVisible(prev => {
       const next = !prev;
-      if (next && isPlaying) {
-        resetHideTimer();
+      if (next) {
+        if (isPlayingRef.current) {
+          resetHideTimer();
+        }
+      } else {
+        if (hideControlsTimerRef.current) {
+          clearTimeout(hideControlsTimerRef.current);
+          hideControlsTimerRef.current = null;
+        }
       }
       return next;
     });
@@ -970,7 +979,9 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                   userSelect: 'none',
                   top: '-52px',
                   height: 'calc(100% + 104px)',
-                  width: '100%'
+                  width: '100%',
+                  opacity: hasStarted ? 1 : 0,
+                  transition: 'opacity 0.25s ease'
                 }}
               />
             </div>
@@ -1041,16 +1052,24 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             />
           )}
 
-          {/* Solid pure black cover to hide initial YouTube thumbnail & red button until first play */}
+          {/* Video Poster Thumbnail before first play - Completely eliminates YouTube's default center button */}
           {videoId && !hasStarted && (
             <div 
-              className="absolute inset-0 bg-black z-25 pointer-events-none"
-            />
+              className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden bg-black select-none"
+              style={{ zIndex: 25 }}
+            >
+              <img 
+                src={getYouTubeThumbnail(videoId)} 
+                alt={title}
+                className="w-full h-full object-cover opacity-90 select-none pointer-events-none"
+              />
+              <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+            </div>
           )}
 
           {/* =========================================================================
               CRITICAL: Transparent Touch Shield
-              - Covers entire player canvas at z-26 (above video and masks)
+              - Covers entire player canvas at z-index 26 (above video & poster)
               - pointer-events: auto captures clicks and swipe gestures
               - Prevents any redirect to YouTube
              ========================================================================= */}
@@ -1069,8 +1088,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 e.stopPropagation();
                 return false;
               }}
-              className="absolute inset-0 z-26 cursor-pointer pointer-events-auto bg-transparent select-none touch-none"
-              style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
+              className="absolute inset-0 cursor-pointer pointer-events-auto bg-transparent select-none touch-none"
+              style={{ zIndex: 26, WebkitTouchCallout: 'none', userSelect: 'none' }}
               aria-label="Video playback surface shield"
             />
           )}
@@ -1081,9 +1100,10 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               - Unified toggle with controlsVisible
              ========================================================================= */}
           <div 
-            className={`absolute top-0 inset-x-0 z-30 pt-3 sm:pt-4 pb-8 sm:pb-10 px-3 sm:px-4 flex items-center justify-between text-white bg-gradient-to-b from-black from-55% via-black/85 to-transparent transition-opacity duration-200 ease-in-out pointer-events-auto ${
+            className={`absolute top-0 inset-x-0 pt-3 sm:pt-4 pb-8 sm:pb-10 px-3 sm:px-4 flex items-center justify-between text-white bg-gradient-to-b from-black from-55% via-black/85 to-transparent transition-opacity duration-200 ease-in-out pointer-events-auto ${
               controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
             }`}
+            style={{ zIndex: 30 }}
           >
             <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 pr-2">
               {/* Official Exam Portal App Icon */}
@@ -1123,41 +1143,29 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             )}
           </div>
 
-          {/* Center Play/Pause Button - 100% Solid Opaque to permanently conceal YouTube's native button underneath */}
+          {/* Center Play/Pause Button - Compact & Transparent */}
           {!isDriveVideo && (
             <div 
-              className={`absolute inset-0 z-30 flex items-center justify-center transition-opacity duration-200 ease-in-out ${
+              className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 ease-in-out ${
                 controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
               }`}
+              style={{ zIndex: 30 }}
             >
-              <div className="relative flex items-center justify-center">
-                {/* 100% Solid Opaque Backing Disc - Completely conceals YouTube's native center button & glow */}
-                <div 
-                  className="absolute rounded-full pointer-events-none"
-                  style={{
-                    width: '92px',
-                    height: '92px',
-                    backgroundColor: '#000000',
-                    boxShadow: '0 0 25px 6px rgba(0,0,0,0.9)'
-                  }}
-                />
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    togglePlay();
-                  }}
-                  className="relative z-10 w-18 h-18 sm:w-20 sm:h-20 rounded-full border-2 border-white/35 hover:border-white/70 text-white flex items-center justify-center shadow-2xl transition-all duration-150 hover:scale-105 active:scale-95 cursor-pointer drop-shadow-2xl"
-                  style={{ backgroundColor: '#000000' }}
-                  title={isPlaying ? 'Pause' : 'Play'}
-                >
-                  {isPlaying ? (
-                    <Pause className="w-8 h-8 sm:w-9 sm:h-9 fill-white text-white drop-shadow-md" />
-                  ) : (
-                    <Play className="w-8 h-8 sm:w-9 sm:h-9 fill-white text-white ml-0.5 drop-shadow-md" />
-                  )}
-                </button>
-              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePlay();
+                }}
+                className="w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 border-white/40 hover:border-white/80 text-white flex items-center justify-center shadow-lg transition-all duration-150 hover:scale-105 active:scale-95 cursor-pointer drop-shadow-lg bg-transparent"
+                style={{ backgroundColor: 'transparent' }}
+                title={isPlaying ? 'Pause' : 'Play'}
+              >
+                {isPlaying ? (
+                  <Pause className="w-6 h-6 sm:w-7 sm:h-7 fill-white text-white drop-shadow-md" />
+                ) : (
+                  <Play className="w-6 h-6 sm:w-7 sm:h-7 fill-white text-white ml-0.5 drop-shadow-md" />
+                )}
+              </button>
             </div>
           )}
 
@@ -1203,10 +1211,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
              ========================================================================= */}
           {!isDriveVideo && (
             <div 
-              className={`absolute bottom-0 inset-x-0 z-30 pt-8 pb-2 sm:pb-3 px-2 sm:px-4 flex flex-col gap-1 text-white bg-gradient-to-t from-black from-65% via-black/85 to-transparent transition-opacity duration-200 ease-in-out pointer-events-auto ${
+              className={`absolute bottom-0 inset-x-0 pt-8 pb-2 sm:pb-3 px-2 sm:px-4 flex flex-col gap-1 text-white bg-gradient-to-t from-black from-65% via-black/85 to-transparent transition-opacity duration-200 ease-in-out pointer-events-auto ${
                 controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
               }`}
               style={{
+                zIndex: 30,
                 paddingLeft: 'max(8px, env(safe-area-inset-left))',
                 paddingRight: 'max(8px, env(safe-area-inset-right))',
                 paddingBottom: 'max(4px, env(safe-area-inset-bottom))'
