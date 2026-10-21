@@ -30,7 +30,7 @@ export const generateShuffledSet = (
   exam: Exam,
   setCode: string
 ): OfflineExamSet => {
-  const seededRandom = createSeededRandom(`${exam.id}_${setCode}_unmesh_omr_seed_v3`);
+  const seededRandom = createSeededRandom(`${exam.id}_${setCode}_unique_omr_seed_v4`);
 
   // 1. Shuffle Questions sequence
   const shuffledQuestions = [...exam.questions];
@@ -78,11 +78,12 @@ export const generateShuffledSet = (
     });
   });
 
-  // Unique QR Code encoding the exact Question Set ID: OMR:examId:setCode
-  const qrPayload = `OMR:${exam.id}:${setCode}`;
+  // Normalized set code, e.g. Set-01
+  const cleanCode = setCode.startsWith('Set-') || setCode.startsWith('Set ') ? setCode : `Set-${setCode}`;
+  const qrPayload = `OMR:${exam.id}:${cleanCode}`;
 
   return {
-    setCode,
+    setCode: cleanCode,
     qrData: qrPayload,
     questions: questionOrder,
     answerKey,
@@ -91,7 +92,7 @@ export const generateShuffledSet = (
 };
 
 /**
- * Generate unique sets in batch (Default: 'Set 1', 'Set 2', 'Set 3', ...)
+ * Generate unique sets in batch (Set-01, Set-02, ..., Set-10)
  */
 export const generateBatchSets = (
   exam: Exam,
@@ -101,7 +102,7 @@ export const generateBatchSets = (
   const sets: OfflineExamSet[] = [];
   for (let i = 0; i < count; i++) {
     const num = startNumber + i;
-    const setCode = `Set ${num}`;
+    const setCode = `Set-${String(num).padStart(2, '0')}`;
     sets.push(generateShuffledSet(exam, setCode));
   }
   return sets;
@@ -116,85 +117,28 @@ export const toBengaliNumber = (num: number | string): string => {
 };
 
 /**
- * Render 4-Sub-Column 100 MCQ OMR Grid matching attached Reference Image 1
- * 4 columns of 25 questions:
- * Col 1: 1-25
- * Col 2: 26-50
- * Col 3: 51-75
- * Col 4: 76-100
- * Column header for question number: 'NO'
- * Column header for options: 'ANSWER' (with A, B, C, D circles)
+ * 1. Render Student ID 6-Digit OMR Bubble Grid (Box 1 of Demo Layout)
+ * Top header: Solid black background with text "Student ID"
+ * 6 columns of circular bubbles for digits 0-9
  */
-function renderUnmesh100OmrGrid(totalQuestions: number): string {
-  let html = '<div style="display: flex; gap: 2.5px; margin-top: 2px; flex: 1;">';
-  const subCols = [
-    { start: 1, end: 25 },
-    { start: 26, end: 50 },
-    { start: 51, end: 75 },
-    { start: 76, end: 100 }
-  ];
-
-  subCols.forEach(({ start, end }) => {
-    html += '<div style="flex: 1; border: 1px solid #000000; border-radius: 2px; padding: 1px; background: #ffffff;">';
-    
-    // Header: 'NO' and 'ANSWER' as explicitly requested
-    html += `
-      <div style="display: flex; align-items: center; justify-content: space-between; font-size: 5px; font-weight: 800; color: #000000; border-bottom: 0.8px solid #000000; padding: 1px 2px; text-align: center; background: #f8fafc;">
-        <span style="width: 10px; font-family: monospace; font-weight: 900;">NO</span>
-        <span style="flex: 1; text-align: center; letter-spacing: 0.5px; font-weight: 900;">ANSWER</span>
-      </div>
-    `;
-
-    for (let q = start; q <= end; q++) {
-      if (q > totalQuestions && q > 100) break;
-      html += `
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.7px; font-size: 4.8px; height: 6.8px;">
-          <div style="width: 9.5px; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: #000000; text-align: right; padding-right: 1.5px;">
-            ${q}
-          </div>
-          <div style="flex: 1; display: flex; justify-content: space-around; align-items: center;">
-            <div style="width: 5.2px; height: 5.2px; border-radius: 50%; border: 0.7px solid #000000; display: flex; align-items: center; justify-content: center; font-size: 3.2px; font-weight: 800; color: #000000;">A</div>
-            <div style="width: 5.2px; height: 5.2px; border-radius: 50%; border: 0.7px solid #000000; display: flex; align-items: center; justify-content: center; font-size: 3.2px; font-weight: 800; color: #000000;">B</div>
-            <div style="width: 5.2px; height: 5.2px; border-radius: 50%; border: 0.7px solid #000000; display: flex; align-items: center; justify-content: center; font-size: 3.2px; font-weight: 800; color: #000000;">C</div>
-            <div style="width: 5.2px; height: 5.2px; border-radius: 50%; border: 0.7px solid #000000; display: flex; align-items: center; justify-content: center; font-size: 3.2px; font-weight: 800; color: #000000;">D</div>
-          </div>
-        </div>
-      `;
-    }
-
-    html += '</div>';
-  });
-
-  html += '</div>';
-  return html;
-}
-
-/**
- * Render 6-Digit Student ID OMR Bubble Grid matching Reference Image 1:
- * - 6 write boxes at top
- * - Underneath: 0 to 9 circles
- * - Explicit Requirement: "কলামগুলোর ভেতরের রো বর্ডার বাদ থাকবে" (No horizontal row borders between circles!)
- */
-function renderStudentIdOmrGrid(): string {
+function renderStudentIdBox(): string {
+  const digits = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
   return `
-    <div style="border: 1px solid #000000; border-radius: 3px; padding: 2px 3px; margin-top: 2px; background: #ffffff;">
-      <div style="text-align: center; font-size: 6px; font-weight: 800; color: #000000; margin-bottom: 1.5px; letter-spacing: 0.3px;">
+    <div style="width: 175px; border: 1.5px solid #000000; box-sizing: border-box; display: flex; flex-direction: column; background: #ffffff;">
+      <!-- Black Header -->
+      <div style="background: #000000; color: #ffffff; text-align: center; font-weight: 900; font-size: 11px; padding: 4.5px 0; letter-spacing: 0.5px;">
         Student ID
       </div>
-      
-      <!-- 6 rectangular boxes for writing digits -->
-      <div style="display: flex; justify-content: space-around; margin-bottom: 2.5px; padding: 0 4px;">
+      <!-- 6 Columns of Bubbles -->
+      <div style="display: flex; justify-content: space-between; padding: 5px 8px 4px 8px; flex: 1;">
         ${[0, 1, 2, 3, 4, 5].map(() => `
-          <div style="width: 11px; height: 10px; border: 0.8px solid #000000; background: #ffffff; border-radius: 1px;"></div>
-        `).join('')}
-      </div>
-
-      <!-- Bubble Columns 0 to 9 without inner row borders (vertical clean columns) -->
-      <div style="display: flex; justify-content: space-around; padding: 0 4px;">
-        ${[0, 1, 2, 3, 4, 5].map(() => `
-          <div style="display: flex; flex-direction: column; align-items: center; gap: 0.8px;">
-            ${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(d => `
-              <div style="width: 5.4px; height: 5.4px; border-radius: 50%; border: 0.7px solid #000000; display: flex; align-items: center; justify-content: center; font-size: 3.4px; font-weight: 800; color: #000000; background: #ffffff;">[${d}]</div>
+          <div style="display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 1.5px;">
+            ${digits.map(d => `
+              <div style="width: 12.5px; height: 12.5px; min-width: 12.5px; min-height: 12.5px; border-radius: 50%; border: 0.85px solid #000000; box-sizing: border-box; display: flex; align-items: center; justify-content: center; background: #ffffff; overflow: hidden; line-height: 1;">
+                <span style="font-size: 6px; font-weight: 800; line-height: 1; text-align: center; color: #000000; font-family: Arial, Helvetica, sans-serif; display: block; margin-top: -0.5px;">
+                  ${d}
+                </span>
+              </div>
             `).join('')}
           </div>
         `).join('')}
@@ -204,55 +148,182 @@ function renderStudentIdOmrGrid(): string {
 }
 
 /**
- * Build Full Layout HTML matching attached reference photos:
- * Page 1:
- * - Col 1: Course Name box, Exam Name box, QR Code, Student ID (no row borders), Banner, 100 MCQ OMR (4 cols x 25) with 'NO' and 'ANSWER' headers.
- * - Cols 2, 3, 4: Header box, Questions 1 to 53.
- * Page 2:
- * - Cols 1, 2, 3: Questions 54 to 100.
- * - Col 4: 'পাতা ২ of ২', Bordered box 'পরীক্ষার্থীদের জন্য নির্দেশাবলী' with clean rules.
+ * 2. Render QR Code & Set Number Box (Box 2 of Demo Layout)
+ * Centered QR Code at top, "Set -01" in clean bold font underneath
+ */
+function renderQrCodeBox(qrDataUrl: string, setCode: string): string {
+  const displaySet = setCode.replace(/Set-?/i, 'Set -');
+  return `
+    <div style="width: 140px; border: 1.5px solid #000000; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px; background: #ffffff;">
+      <div style="width: 95px; height: 95px; display: flex; align-items: center; justify-content: center;">
+        <img src="${qrDataUrl}" style="width: 90px; height: 90px; display: block;" />
+      </div>
+      <div style="font-size: 15px; font-weight: 900; font-family: sans-serif; color: #000000; margin-top: 10px; letter-spacing: 0.5px;">
+        ${displaySet}
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * 3. Render Exam Metadata & Candidate Box (Box 3 of Demo Layout)
+ * Title, Course Name, Total Questions, Total Marks, Negative Mark, Exam Date, Candidate Name
+ */
+function renderExamInfoBox(exam: Exam): string {
+  const title = exam.title || (exam as any).examName || 'Weekly Exam - 01';
+  const subtitle = exam.courseName || (exam as any).course || 'Biology 1st Paper (Chapter-01)';
+  const totalQ = exam.totalQuestions || exam.questions?.length || 100;
+  const totalM = exam.totalMarks || totalQ;
+  const negMark = exam.negativeMarkPercentage !== undefined ? exam.negativeMarkPercentage : 0.25;
+
+  return `
+    <div style="flex: 1; border: 1.5px solid #000000; box-sizing: border-box; padding: 8px 12px; display: flex; flex-direction: column; justify-content: space-between; background: #f8fafc;">
+      <div>
+        <div style="font-size: 16px; font-weight: 900; color: #000000; line-height: 1.2;">
+          ${title}
+        </div>
+        <div style="font-size: 13.5px; font-weight: 700; color: #1e293b; margin-top: 2px;">
+          ${subtitle}
+        </div>
+      </div>
+
+      <div style="font-size: 11px; line-height: 1.45; color: #000000; font-weight: 600; margin-top: 4px;">
+        <div><strong>Total Questions:</strong> ${totalQ} MCQs</div>
+        <div><strong>Total Marks:</strong> ${totalM} Marks</div>
+        <div><strong>Negative Mark:</strong> ${negMark} / Question</div>
+        <div><strong>Date of Exam:</strong> ....../....../............</div>
+      </div>
+
+      <div style="font-size: 12px; font-weight: 700; color: #000000; margin-top: 6px; border-top: 0.6px dashed #94a3b8; padding-top: 5px;">
+        Candidate Name: ....................................................
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * 4. Render 100-Question OMR Bubble Sheet Grid (Middle Section of Demo Layout)
+ * 4 columns of 25 questions:
+ * Col 1: 1-25 | Col 2: 26-50 | Col 3: 51-75 | Col 4: 76-100
+ * Headers: Q. | ANS
+ */
+function renderOmr100Grid(): string {
+  const columns = [
+    { start: 1, end: 25 },
+    { start: 26, end: 50 },
+    { start: 51, end: 75 },
+    { start: 76, end: 100 }
+  ];
+
+  return `
+    <div style="width: 100%; border: 1.5px solid #000000; box-sizing: border-box; display: flex; background: #ffffff; margin-top: 7px;">
+      ${columns.map((col, colIdx) => `
+        <div style="flex: 1; border-right: ${colIdx < 3 ? '1.5px solid #000000' : 'none'}; display: flex; flex-direction: column;">
+          <!-- Header -->
+          <div style="display: flex; align-items: center; background: #f1f5f9; border-bottom: 1.2px solid #000000; padding: 2px 0;">
+            <div style="width: 25px; text-align: center; font-size: 7.5px; font-weight: 900; color: #000000; border-right: 0.8px solid #cbd5e1;">
+              Q.
+            </div>
+            <div style="flex: 1; text-align: center; font-size: 7.5px; font-weight: 900; color: #000000; letter-spacing: 1px;">
+              ANS
+            </div>
+          </div>
+          <!-- Rows (25 questions) -->
+          <div style="display: flex; flex-direction: column;">
+            ${Array.from({ length: 25 }, (_, r) => {
+              const qNum = col.start + r;
+              return `
+                <div style="display: flex; align-items: center; height: 11.8px; border-bottom: ${r < 24 ? '0.6px solid #e2e8f0' : 'none'}; padding: 0 1px; box-sizing: border-box;">
+                  <div style="width: 24px; text-align: center; font-size: 7px; font-weight: 800; font-family: monospace; color: #000000; border-right: 0.6px solid #e2e8f0; padding-right: 1px;">
+                    ${qNum}
+                  </div>
+                  <div style="flex: 1; display: flex; justify-content: space-around; align-items: center; padding: 0 3px;">
+                    ${['A', 'B', 'C', 'D'].map(opt => `
+                      <div style="width: 9.8px; height: 9.8px; min-width: 9.8px; min-height: 9.8px; border-radius: 50%; border: 0.8px solid #000000; box-sizing: border-box; display: flex; align-items: center; justify-content: center; background: #ffffff; overflow: hidden; line-height: 1;">
+                        <span style="font-size: 4.8px; font-weight: 800; line-height: 1; text-align: center; color: #000000; font-family: Arial, Helvetica, sans-serif; display: block; margin-top: -0.5px;">
+                          ${opt}
+                        </span>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+/**
+ * 5. Render MCQ Question block in clean 2-column format (strictly matching Demo PDF)
+ */
+function renderQuestionItem(q: OfflineExamSetQuestion): string {
+  const qNumStr = String(q.questionNumber).padStart(2, '0');
+  const opts = q.options || [];
+  const optA = opts[0]?.text || '';
+  const optB = opts[1]?.text || '';
+  const optC = opts[2]?.text || '';
+  const optD = opts[3]?.text || '';
+
+  return `
+    <div style="margin-bottom: 6px; font-size: 8.5px; line-height: 1.25; page-break-inside: avoid; color: #000000;">
+      <div style="font-weight: 800; margin-bottom: 1.5px; color: #000000;">
+        <span style="font-weight: 900; font-family: monospace;">${qNumStr}.</span> ${q.text}
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1px 6px; padding-left: 5px; font-size: 7.8px; color: #000000;">
+        <div><strong>(A)</strong> ${optA}</div>
+        <div><strong>(B)</strong> ${optB}</div>
+        <div><strong>(C)</strong> ${optC}</div>
+        <div><strong>(D)</strong> ${optD}</div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Build Full 3-Page Portrait HTML Strictly Matching Demo PDF:
+ * - Page 1:
+ *   - Top section: Student ID Box, QR & Set Box, Exam Info Box
+ *   - Middle section: 100-Question OMR Grid Table
+ *   - Center pill: "বহুনির্বাচনি প্রশ্ন"
+ *   - Questions 1 to 24 (2 columns: 1-12 left, 13-24 right)
+ * - Page 2:
+ *   - Top line header: QUESTION PAPER - PART 2
+ *   - Questions 25 to 62 (2 columns: 25-43 left, 44-62 right)
+ * - Page 3:
+ *   - Top line header: QUESTION PAPER - PART 3
+ *   - Questions 63 to 100 (2 columns: 63-81 left, 82-100 right)
+ *   - Footer: Subject & Page Number
  */
 export function buildUnmeshStyleHtml(
   exam: Exam,
   set: OfflineExamSet,
-  qrDataUrl: string,
-  appName: string = 'Medical Admission Program 2026'
-): { page1Html: string; page2Html: string } {
-  const questionsPage1 = set.questions.slice(0, 53); // Q1 to Q53 on Front Page (Page 1)
-  const questionsPage2 = set.questions.slice(53);     // Q54 to Q100 on Back Page (Page 2)
+  qrDataUrl: string
+): { page1Html: string; page2Html: string; page3Html: string } {
+  // Page 1 Questions: 1 to 24
+  const p1Questions = set.questions.slice(0, 24);
+  const p1Col1 = p1Questions.slice(0, 12);
+  const p1Col2 = p1Questions.slice(12, 24);
 
-  // Split Page 1 questions across Columns 2, 3, 4 (18, 18, 17)
-  const p1Col2Questions = questionsPage1.slice(0, 18);
-  const p1Col3Questions = questionsPage1.slice(18, 36);
-  const p1Col4Questions = questionsPage1.slice(36, 53);
+  // Page 2 Questions: 25 to 62
+  const p2Questions = set.questions.slice(24, 62);
+  const p2Col1 = p2Questions.slice(0, 19);
+  const p2Col2 = p2Questions.slice(19, 38);
 
-  // Split Page 2 questions across Columns 1, 2, 3 (16, 16, 15)
-  const p2Col1Questions = questionsPage2.slice(0, 16);
-  const p2Col2Questions = questionsPage2.slice(16, 32);
-  const p2Col3Questions = questionsPage2.slice(32, 47);
+  // Page 3 Questions: 63 to 100
+  const p3Questions = set.questions.slice(62, 100);
+  const p3Col1 = p3Questions.slice(0, 19);
+  const p3Col2 = p3Questions.slice(19, 38);
 
-  const renderQuestionBlock = (q: OfflineExamSetQuestion) => `
-    <div style="margin-bottom: 5px; page-break-inside: avoid; font-size: 7.6px; line-height: 1.28;">
-      <div style="font-weight: 700; color: #000000; margin-bottom: 1.2px;">
-        <span style="font-family: 'JetBrains Mono', monospace; font-size: 7.6px; font-weight: 800; color: #000000;">${toBengaliNumber(q.questionNumber).padStart(2, '০')}.</span> ${q.text}
-      </div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1px 4px; padding-left: 2px; font-size: 7px; color: #000000;">
-        ${q.options.map(opt => `
-          <div>
-            <span style="font-weight: 700;">(${opt.id.toLowerCase()})</span> ${opt.text}
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `;
-
-  const sharedStyles = `
-    font-family: 'Hind Siliguri', 'Noto Sans Bengali', -apple-system, sans-serif;
+  const pageContainerStyle = `
+    font-family: 'Hind Siliguri', 'Noto Sans Bengali', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     color: #000000;
     background: #ffffff;
-    width: 1122px; /* Landscape A4 */
-    height: 793px;  /* Landscape A4 */
-    padding: 10px 14px;
+    width: 794px;   /* A4 Portrait width in px at 96 DPI */
+    height: 1123px; /* A4 Portrait height in px at 96 DPI */
+    padding: 24px 28px;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -260,268 +331,126 @@ export function buildUnmeshStyleHtml(
     overflow: hidden;
   `;
 
-  // PAGE 1: 4 Columns
-  // Col 1: Left OMR Column with Course/Exam Box, QR Code, Student ID, 100 MCQ OMR section
-  // Cols 2, 3, 4: Questions 01 to 53
+  // PAGE 1 HTML
   const page1Html = `
-    <div style="${sharedStyles}">
-      <div style="height: 100%; display: flex; flex-direction: column; box-sizing: border-box;">
-        
-        <!-- 4 Columns Grid Container -->
-        <div style="display: grid; grid-template-columns: 295px 1fr 1fr 1fr; gap: 7px; flex: 1; min-height: 0;">
-          
-          <!-- ============================================== -->
-          <!-- COLUMN 1: OMR SIDEBAR (Matching Image 1)       -->
-          <!-- ============================================== -->
-          <div style="position: relative; border-right: 1.5px solid #000000; padding-right: 6px; display: flex; flex-direction: column;">
-            
-            <!-- 4 Corner Registration Squares for Precise CV Scanning -->
-            <div style="position: absolute; top: 0px; left: 0px; width: 8px; height: 8px; background: #000000; z-index: 20;"></div>
-            <div style="position: absolute; top: 0px; right: 8px; width: 8px; height: 8px; background: #000000; z-index: 20;"></div>
-            <div style="position: absolute; bottom: 0px; left: 0px; width: 8px; height: 8px; background: #000000; z-index: 20;"></div>
-            <div style="position: absolute; bottom: 0px; right: 8px; width: 8px; height: 8px; background: #000000; z-index: 20;"></div>
+    <div style="${pageContainerStyle}">
+      <!-- 4 Corner Registration Square Fiducial Markers for Computer Vision Alignment -->
+      <div style="position: absolute; top: 12px; left: 14px; width: 8px; height: 8px; background: #000000;"></div>
+      <div style="position: absolute; top: 12px; right: 14px; width: 8px; height: 8px; background: #000000;"></div>
+      <div style="position: absolute; bottom: 12px; left: 14px; width: 8px; height: 8px; background: #000000;"></div>
+      <div style="position: absolute; bottom: 12px; right: 14px; width: 8px; height: 8px; background: #000000;"></div>
 
-            <!-- Top Header Box: Course Name, Exam Name and QR Code -->
-            <div style="padding-left: 10px; padding-right: 10px; margin-bottom: 2px;">
-              <div style="display: flex; gap: 4px; align-items: stretch;">
-                
-                <!-- Left Stacked Boxes: Course Name & Exam Name -->
-                <div style="flex: 1; display: flex; flex-direction: column; gap: 2px;">
-                  <div style="border: 1px solid #000000; border-radius: 3px; padding: 2px 4px; font-size: 7px; font-weight: 800; color: #000000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #ffffff; min-height: 15px; display: flex; align-items: center;">
-                    ${exam.courseName || 'Course Name'}
-                  </div>
-                  <div style="border: 1px solid #000000; border-radius: 3px; padding: 2px 4px; font-size: 7px; font-weight: 800; color: #000000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #ffffff; min-height: 15px; display: flex; align-items: center;">
-                    ${exam.title || 'Exam Name'}
-                  </div>
-                </div>
+      <!-- Top Section (Row 1): 3 Bordered Boxes -->
+      <div style="display: flex; gap: 8px; height: 160px; box-sizing: border-box;">
+        ${renderStudentIdBox()}
+        ${renderQrCodeBox(qrDataUrl, set.setCode)}
+        ${renderExamInfoBox(exam)}
+      </div>
 
-                <!-- Right Square: QR Code (Linked to Set & Answer Key) -->
-                <div style="width: 36px; height: 36px; border: 1px solid #000000; border-radius: 3px; padding: 1px; background: #ffffff; display: flex; align-items: center; justify-content: center; shrink-0;">
-                  <img src="${qrDataUrl}" style="width: 32px; height: 32px; display: block;" />
-                </div>
-              </div>
+      <!-- Middle Section: 100-Question OMR Bubble Sheet Grid -->
+      ${renderOmr100Grid()}
 
-              <!-- Set Indicator -->
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5px; font-size: 5.5px; font-weight: bold;">
-                <span style="font-family: monospace; color: #334155;">ID: ${exam.id.slice(0, 10)}</span>
-                <span style="font-family: monospace; font-weight: 900; color: #000000; background: #f1f5f9; padding: 0.5px 4px; border-radius: 2px; border: 0.5px solid #cbd5e1;">${set.setCode}</span>
-              </div>
-            </div>
-
-            <!-- Student ID Grid (6 columns, 0-9 bubbles without row borders) -->
-            ${renderStudentIdOmrGrid()}
-
-            <!-- OMR Banner: বৃত্ত ভরাট করার নির্দেশনা -->
-            <div style="background: #000000; color: #ffffff; font-size: 5.5px; font-weight: 800; text-align: center; padding: 1.5px; border-radius: 2px; margin-top: 2.5px; letter-spacing: 0.3px;">
-              OMR বিভাগ - বৃত্ত ভরাট করার নির্দেশনা
-            </div>
-
-            <!-- 100 MCQ OMR Grid (4 columns x 25 with 'NO' and 'ANSWER' headers) -->
-            ${renderUnmesh100OmrGrid(exam.questions.length)}
-
-            <!-- Bottom Note -->
-            <div style="border-top: 0.8px solid #000000; padding-top: 1.5px; margin-top: 2px; font-size: 5px; font-weight: 800; text-align: center; color: #000000;">
-              OMR বিভাগ - বৃত্তের কালো বলপেন ব্যবহার করুন
-            </div>
-
+      <!-- Divider Pill: বহুনির্বাচনি প্রশ্ন -->
+      <div style="display: flex; align-items: center; justify-content: center; margin: 10px 0 8px 0; position: relative;">
+        <div style="position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #000000; z-index: 1;"></div>
+        <div style="position: relative; z-index: 2; background: #ffffff; padding: 0 14px;">
+          <div style="border: 1.2px solid #000000; border-radius: 12px; padding: 2px 16px; font-size: 9.5px; font-weight: 900; color: #000000; background: #ffffff;">
+            বহুনির্বাচনি প্রশ্ন
           </div>
-
-          <!-- ============================================== -->
-          <!-- COLUMNS 2, 3, 4: QUESTIONS 01 TO 53 (Page 1)   -->
-          <!-- ============================================== -->
-
-          <!-- Column 2: Questions 01 to 18 -->
-          <div style="border-right: 1px solid #cbd5e1; padding-right: 5px; display: flex; flex-direction: column;">
-            
-            <!-- Column 2 Top Header (Matching Reference Image 1) -->
-            <div style="border: 1px solid #000000; border-radius: 3px; padding: 2px 4px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; font-size: 6.5px; font-weight: 800; background: #ffffff;">
-              <span>পাতা - ১</span>
-              <span>০১ [ক] এর উত্তর</span>
-            </div>
-            
-            <div style="text-align: center; font-weight: 900; font-size: 8px; color: #000000; margin-bottom: 4px; border-bottom: 0.8px solid #000000; padding-bottom: 1px;">
-              বহুনির্বাচনী প্রশ্ন
-            </div>
-
-            <div>
-              ${p1Col2Questions.map(renderQuestionBlock).join('')}
-            </div>
-          </div>
-
-          <!-- Column 3: Questions 19 to 35 -->
-          <div style="border-right: 1px solid #cbd5e1; padding-right: 5px; padding-top: 22px;">
-            ${p1Col3Questions.map(renderQuestionBlock).join('')}
-          </div>
-
-          <!-- Column 4: Questions 36 to 53 -->
-          <div style="padding-top: 22px;">
-            ${p1Col4Questions.map(renderQuestionBlock).join('')}
-          </div>
-
         </div>
+      </div>
 
-        <!-- Page 1 Footer -->
-        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 6px; color: #475569; border-top: 0.8px solid #cbd5e1; padding-top: 2px; margin-top: 2px;">
-          <span>${exam.courseName} • ${exam.title} • ${set.setCode}</span>
-          <span style="font-weight: 800; color: #000000;">[পাতা ১ of ২]</span>
-          <span>পূর্ণমান: ${exam.totalMarks} • সময়: ${exam.durationMinutes} মিনিট</span>
+      <!-- Page 1 Questions (Q. 01 - 24 in 2 Columns) -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; flex: 1;">
+        <div>
+          ${p1Col1.map(renderQuestionItem).join('')}
         </div>
+        <div>
+          ${p1Col2.map(renderQuestionItem).join('')}
+        </div>
+      </div>
 
+      <!-- Footer Page 1 -->
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 7.5px; color: #475569; border-top: 0.8px solid #cbd5e1; padding-top: 3px; margin-top: 4px;">
+        <span>Subject: ${exam.subject || exam.courseName || 'General Science & Competency'}</span>
+        <span style="font-weight: 800; color: #000000;">Page 1 of 3</span>
       </div>
     </div>
   `;
 
-  // PAGE 2: 4 Columns
-  // Cols 1, 2, 3: Questions 54 to 100
-  // Col 4: Top 'পাতা ২ of ২', Bordered Box 'পরীক্ষার্থীদের জন্য নির্দেশাবলী' with clean rules
+  // PAGE 2 HTML (Questions 25 to 62)
   const page2Html = `
-    <div style="${sharedStyles}">
-      <div style="height: 100%; display: flex; flex-direction: column; box-sizing: border-box;">
-        
-        <!-- Header Page 2 -->
-        <div style="border-bottom: 1.2px solid #000000; padding-bottom: 2px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
-          <div style="font-size: 9px; font-weight: 900; color: #000000;">
-            ${exam.courseName} • ${exam.title}
-          </div>
-          <div style="font-size: 7.5px; font-weight: 800; color: #000000; font-family: monospace;">
-            ${set.setCode} (প্রশ্ন ৫৪ থেকে ১০০)
-          </div>
+    <div style="${pageContainerStyle}">
+      <!-- Top Header Line -->
+      <div style="border-bottom: 1.5px solid #000000; padding-bottom: 3px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+        <div style="font-size: 10px; font-weight: 900; color: #000000;">
+          QUESTION PAPER - PART 2 (Q. 25 - 62)
         </div>
-
-        <!-- 4 Columns Grid Page 2 -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 270px; gap: 7px; flex: 1; min-height: 0;">
-          
-          <!-- Column 1: Questions 54 to 70 -->
-          <div style="border-right: 1px solid #cbd5e1; padding-right: 5px;">
-            ${p2Col1Questions.map(renderQuestionBlock).join('')}
-          </div>
-
-          <!-- Column 2: Questions 71 to 87 -->
-          <div style="border-right: 1px solid #cbd5e1; padding-right: 5px;">
-            ${p2Col2Questions.map(renderQuestionBlock).join('')}
-          </div>
-
-          <!-- Column 3: Questions 88 to 100 -->
-          <div style="border-right: 1px solid #cbd5e1; padding-right: 5px;">
-            ${p2Col3Questions.map(renderQuestionBlock).join('')}
-          </div>
-
-          <!-- Column 4: পরীক্ষার্থীদের জন্য নির্দেশাবলী (Matching Reference Image 2) -->
-          <div style="display: flex; flex-direction: column; justify-content: flex-start;">
-            
-            <!-- Top Page Indicator -->
-            <div style="text-align: right; font-size: 7.5px; font-weight: 800; color: #000000; margin-bottom: 3px;">
-              পাতা ২ of ২
-            </div>
-
-            <!-- Bordered Instructions Box -->
-            <div style="border: 1.5px solid #000000; border-radius: 3px; padding: 6px 8px; background: #ffffff; font-size: 6.8px; line-height: 1.34; color: #000000;">
-              
-              <!-- Header -->
-              <div style="text-align: center; font-size: 8.5px; font-weight: 900; color: #000000; border-bottom: 1.2px solid #000000; padding-bottom: 3px; margin-bottom: 5px; letter-spacing: 0.3px;">
-                পরীক্ষার্থীদের জন্য নির্দেশাবলী
-              </div>
-
-              <!-- Rules matching Reference Image 2 exactly -->
-              <div>
-                <div style="margin-bottom: 3.5px;">
-                  <strong>১।</strong> প্রশ্নপত্রের সাথে সংযুক্ত অবস্থায় OMR উত্তরপত্র প্রদান করা হলো। সতর্কতার সাথে পারফোরেশন মার্ক (--- ✂ ---) বরাবর ছিঁড়ে OMR উত্তরপত্রটি প্রশ্নপত্র হতে আলাদা করে নিতে হবে। আলাদা করার সময় OMR উত্তরপত্রটি নিচে ফেলে না দিয়ে সাবধানে তার পরীক্ষা কক্ষে আবর্তিত করতে হবে।
-                </div>
-
-                <div style="margin-bottom: 3.5px;">
-                  <strong>২।</strong> OMR উত্তরপত্রের নির্ধারিত স্থানে পরীক্ষার্থীকে রোল নম্বর ও রেজিস্ট্রেশন নম্বর লিখে সংশ্লিষ্ট বৃত্ত ভরাট করতে হবে।
-                </div>
-
-                <!-- Illustrated Bubble filling guide -->
-                <div style="margin-bottom: 3.5px; border: 0.7px solid #000000; border-radius: 2px; padding: 2.5px 4px; background: #f8fafc;">
-                  <div style="font-weight: 800; font-size: 6.2px; margin-bottom: 1px;">
-                    ৩। বৃত্তগুলো এমনভাবে ভরাট করতে হবে যেন ভেতরের লেখাটি দেখা না যায়। যেমন-
-                  </div>
-                  <div style="display: flex; align-items: center; justify-content: space-around; font-size: 5.8px; font-weight: bold;">
-                    <span style="color: #15803d;">সঠিক পদ্ধতি: ●</span>
-                    <span style="color: #b91c1c;">ভুল পদ্ধতি: ⊗ ⊙ ◐ ✕</span>
-                  </div>
-                </div>
-
-                <div style="margin-bottom: 3.5px;">
-                  <strong>৪।</strong> অনুরোধের প্রেক্ষিতে প্রশ্নের প্রতিটি অপশন (Option) দেওয়া আছে। সঠিক অপশনটি বেছে নিয়ে OMR উত্তরপত্রের সংশ্লিষ্ট বৃত্তটি কালো কালির বলপেন দিয়ে সম্পূর্ণভাবে ভরাট করতে হবে।
-                </div>
-
-                <div style="margin-bottom: 3.5px;">
-                  <strong>৫।</strong> OMR উত্তরপত্রটি মেশিনে মূল্যায়ন করা হবে। এজন্য OMR উত্তরপত্রের কোনো অংশে দাগ দেওয়া যাবে না বা রাফ করার কাজে ব্যবহার করা যাবে না।
-                </div>
-
-                <div style="margin-bottom: 3.5px;">
-                  <strong>৬।</strong> অসম্পূর্ণ বা ভুলভাবে ভরাটকৃত উত্তরপত্র বাতিল বলে গণ্য হবে।
-                </div>
-
-                <div style="margin-bottom: 3.5px;">
-                  <strong>৭।</strong> পরীক্ষা কক্ষে মোবাইল বা কোনো প্রকার ডিজিটাল ডিভাইস সম্পূর্ণ নিষিদ্ধ।
-                </div>
-
-                <div style="margin-bottom: 3.5px;">
-                  <strong>৮।</strong> পরীক্ষার্থীকে অন্যোপায় অবলম্বনে অথবা বিশৃঙ্খলা সৃষ্টি করতে দেখা গেলে সংশ্লিষ্ট কর্মকর্তা তাকে তাৎক্ষণিকভাবে বহিষ্কার করতে পারবেন।
-                </div>
-
-                <div style="margin-bottom: 3.5px;">
-                  <strong>৯।</strong> খসড়ার জন্য প্রশ্নপত্র ব্যবহার করা যাবে। কোনো পৃথক কাগজ ব্যবহার করা যাবে না।
-                </div>
-
-                <div style="margin-bottom: 3.5px;">
-                  <strong>১০।</strong> পরীক্ষা শেষ না হওয়া পর্যন্ত কোনো পরীক্ষার্থী হল ত্যাগ করতে পারবে না।
-                </div>
-
-                <div>
-                  <strong>১১।</strong> প্রতিটি সঠিক উত্তরের জন্য <strong>${exam.markPerQuestion || 1} নম্বর</strong> পাওয়া যাবে। প্রতিটি ভুল উত্তরের জন্য <strong>${exam.negativeMarkPercentage !== undefined ? exam.negativeMarkPercentage : 0.25} নম্বর</strong> কাটা যাবে।
-                </div>
-
-                ${exam.instructions ? `
-                  <div style="margin-top: 4px; padding-top: 3px; border-top: 0.8px dashed #cbd5e1; font-style: italic; color: #334155;">
-                    <strong>বিশেষ নির্দেশনা:</strong> ${exam.instructions}
-                  </div>
-                ` : ''}
-              </div>
-
-            </div>
-
-            <!-- Rough Work Area -->
-            <div style="flex: 1; border: 1px dashed #cbd5e1; border-radius: 3px; margin-top: 5px; padding: 4px; background: #ffffff; display: flex; flex-direction: column;">
-              <div style="font-size: 6px; font-weight: 800; color: #64748b; text-align: center; border-bottom: 0.6px dashed #cbd5e1; padding-bottom: 1.5px;">
-                খসড়া বা রাফ করার স্থান (ROUGH WORK)
-              </div>
-              <div style="flex: 1; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 9px; font-weight: bold;">
-                (প্রয়োজনে হিসাব-নিকাশ করার জন্য)
-              </div>
-            </div>
-
-          </div>
-
+        <div style="font-size: 9px; font-weight: 800; color: #000000; font-family: monospace;">
+          ${set.setCode} • ${exam.title}
         </div>
+      </div>
 
-        <!-- Page 2 Footer -->
-        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 6px; color: #475569; border-top: 0.8px solid #cbd5e1; padding-top: 2px; margin-top: 2px;">
-          <span>${exam.courseName} • ${exam.title} • ${set.setCode}</span>
-          <span style="font-weight: 800; color: #000000;">[পাতা ২ of ২ - সমাপ্ত]</span>
-          <span>${appName}</span>
+      <!-- 2 Columns Questions -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 1;">
+        <div>
+          ${p2Col1.map(renderQuestionItem).join('')}
         </div>
+        <div>
+          ${p2Col2.map(renderQuestionItem).join('')}
+        </div>
+      </div>
 
+      <!-- Footer Page 2 -->
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 7.5px; color: #475569; border-top: 0.8px solid #cbd5e1; padding-top: 3px; margin-top: 4px;">
+        <span>Subject: ${exam.subject || exam.courseName || 'General Science & Competency'}</span>
+        <span style="font-weight: 800; color: #000000;">Page 2 of 3</span>
       </div>
     </div>
   `;
 
-  return { page1Html, page2Html };
+  // PAGE 3 HTML (Questions 63 to 100)
+  const page3Html = `
+    <div style="${pageContainerStyle}">
+      <!-- Top Header Line -->
+      <div style="border-bottom: 1.5px solid #000000; padding-bottom: 3px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+        <div style="font-size: 10px; font-weight: 900; color: #000000;">
+          QUESTION PAPER - PART 3 (Q. 63 - 100)
+        </div>
+        <div style="font-size: 9px; font-weight: 800; color: #000000; font-family: monospace;">
+          ${set.setCode} • ${exam.title}
+        </div>
+      </div>
+
+      <!-- 2 Columns Questions -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 1;">
+        <div>
+          ${p3Col1.map(renderQuestionItem).join('')}
+        </div>
+        <div>
+          ${p3Col2.map(renderQuestionItem).join('')}
+        </div>
+      </div>
+
+      <!-- Footer Page 3 -->
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 7.5px; color: #475569; border-top: 0.8px solid #cbd5e1; padding-top: 3px; margin-top: 4px;">
+        <span>Subject: ${exam.subject || exam.courseName || 'General Science & Competency'}</span>
+        <span style="font-weight: 800; color: #000000;">Page 3 of 3</span>
+      </div>
+    </div>
+  `;
+
+  return { page1Html, page2Html, page3Html };
 }
 
 /**
- * Generate 2-Page Printable PDF matching reference images
+ * Generate 3-Page Printable Portrait PDF strictly matching demo layout
  */
 export const generateAdmissionStylePDF = async (
   exam: Exam,
   set: OfflineExamSet,
-  options: PdfGenerationOptions = {}
+  _options: PdfGenerationOptions = {}
 ): Promise<Blob> => {
-  const { appName = 'Medical Admission Program 2026' } = options;
-
   let qrDataUrl = '';
   try {
     qrDataUrl = await QRCode.toDataURL(set.qrData, {
@@ -537,53 +466,68 @@ export const generateAdmissionStylePDF = async (
     console.error('QR code generation failed:', err);
   }
 
-  const { page1Html, page2Html } = buildUnmeshStyleHtml(exam, set, qrDataUrl, appName);
+  const { page1Html, page2Html, page3Html } = buildUnmeshStyleHtml(exam, set, qrDataUrl);
 
   const container = document.createElement('div');
   container.style.position = 'fixed';
-  container.style.left = '-99999px';
+  container.style.left = '0';
   container.style.top = '0';
-  container.style.zIndex = '-1000';
-  container.style.opacity = '1';
+  container.style.width = '794px';
+  container.style.height = '1123px';
+  container.style.zIndex = '-99999';
+  container.style.pointerEvents = 'none';
+  container.style.opacity = '0.001';
+  container.style.overflow = 'hidden';
   document.body.appendChild(container);
 
   const doc = new jsPDF({
-    orientation: 'landscape',
+    orientation: 'portrait',
     unit: 'mm',
     format: 'a4'
   });
 
+  const canvasOptions = {
+    scale: 2.0,
+    useCORS: true,
+    logging: false,
+    backgroundColor: '#ffffff',
+    width: 794,
+    height: 1123,
+    windowWidth: 794,
+    windowHeight: 1123,
+    x: 0,
+    y: 0
+  };
+
   try {
-    // Render Page 1 (Front Side: OMR + Questions 1-53)
+    // 1. PAGE 1 (Student ID, QR Code, Exam Info, OMR 100 Grid, Q 01-24)
     container.innerHTML = page1Html;
-    await new Promise(r => setTimeout(r, 150));
-    const canvas1 = await html2canvas(container.firstElementChild as HTMLElement, {
-      scale: 2.8,
-      useCORS: true,
-      logging: false,
-      backgroundColor: '#ffffff'
-    });
+    await new Promise(r => setTimeout(r, 120));
+    const canvas1 = await html2canvas(container.firstElementChild as HTMLElement, canvasOptions);
+    const imgData1 = canvas1.toDataURL('image/jpeg', 0.96);
+    doc.addImage(imgData1, 'JPEG', 0, 0, 210, 297);
 
-    const imgData1 = canvas1.toDataURL('image/jpeg', 0.98);
-    doc.addImage(imgData1, 'JPEG', 0, 0, 297, 210);
-
-    // Render Page 2 (Back Side: Questions 54-100 + Instructions Box)
-    doc.addPage('a4', 'landscape');
+    // 2. PAGE 2 (Questions 25 to 62)
+    doc.addPage('a4', 'portrait');
     container.innerHTML = page2Html;
-    await new Promise(r => setTimeout(r, 150));
-    const canvas2 = await html2canvas(container.firstElementChild as HTMLElement, {
-      scale: 2.8,
-      useCORS: true,
-      logging: false,
-      backgroundColor: '#ffffff'
-    });
+    await new Promise(r => setTimeout(r, 120));
+    const canvas2 = await html2canvas(container.firstElementChild as HTMLElement, canvasOptions);
+    const imgData2 = canvas2.toDataURL('image/jpeg', 0.96);
+    doc.addImage(imgData2, 'JPEG', 0, 0, 210, 297);
 
-    const imgData2 = canvas2.toDataURL('image/jpeg', 0.98);
-    doc.addImage(imgData2, 'JPEG', 0, 0, 297, 210);
+    // 3. PAGE 3 (Questions 63 to 100)
+    doc.addPage('a4', 'portrait');
+    container.innerHTML = page3Html;
+    await new Promise(r => setTimeout(r, 120));
+    const canvas3 = await html2canvas(container.firstElementChild as HTMLElement, canvasOptions);
+    const imgData3 = canvas3.toDataURL('image/jpeg', 0.96);
+    doc.addImage(imgData3, 'JPEG', 0, 0, 210, 297);
 
     return doc.output('blob');
   } finally {
-    document.body.removeChild(container);
+    if (container.parentNode) {
+      document.body.removeChild(container);
+    }
   }
 };
 
@@ -602,20 +546,24 @@ export const generateSolutionKeyPDF = async (
 
   const container = document.createElement('div');
   container.style.position = 'fixed';
-  container.style.left = '-99999px';
+  container.style.left = '0';
   container.style.top = '0';
-  container.style.zIndex = '-1000';
+  container.style.width = '794px';
+  container.style.zIndex = '-99999';
+  container.style.pointerEvents = 'none';
+  container.style.opacity = '0.001';
+  container.style.overflow = 'hidden';
   document.body.appendChild(container);
 
   const html = `
     <div style="font-family: 'Hind Siliguri', 'Noto Sans Bengali', sans-serif; padding: 20px; color: #0f172a; width: 794px; background: #ffffff;">
-      <div style="border-bottom: 2px solid #dc2626; padding-bottom: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+      <div style="border-bottom: 2px solid #2563eb; padding-bottom: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
         <div>
-          <div style="font-size: 15px; font-weight: 800; color: #dc2626;">শিক্ষক সমাধান ও উত্তরমালা (TEACHER MASTER KEY)</div>
+          <div style="font-size: 15px; font-weight: 800; color: #2563eb;">শিক্ষক সমাধান ও উত্তরমালা (TEACHER MASTER SOLUTION KEY)</div>
           <div style="font-size: 12px; font-weight: 700; color: #0f172a;">${exam.title}</div>
         </div>
         <div style="text-align: right;">
-          <div style="font-size: 13px; font-weight: 900; background: #dc2626; color: #ffffff; padding: 2px 10px; border-radius: 3px; display: inline-block;">
+          <div style="font-size: 13px; font-weight: 900; background: #2563eb; color: #ffffff; padding: 2px 10px; border-radius: 4px; display: inline-block;">
             সেট: ${set.setCode}
           </div>
           <div style="font-size: 8px; color: #64748b; margin-top: 1px;">মোট প্রশ্ন: ${set.questions.length} টি</div>
@@ -623,15 +571,15 @@ export const generateSolutionKeyPDF = async (
       </div>
 
       <!-- Quick Answer Grid (100 Questions) -->
-      <div style="border: 1px solid #cbd5e1; border-radius: 4px; padding: 6px; background: #f8fafc; margin-bottom: 10px;">
-        <div style="font-size: 8.5px; font-weight: 800; color: #0f172a; margin-bottom: 4px; text-transform: uppercase;">
+      <div style="border: 1.2px solid #cbd5e1; border-radius: 4px; padding: 6px; background: #f8fafc; margin-bottom: 10px;">
+        <div style="font-size: 9px; font-weight: 800; color: #0f172a; margin-bottom: 4px; text-transform: uppercase;">
           এক নজরে সঠিক উত্তর গ্রিড (QUICK ANSWER KEY)
         </div>
-        <div style="display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; font-size: 7.5px; font-family: 'JetBrains Mono', monospace;">
+        <div style="display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; font-size: 8px; font-family: 'JetBrains Mono', monospace;">
           ${set.questions.map(q => `
             <div style="display: flex; justify-content: space-between; padding: 1.5px 3px; background: #ffffff; border: 0.8px solid #cbd5e1; border-radius: 2px;">
               <span style="font-weight: bold; color: #475569;">${q.questionNumber}.</span>
-              <span style="font-weight: 900; color: #dc2626;">${set.answerKey[q.questionNumber]}</span>
+              <span style="font-weight: 900; color: #2563eb;">${set.answerKey[q.questionNumber]}</span>
             </div>
           `).join('')}
         </div>
@@ -647,7 +595,7 @@ export const generateSolutionKeyPDF = async (
           return `
             <div style="margin-bottom: 5px; padding-bottom: 3px; border-bottom: 0.5px solid #f1f5f9; page-break-inside: avoid;">
               <div style="font-weight: 700; color: #0f172a;">
-                <span style="color: #dc2626; font-weight: 800;">${q.questionNumber}.</span> ${q.text}
+                <span style="color: #2563eb; font-weight: 800;">${q.questionNumber}.</span> ${q.text}
               </div>
               <div style="display: flex; gap: 8px; margin-top: 1px; color: #334155;">
                 ${q.options.map(opt => `
@@ -668,18 +616,89 @@ export const generateSolutionKeyPDF = async (
 
   try {
     container.innerHTML = html;
-    await new Promise(r => setTimeout(r, 150));
+    await new Promise(r => setTimeout(r, 120));
     const canvas = await html2canvas(container.firstElementChild as HTMLElement, {
-      scale: 2.4,
+      scale: 2.0,
       useCORS: true,
       logging: false,
-      backgroundColor: '#ffffff'
+      backgroundColor: '#ffffff',
+      width: 794,
+      windowWidth: 794
     });
 
     const imgData = canvas.toDataURL('image/jpeg', 0.95);
     doc.addImage(imgData, 'JPEG', 0, 0, 210, 297);
     return doc.output('blob');
   } finally {
-    document.body.removeChild(container);
+    if (container.parentNode) {
+      document.body.removeChild(container);
+    }
   }
 };
+
+/**
+ * Universal safe blob file downloader
+ * Prevents premature revocation which cancels downloads in Chromium/Safari/Firefox
+ */
+export function downloadPdfBlob(blob: Blob, filename: string): void {
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = filename;
+    a.target = '_self';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      try {
+        if (a.parentNode) document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch {}
+    }, 15000);
+  } catch (err) {
+    console.error('downloadPdfBlob error:', err);
+  }
+}
+
+/**
+ * High-Speed Smart PDF Downloader
+ * 1. Calls server POST /api/exams/generate-pdf (instant vector PDF, 150KB)
+ * 2. Falls back to client-side jsPDF if server route fails
+ */
+export async function downloadExamPdfSmart(
+  exam: any,
+  targetSet: any,
+  setCode: string
+): Promise<void> {
+  const safeExamName = String(exam.examName || exam.title || 'Exam').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const safeSetName = String(setCode || targetSet?.setCode || 'Set-01').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const filename = `Exam_${safeExamName}_${safeSetName}.pdf`;
+
+  // 1. Fast Server Vector Generation
+  try {
+    const res = await fetch('/api/exams/generate-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        exam,
+        targetSet,
+        setCode
+      })
+    });
+
+    if (res.ok) {
+      const blob = await res.blob();
+      if (blob.size > 1000) {
+        downloadPdfBlob(blob, filename);
+        return;
+      }
+    }
+  } catch (srvErr) {
+    console.warn('Server PDF generation failed, switching to client generation:', srvErr);
+  }
+
+  // 2. Client-side Fallback
+  const blob = await generateAdmissionStylePDF(exam, targetSet);
+  downloadPdfBlob(blob, filename);
+}

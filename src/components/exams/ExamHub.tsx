@@ -324,6 +324,9 @@ export const ExamHub: React.FC<ExamHubProps> = ({
   if (showOfflineOmrManager) {
     return (
       <OfflineOmrManager
+        students={students}
+        submissions={submissions}
+        registerBackHandler={registerBackHandler}
         onBack={() => {
           if (window.history.state?.view === 'offlineOmrManager') {
             window.history.back();
@@ -354,14 +357,14 @@ export const ExamHub: React.FC<ExamHubProps> = ({
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-          {/* EdTech Offline Exam & OMR Manager Button */}
+          {/* Offline Exam Management & Smart OMR Evaluation System Button */}
           <button
             onClick={handleOpenOfflineOmrManager}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-950/40 cursor-pointer transition-all border border-emerald-400/30"
-            title="মাস্টার প্রশ্ন ইনপুট ও ইউনিক ওএমআর সেট (Set A-T) জেনারেটর"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 text-white font-black text-xs sm:text-sm shadow-md shadow-blue-950/40 cursor-pointer transition-all border border-blue-400/30"
+            title="Offline Exam Management & Smart OMR Evaluation System"
           >
             <Layers className="w-4 h-4 text-amber-300" />
-            <span>ইউনিক ওএমআর ও সেট ম্যানেজার</span>
+            <span>Offline Exam Management & Smart OMR Evaluation System</span>
           </button>
 
           {role === 'admin' && (
@@ -385,6 +388,30 @@ export const ExamHub: React.FC<ExamHubProps> = ({
             </>
           )}
         </div>
+      </div>
+
+      {/* Prominent Quick Access Banner Card for Offline Exam Management & Smart OMR Evaluation System */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-blue-950/60 via-indigo-950/50 to-slate-900 border border-blue-500/40 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-[11px] font-bold">
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <span>অফলাইন এক্সাম ও স্মার্ট ওএমআর মডিউল</span>
+          </div>
+          <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+            <span>Offline Exam Management & Smart OMR Evaluation System</span>
+          </h3>
+          <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+            ১০০টি প্রশ্ন বাল্ক আপলোড ও AI পার্সিং, মাস্টার কোশ্চেন ব্যাংক, ইউনিক শাফেল্ড সেট (Set-01 to Set-XX) তৈরি, ডেমো পিডিএফ লেআউটের ৩-পৃষ্ঠার ওএমআর ও প্রশ্নপত্র ডাউনলোড, এবং মোবাইল ক্যামেরা দিয়ে ওএমআর স্ক্যান করে স্বয়ংক্রিয় রেজাল্ট মূল্যায়ন।
+          </p>
+        </div>
+        <button
+          onClick={handleOpenOfflineOmrManager}
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 text-white font-extrabold text-xs sm:text-sm shadow-xl shadow-blue-950/50 cursor-pointer transition-all border border-blue-400/40 shrink-0"
+        >
+          <Layers className="w-4 h-4 text-amber-300" />
+          <span>Offline Exam Management & Smart OMR Evaluation System</span>
+          <ArrowRight className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Segment Selector & Course Filter */}

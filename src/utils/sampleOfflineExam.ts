@@ -1,83 +1,174 @@
-import { Exam } from '../types';
+import { Exam, Question } from '../types';
 import { generateBatchSets } from './omrPdfGenerator';
 
-// Generate 100 high-quality Bengali Medical Admission Test questions
-export const createSample100Questions = () => {
-  const subjects = [
-    { name: 'জীববিজ্ঞান (উদ্ভিদবিজ্ঞান)', count: 25, prefix: 'উদ্ভিদ' },
-    { name: 'জীববিজ্ঞান (প্রাণিবিজ্ঞান)', count: 25, prefix: 'প্রাণি' },
-    { name: 'রসায়ন (১ম ও ২য় পত্র)', count: 25, prefix: 'রসায়ন' },
-    { name: 'পদার্থবিজ্ঞান ও সাধারণ জ্ঞান', count: 25, prefix: 'পদার্থ/জিকে' }
-  ];
+/**
+ * 100 MCQs exactly matching the Demo PDF (Unique_omr__543b9b86.pdf)
+ * Covering General Science, Biology, Chemistry & Physics
+ */
+export const DEMO_100_QUESTIONS: Array<{
+  q: string;
+  a: string;
+  b: string;
+  c: string;
+  d: string;
+  ans: 'A' | 'B' | 'C' | 'D';
+  exp?: string;
+}> = [
+  { q: "What is the SI unit of electric current?", a: "Volt", b: "Ampere", c: "Ohm", d: "Watt", ans: "B", exp: "Ampere (A) is the base SI unit of electric current." },
+  { q: "Which gas is most abundant in Earth's atmosphere?", a: "Oxygen", b: "Hydrogen", c: "Nitrogen", d: "Carbon Dioxide", ans: "C", exp: "Nitrogen makes up approximately 78% of Earth's atmosphere." },
+  { q: "The process of plant food synthesis is called:", a: "Respiration", b: "Photosynthesis", c: "Transpiration", d: "Osmosis", ans: "B", exp: "Plants synthesize glucose using sunlight, water and CO2 via photosynthesis." },
+  { q: "What is the chemical formula of Table Salt?", a: "NaCl", b: "KCl", c: "CaCO3", d: "NaOH", ans: "A", exp: "Table salt is Sodium Chloride (NaCl)." },
+  { q: "Who proposed the theory of General Relativity?", a: "Isaac Newton", b: "Albert Einstein", c: "Niels Bohr", d: "Galileo Galilei", ans: "B", exp: "Albert Einstein published General Relativity in 1915." },
+  { q: "Which blood group is known as universal recipient?", a: "A Positive", b: "O Negative", c: "AB Positive", d: "B Positive", ans: "C", exp: "AB+ individuals have both A and B antigens and Rh factor with no antibodies." },
+  { q: "What is the primary function of white blood cells?", a: "Transport oxygen", b: "Fight infection", c: "Clot blood", d: "Digest food", ans: "B", exp: "White blood cells (leukocytes) form the immune defense system." },
+  { q: "Which planet is known as the Red Planet?", a: "Venus", b: "Mars", c: "Jupiter", d: "Saturn", ans: "B", exp: "Mars appears red due to abundant iron oxide on its surface." },
+  { q: "What is the powerhouse of the cell?", a: "Ribosome", b: "Mitochondria", c: "Nucleus", d: "Endoplasmic Reticulum", ans: "B", exp: "Mitochondria generate ATP via cellular respiration." },
+  { q: "Which organ produces insulin in the human body?", a: "Liver", b: "Pancreas", c: "Kidney", d: "Spleen", ans: "B", exp: "Beta cells of Islets of Langerhans in the pancreas secrete insulin." },
+  { q: "What is the pH of pure water at 25°C?", a: "5", b: "7", c: "9", d: "14", ans: "B", exp: "Pure neutral water has a neutral pH of 7.0." },
+  { q: "Which element has the chemical symbol Fe?", a: "Fluorine", b: "Iron", c: "Francium", d: "Fermium", ans: "B", exp: "Fe comes from the Latin word Ferrum meaning Iron." },
+  { q: "Which blood group is known as universal donor?", a: "A Positive", b: "B Positive", c: "AB Positive", d: "O Negative", ans: "D", exp: "O- red blood cells lack A, B and Rh surface antigens." },
+  { q: "What is the acceleration due to gravity on Earth?", a: "9.8 m/s²", b: "8.9 m/s²", c: "10.2 m/s²", d: "9.1 m/s²", ans: "A", exp: "Standard gravitational acceleration g = 9.80665 m/s²." },
+  { q: "Essential element for bone development is:", a: "Iron", b: "Calcium", c: "Iodine", d: "Zinc", ans: "B", exp: "Calcium and Phosphorus form hydroxyapatite in bone matrix." },
+  { q: "The hardest natural substance known on Earth:", a: "Gold", b: "Iron", c: "Diamond", d: "Platinum", ans: "C", exp: "Diamond has a giant covalent carbon lattice with Mohs hardness 10." },
+  { q: "Which instrument measures atmospheric pressure?", a: "Barometer", b: "Thermometer", c: "Hydrometer", d: "Anemometer", ans: "A", exp: "Torricelli invented the mercury barometer to measure air pressure." },
+  { q: "Light year is a unit of:", a: "Time", b: "Distance", c: "Speed", d: "Intensity", ans: "B", exp: "A light-year is the astronomical distance light travels in one Julian year." },
+  { q: "Which vitamin is synthesized in human skin by sunlight?", a: "Vitamin A", b: "Vitamin B", c: "Vitamin C", d: "Vitamin D", ans: "D", exp: "UVB rays convert 7-dehydrocholesterol into cholecalciferol (Vitamin D3)." },
+  { q: "Deficiency of Vitamin C causes:", a: "Beriberi", b: "Scurvy", c: "Rickets", d: "Night Blindness", ans: "B", exp: "Lack of ascorbic acid prevents collagen synthesis causing scurvy." },
+  { q: "What is the chemical symbol for Gold?", a: "Ag", b: "Au", c: "Fe", d: "Cu", ans: "B", exp: "Au comes from the Latin word Aurum." },
+  { q: "Which metal is liquid at room temperature?", a: "Mercury", b: "Sodium", c: "Lead", d: "Calcium", ans: "A", exp: "Mercury (Hg) is a transition metal with melting point -38.83°C." },
+  { q: "What is the main gas in Natural Gas?", a: "Propane", b: "Methane", c: "Butane", d: "Ethane", ans: "B", exp: "Methane (CH4) typically comprises 80-95% of natural gas." },
+  { q: "Sound waves cannot travel through:", a: "Solids", b: "Liquids", c: "Gases", d: "Vacuum", ans: "D", exp: "Mechanical sound waves require a physical medium to propagate." },
+  { q: "Which hormone regulates blood sugar levels?", a: "Adrenaline", b: "Insulin", c: "Thyroxine", d: "Estrogen", ans: "B", exp: "Insulin facilitates cellular uptake of glucose from the bloodstream." },
+  { q: "Dry Ice is the solid form of:", a: "Water", b: "Nitrogen", c: "Carbon Dioxide", d: "Methane", ans: "C", exp: "Dry ice is solid CO2 which sublimes directly at -78.5°C." },
+  { q: "Which layer protects Earth from ultraviolet rays?", a: "Ionosphere", b: "Ozone Layer", c: "Troposphere", d: "Mesosphere", ans: "B", exp: "The stratospheric ozone layer (O3) absorbs harmful UV-B radiation." },
+  { q: "Which element is liquid at room temperature?", a: "Mercury", b: "Sodium", c: "Lead", d: "Calcium", ans: "A", exp: "Mercury (Hg) remains liquid at room temperature." },
+  { q: "What is the main component of Biogas?", a: "Methane", b: "Hydrogen", c: "Nitrogen", d: "Carbon Monoxide", ans: "A", exp: "Anaerobic digestion produces biogas containing 50-70% methane." },
+  { q: "Sound frequency below 20 Hz is called:", a: "Ultrasonic", b: "Infrasonic", c: "Supersonic", d: "Audible", ans: "B", exp: "Frequencies below the 20 Hz human hearing threshold are infrasonic." },
+  { q: "Newton's First Law of Motion defines:", a: "Force", b: "Inertia", c: "Momentum", d: "Energy", ans: "B", exp: "Newton's 1st law is also known as the Law of Inertia." },
+  { q: "Power of a lens is measured in:", a: "Diopter", b: "Lumen", c: "Candela", d: "Lux", ans: "A", exp: "Diopter (D = 1/f in meters) measures optical power." },
+  { q: "Master gland of the human body is:", a: "Thyroid", b: "Pituitary", c: "Adrenal", d: "Pancreas", ans: "B", exp: "The pituitary gland controls other endocrine glands via trophic hormones." },
+  { q: "Speed of light in vacuum is approximately:", a: "3×10⁸ m/s", b: "3×10⁶ m/s", c: "3×10¹⁰ m/s", d: "3×10⁵ m/s", ans: "A", exp: "The speed of light c = 299,792,458 m/s ≈ 3×10⁸ m/s." },
+  { q: "Vitamin deficiency causing Scurvy:", a: "Vitamin A", b: "Vitamin C", c: "Vitamin D", d: "Vitamin B12", ans: "B", exp: "Vitamin C (ascorbic acid) deficiency leads to bleeding gums and scurvy." },
+  { q: "What is the chemical symbol for Silver?", a: "Au", b: "Ag", c: "Si", d: "Sn", ans: "B", exp: "Ag is derived from Argentum." },
+  { q: "Which mirror is used by dentists to inspect teeth?", a: "Convex", b: "Concave", c: "Plane", d: "Cylindrical", ans: "B", exp: "A concave mirror provides an upright, enlarged virtual image." },
+  { q: "Rusting of iron is an example of:", a: "Reduction", b: "Oxidation", c: "Polymerization", d: "Hydrolysis", ans: "B", exp: "Iron reacts with oxygen and water to form hydrated iron(III) oxide." },
+  { q: "Energy stored in a stretched spring is:", a: "Kinetic", b: "Potential", c: "Thermal", d: "Chemical", ans: "B", exp: "Elastic potential energy U = 1/2 k x² is stored in the stretched spring." },
+  { q: "Human heart has how many chambers?", a: "Two", b: "Three", c: "Four", d: "Six", ans: "C", exp: "The mammalian heart has two atria and two ventricles." },
+  { q: "What is the charge of a neutron?", a: "Positive", b: "Negative", c: "Neutral (Zero)", d: "Variable", ans: "C", exp: "Neutrons carry no electric net charge." },
+  { q: "SI unit of electric resistance is:", a: "Volt", b: "Ohm", c: "Farad", d: "Henry", ans: "B", exp: "Ohm (Ω) is the SI unit of electrical resistance." },
+  { q: "Which cell organelle is called Powerhouse?", a: "Ribosome", b: "Mitochondria", c: "Nucleus", d: "Lysosome", ans: "B", exp: "Mitochondria synthesize energy-rich ATP molecules." },
+  { q: "Speed of sound in dry air at 20°C is approximately:", a: "343 m/s", b: "3000 m/s", c: "150 m/s", d: "3×10⁸ m/s", ans: "A", exp: "In dry air at 20°C, speed of sound is roughly 343 meters per second." },
+  { q: "Element necessary for blood clotting is:", a: "Iron", b: "Calcium", c: "Potassium", d: "Sodium", ans: "B", exp: "Calcium ions (Factor IV) are critical cofactors for clotting cascade." },
+  { q: "Solder alloy consists of:", a: "Lead & Tin", b: "Copper & Zinc", c: "Iron & Nickel", d: "Gold & Silver", ans: "A", exp: "Traditional soft solder is an alloy of lead (Pb) and tin (Sn)." },
+  { q: "Chemical formula of Ozone:", a: "O2", b: "O3", c: "H2O2", d: "CO2", ans: "B", exp: "Ozone is a triatomic molecule consisting of three oxygen atoms." },
+  { q: "Instrument to measure heartbeats:", a: "Stethoscope", b: "Sphygmomanometer", c: "ECG", d: "EEG", ans: "A", exp: "Physicians use stethoscopes for auscultation of heart and lung sounds." },
+  { q: "Escape velocity from Earth surface is approximately:", a: "11.2 km/s", b: "9.8 km/s", c: "15.0 km/s", d: "7.9 km/s", ans: "A", exp: "Escape velocity v = √(2GM/R) ≈ 11.186 km/s." },
+  { q: "Which metal is the best conductor of electricity?", a: "Copper", b: "Silver", c: "Aluminum", d: "Gold", ans: "B", exp: "Silver (Ag) has the highest electrical conductivity of all metals." },
+  { q: "Normal body temperature in Celsius is approximately:", a: "37°C", b: "98.6°C", c: "32°C", d: "40°C", ans: "A", exp: "Normal human body core temperature is roughly 36.5–37.5°C." },
+  { q: "Study of fossils is called:", a: "Botany", b: "Paleontology", c: "Geology", d: "Ecology", ans: "B", exp: "Paleontology investigates ancient prehistoric life through fossil remains." },
+  { q: "Gas used in fire extinguishers:", a: "Oxygen", b: "Nitrogen", c: "Carbon Dioxide", d: "Argon", ans: "C", exp: "CO2 suffocates flames by displacing oxygen without leaving residue." },
+  { q: "Transformer works on principle of:", a: "Mutual Induction", b: "Self Induction", c: "Electrostatics", d: "Resistance", ans: "A", exp: "Transformers transfer alternating electric energy via mutual electromagnetic induction." },
+  { q: "Chemical name of Baking Soda is:", a: "Sodium Carbonate", b: "Sodium Bicarbonate", c: "Calcium Carbonate", d: "Sodium Hydroxide", ans: "B", exp: "Baking soda is sodium hydrogen carbonate / sodium bicarbonate (NaHCO3)." },
+  { q: "Universal solvent in chemistry is:", a: "Alcohol", b: "Water", c: "Ether", d: "Acetone", ans: "B", exp: "Water dissolves more substances than any other liquid due to its polar nature." },
+  { q: "Units of work and energy are:", a: "Joule", b: "Watt", c: "Newton", d: "Pascal", ans: "A", exp: "1 Joule = 1 Newton-meter of work performed." },
+  { q: "Deficiency of Iodine causes:", a: "Anemia", b: "Goitre", c: "Rickets", d: "Beriberi", ans: "B", exp: "Iodine is essential for thyroid hormones T3 and T4; deficiency enlarges thyroid (goitre)." },
+  { q: "What is the SI unit of pressure?", a: "Pascal", b: "Newton", c: "Joule", d: "Watt", ans: "A", exp: "Pascal (Pa) equals one Newton per square meter (N/m²)." },
+  { q: "Which plant tissue transports water and minerals?", a: "Phloem", b: "Xylem", c: "Cambium", d: "Epidermis", ans: "B", exp: "Xylem vessels conduct water unidirectionally from roots to leaves." },
+  { q: "Which plant tissue conducts food and sugars?", a: "Phloem", b: "Xylem", c: "Pith", d: "Cortex", ans: "A", exp: "Phloem sieve tubes translocate photosynthates bi-directionally." },
+  { q: "Heavy Water is chemically known as:", a: "Hydrogen Peroxide", b: "Deuterium Oxide", c: "Heavy Hydrogen", d: "Water Hydrate", ans: "B", exp: "Heavy water is D2O (Deuterium oxide), an isotope of hydrogen." },
+  { q: "Which particle has mass approximately equal to proton?", a: "Electron", b: "Neutron", c: "Photon", d: "Positron", ans: "B", exp: "A neutron's mass (1.6749×10⁻²⁷ kg) is almost identical to a proton's." },
+  { q: "Primary gas responsible for Global Warming:", a: "Oxygen", b: "Carbon Dioxide", c: "Nitrogen", d: "Helium", ans: "B", exp: "CO2 emitted from fossil combustion is the leading anthropogenic greenhouse gas." },
+  { q: "Which instrument measures humidity in air?", a: "Hygrometer", b: "Hydrometer", c: "Barometer", d: "Pyrometer", ans: "A", exp: "A hygrometer calculates water vapor density in the atmosphere." },
+  { q: "The phenomenon of dispersion of light is seen in:", a: "Lens", b: "Prism", c: "Plane Mirror", d: "Glass Slab", ans: "B", exp: "A triangular glass prism splits polychromatic white light into constituent spectral colors." },
+  { q: "SI unit of thermodynamic temperature is:", a: "Celsius", b: "Kelvin", c: "Fahrenheit", d: "Rankine", ans: "B", exp: "Kelvin (K) is the absolute temperature SI base unit." },
+  { q: "Which vitamin helps in blood coagulation?", a: "Vitamin A", b: "Vitamin K", c: "Vitamin E", d: "Vitamin B", ans: "B", exp: "Phylloquinone (Vitamin K) is needed for prothrombin synthesis in liver." },
+  { q: "Atomic nucleus consists of:", a: "Electrons & Protons", b: "Protons & Neutrons", c: "Electrons & Neutrons", d: "Neutrons only", ans: "B", exp: "The dense atomic core contains nucleons: protons and neutrons." },
+  { q: "Sound waves cannot travel through:", a: "Solids", b: "Liquids", c: "Vacuum", d: "Gases", ans: "C", exp: "Vacuum lacks particles to transmit compression and rarefaction waves." },
+  { q: "Acid present in stomach for digestion is:", a: "Sulfuric Acid", b: "Hydrochloric Acid", c: "Nitric Acid", d: "Acetic Acid", ans: "B", exp: "Parietal gastric cells secrete hydrochloric acid (HCl, pH ~1.5–2)." },
+  { q: "Main source of solar energy is:", a: "Nuclear Fission", b: "Nuclear Fusion", c: "Chemical Combustion", d: "Gravitational Pull", ans: "B", exp: "Proton-proton thermonuclear fusion converts hydrogen to helium in the Sun's core." },
+  { q: "Chemical symbol for Sodium is:", a: "So", b: "Na", c: "K", d: "Sd", ans: "B", exp: "Na represents Natrium, the classical name for sodium." },
+  { q: "Human brain largest part is:", a: "Cerebellum", b: "Cerebrum", c: "Medulla", d: "Pons", ans: "B", exp: "The cerebrum comprises roughly 85% of total brain mass." },
+  { q: "Electric current is measured by:", a: "Voltmeter", b: "Ammeter", c: "Galvanometer", d: "Ohmmeter", ans: "B", exp: "An ammeter is connected in series in an electrical circuit." },
+  { q: "Metal extracted from Bauxite ore is:", a: "Iron", b: "Aluminum", c: "Copper", d: "Zinc", ans: "B", exp: "Bauxite (Al2O3·2H2O) is the primary commercial ore for aluminum." },
+  { q: "What type of lens is the human eye lens?", a: "Convex (Biconvex)", b: "Concave", c: "Flat", d: "Bifocal", ans: "A", exp: "The crystalline eye lens is a transparent flexible biconvex converging structure." },
+  { q: "pH of acidic solution is always:", a: "Equal to 7", b: "Less than 7", c: "Greater than 7", d: "Zero", ans: "B", exp: "Acidic solutions have high H+ concentration with pH < 7." },
+  { q: "Unit of luminous intensity is:", a: "Candela", b: "Lumen", c: "Watt", d: "Lux", ans: "A", exp: "Candela (cd) is the SI base unit of luminous intensity." },
+  { q: "Disease caused by deficiency of Vitamin A:", a: "Scurvy", b: "Night Blindness", c: "Rickets", d: "Beriberi", ans: "B", exp: "Vitamin A is required to synthesize retinal pigment rhodopsin." },
+  { q: "Galvanization is coating iron with:", a: "Copper", b: "Zinc", c: "Tin", d: "Chromium", ans: "B", exp: "Zinc protects underlying iron from rust through sacrificial anode action." },
+  { q: "Rate of change of displacement is:", a: "Speed", b: "Velocity", c: "Acceleration", d: "Momentum", ans: "B", exp: "Velocity is the vector time rate of change of position." },
+  { q: "Non-metal which conducts electricity:", a: "Diamond", b: "Graphite", c: "Sulfur", d: "Phosphorus", ans: "B", exp: "Graphite has sp2 hybridized carbon planes with delocalized pi electrons." },
+  { q: "Structural and functional unit of kidney is:", a: "Neuron", b: "Nephron", c: "Alveoli", d: "Cell", ans: "B", exp: "Each human kidney contains roughly one million microscopic nephrons." },
+  { q: "Gas used in LPG cylinders for odor detection:", a: "Ethyl Mercaptan", b: "Methane", c: "Propane", d: "Ethylene", ans: "A", exp: "Ethyl mercaptan (ethanethiol) is odorized into odorless LPG to alert leaks." },
+  { q: "Unit of electric capacitance is:", a: "Farad", b: "Henry", c: "Tesla", d: "Weber", ans: "A", exp: "One Farad (F) equals one Coulomb of charge per Volt of potential." },
+  { q: "Who discovered Penicillin?", a: "Louis Pasteur", b: "Alexander Fleming", c: "Robert Koch", d: "Edward Jenner", ans: "B", exp: "Alexander Fleming discovered penicillin from Penicillium notatum in 1928." },
+  { q: "Boiling point of liquid with pressure increase:", a: "Decreases", b: "Increases", c: "Remains same", d: "First drops", ans: "B", exp: "Higher atmospheric pressure requires higher vapor pressure to boil, elevating temperature." },
+  { q: "Filament of electric bulb is made of:", a: "Copper", b: "Tungsten", c: "Nichrome", d: "Iron", ans: "B", exp: "Tungsten has an ultra-high melting point (3422°C)." },
+  { q: "Gas evolved when acid reacts with active metal:", a: "Oxygen", b: "Hydrogen", c: "Nitrogen", d: "Carbon Dioxide", ans: "B", exp: "Metal + Acid → Salt + Hydrogen gas (H2)." },
+  { q: "Unit of magnetic flux density is:", a: "Tesla", b: "Weber", c: "Gauss", d: "Maxwell", ans: "A", exp: "Tesla (T) = 1 Weber per square meter (Wb/m²)." },
+  { q: "Process of solid converting directly to gas is called:", a: "Evaporation", b: "Sublimation", c: "Condensation", d: "Melting", ans: "B", exp: "Sublimation occurs without transitioning through an intermediate liquid phase." },
+  { q: "Chemical formula of Vinegar is:", a: "CH3COOH", b: "HCOOH", c: "HCl", d: "H2SO4", ans: "A", exp: "Vinegar is a 4–8% aqueous solution of acetic acid (ethanoic acid, CH3COOH)." },
+  { q: "Normal human systolic blood pressure is approximately:", a: "80 mmHg", b: "120 mmHg", c: "140 mmHg", d: "100 mmHg", ans: "B", exp: "Healthy resting adult blood pressure is roughly 120/80 mmHg (systolic/diastolic)." },
+  { q: "Ozone layer is present in which atmospheric layer?", a: "Troposphere", b: "Stratosphere", c: "Mesosphere", d: "Exosphere", ans: "B", exp: "The ozone protective layer is concentrated in the lower stratosphere." },
+  { q: "Which color light bends most through a prism?", a: "Red", b: "Violet", c: "Green", d: "Yellow", ans: "B", exp: "Violet light has shorter wavelength and higher refractive index, bending most." },
+  { q: "Unit of frequency (Hertz) is equal to:", a: "1 cycle/second", b: "1 meter/second", c: "1 joule/second", d: "1 watt/second", ans: "A", exp: "1 Hz = 1 periodic cycle per second (s⁻¹)." },
+  { q: "Metal present in Chlorophyll is:", a: "Iron", b: "Magnesium", c: "Calcium", d: "Zinc", ans: "B", exp: "Magnesium ion (Mg²⁺) sits at the center of the porphyrin ring in chlorophyll." },
+  { q: "First Law of Thermodynamics is a statement of:", a: "Conservation of Energy", b: "Conservation of Momentum", c: "Conservation of Mass", d: "Entropy Increase", ans: "A", exp: "Energy can neither be created nor destroyed; ΔU = Q - W." },
+  { q: "Which organelle contains digestive hydrolytic enzymes?", a: "Ribosome", b: "Lysosome", c: "Vacuole", d: "Golgi Apparatus", ans: "B", exp: "Lysosomes contain acid hydrolases that degrade cellular waste." }
+];
 
-  const questionBank = [
-    // Botany samples
-    { q: 'উদ্ভিদদেহে সালোকসংশ্লেষণের আলোক পর্যায়ে পানির ফটোলাইসিস প্রক্রিয়ায় উৎপন্ন হয় কোনটি?', a: 'অক্সিজেন, প্রোটন ও ইলেকট্রন', b: 'কেবলমাত্র কার্বন ডাইঅক্সাইড', c: 'গ্লুকোজ ও স্টার্চ', d: 'এডিপি ও পাইরুভিক এসিড', correct: 'A', exp: 'পানির ফটোলাইসিসের মাধ্যমে ২ অণু পানি ভেঙে ৪টি প্রোটন, ৪টি ইলেকট্রন ও ১ অণু অক্সিজেন তৈরি হয়।' },
-    { q: 'কোষ বিভাজনের কোন উপপর্যায়ে হোমোলোগাস ক্রোমোজোমের মধ্যে ক্রসিং ওভার ঘটে?', a: 'লেপ্টোটিন', b: 'প্যাকাইটিন', c: 'জাইগোটিন', d: 'ডিপ্লোটিন', correct: 'B', exp: 'প্যাকাইটিন উপপর্যায়ে নন-সিস্টার ক্রোমাটিডের মধ্যে কায়াজমা সৃষ্টি ও ক্রসিং ওভার ঘটে।' },
-    { q: 'ক্রেবস চক্র কোষের কোন অংশে সংঘটিত হয়?', a: 'মাইটোকন্ড্রিয়াল ম্যাট্রিক্স', b: 'সাইটোপ্লাজম', c: 'রাইবোসোম', d: 'ক্লোরোপ্লাস্টের গ্রানা', correct: 'A', exp: 'ক্রেবস চক্রের সকল উৎসেচক মাইটোকন্ড্রিয়ার ম্যাট্রিক্সে অবস্থান করে।' },
-    { q: 'কোনটি DNA ভাইরাসের উদাহরণ?', a: 'T2 ব্যাকটেরিওফায', b: 'TMV (টোবাকো মোজাইক ভাইরাস)', c: 'এইচআইভি (HIV)', d: 'করোনা ভাইরাস', correct: 'A', exp: 'T2 ব্যাকটেরিওফায, ভ্যারিওলা ও হেপাটাইটিস-বি হলো ডিএনএ ভাইরাস।' },
-    { q: 'বায়োটেকনোলজিতে "আণবিক কাঁচি" (Molecular Scissors) বলা হয় কোনটিকে?', a: 'রেস্ট্রিকশন এনজাইম', b: 'ডিএনএ লাইগেজ', c: 'পলিমারেজ', d: 'রিভার্স ট্রান্সক্রিপ্টেজ', correct: 'A', exp: 'রেস্ট্রিকশন এন্ডোনিউক্লিয়েজ নির্দিষ্ট সিকোয়েন্সে ডিএনএ কাটতে পারে।' },
-    { q: 'উদ্ভিদে নাইট্রোজেন সংবন্ধনে সহায়তা করে কোন ব্যাকটেরিয়া?', a: 'Rhizobium', b: 'E. coli', c: 'Salmonella', d: 'Vibrio cholerae', correct: 'A', exp: 'লেগুমিনাস উদ্ভিদের মূলের নডিউলে রাইজোবিয়াম নাইট্রোজেন সংবন্ধন করে।' },
-    { q: 'লিপোজোমের প্রধান গাঠনিক উপাদান কোনটি?', a: 'ফসফোলিপিড', b: 'সেলুলোজ', c: 'কাইটিন', d: 'পেকটিন', correct: 'A', exp: 'ফসফোলিপিড বাইলেয়ার দিয়ে লিপোজোম তৈরি হয়।' },
-    { q: 'উদ্ভিদের সেকেন্ডারি বৃদ্ধির জন্য দায়ী কোনটি?', a: 'পার্শ্বীয় ভাজক টিস্যু (ক্যাম্বিয়াম)', b: 'শীর্ষস্থ ভাজক টিস্যু', c: 'নিবেশিত ভাজক টিস্যু', d: 'প্যারেনকাইমা', correct: 'A', exp: 'ভাস্কুলার ক্যাম্বিয়াম ও কর্ক ক্যাম্বিয়াম সেকেন্ডারি বৃদ্ধির জন্য দায়ী।' },
-
-    // Zoology samples
-    { q: 'মানবদেহের সর্ববৃহৎ অনাল গ্রন্থি (Endocrine Gland) কোনটি?', a: 'থাইরয়েড গ্রন্থি', b: 'পিটুইটারি গ্রন্থি', c: 'অ্যাড্রেনাল গ্রন্থি', d: 'অগ্ন্যাশয়', correct: 'A', exp: 'থাইরয়েড মানবদেহের বৃহত্তম অনাল বা অন্তক্ষরা গ্রন্থি।' },
-    { q: 'রক্ত তঞ্চনের কত নম্বর ফ্যাক্টরটিকে "ক্রিসমাস ফ্যাক্টর" বলা হয়?', a: 'Factor IX', b: 'Factor VIII', c: 'Factor X', d: 'Factor XII', correct: 'A', exp: 'ফ্যাক্টর IX হলো ক্রিসমাস ফ্যাক্টর (হিমোফিলিয়া-বি এর সাথে সম্পর্কিত)।' },
-    { q: 'মানুষের হৃৎপিণ্ডের প্রাকৃতিক পেসমেকার কোনটি?', a: 'SA Node (সাইনোট্রিয়াল নোড)', b: 'AV Node', c: 'বান্ডল অব হিজ', d: 'পারকিনজি তন্তু', correct: 'A', exp: 'SA নোড হৃৎস্পন্দনের সংকেত সৃষ্টি করে, তাই এটি প্রাকৃতিক পেসমেকার।' },
-    { q: 'বৃক্কের গঠন ও কাজের কার্যকরী একক কী?', a: 'নেফ্রন (Nephron)', b: 'নিউরণ', c: 'অ্যালভিওলাস', d: 'হেপাটোসাইট', correct: 'A', exp: 'প্রতিটি মানুষের বৃক্কে প্রায় ১০-১২ লক্ষ নেফ্রন থাকে।' },
-    { q: 'সারকোমিয়ার কোন দুটি লাইনের মধ্যবর্তী অঞ্চল?', a: 'দুটি Z-লাইনের মধ্যবর্তী', b: 'দুটি M-লাইনের মধ্যবর্তী', c: 'দুটি H-জোনের মধ্যবর্তী', d: 'দুটি I-ব্যান্ডের মধ্যবর্তী', correct: 'A', exp: 'পেশীতন্তুর কার্যক্ষম একক হলো সারকোমিয়ার যা দুটি Z-ডিস্কের মধ্যকার অঞ্চল।' },
-    { q: 'মানুষের চোখের রেটিনার কোন কোষ মৃদু আলো ও দর্শনে সাহায্য করে?', a: 'রড কোষ (Rod cell)', b: 'কোণ কোষ (Cone cell)', c: 'বাইপোলার কোষ', d: 'গ্যাংলিয়ন কোষ', correct: 'A', exp: 'রড কোষে রোডোপসিন থাকে যা স্বল্প আলোতে দেখতে সহায়তা করে।' },
-
-    // Chemistry samples
-    { q: 'কোন মৌলের ইলেকট্রন আসক্তি সর্বাধিক?', a: 'ক্লোরিন (Cl)', b: 'ফ্লোরিন (F)', c: 'ব্রোমিন (Br)', d: 'আয়োডিন (I)', correct: 'A', exp: 'ফ্লোরিনের আকার ক্ষুদ্র ও ইলেকট্রন ঘনত্ব বেশি হওয়ায় ক্লোরিনের ইলেকট্রন আসক্তি বেশি।' },
-    { q: 'নিচের কোনটি আদর্শ গ্যাসের অবস্থার সঠিক সমীকরণ?', a: 'PV = nRT', b: 'P = nVRT', c: 'PT = nVR', d: 'V = nPRT', correct: 'A', exp: 'বয়েল, চার্লস ও অ্যাভোগাড্রো সূত্রের সমন্বিত রূপ হলো PV = nRT।' },
-    { q: 'কোন ক্ষার ধাতু পানিতে সবচেয়ে তীব্র বিক্রিয়া করে?', a: 'সিজিয়াম (Cs)', b: 'সোডিয়াম (Na)', c: 'পটাশিয়াম (K)', d: 'লিথিয়াম (Li)', correct: 'A', exp: 'সিজিয়ামের পারমাণবিক ব্যাসার্ধ বেশি ও আয়নিকরণ শক্তি সর্বনিম্ন হওয়ায় এটি দ্রুততম বিক্রিয়া করে।' },
-    { q: 'রক্তের স্বাভাবিক pH মাত্রা কত?', a: '৭.৩৫ - ৭.৪৫', b: '৬.৮০ - ৭.০০', c: '৭.৮০ - ৮.০০', d: '৫.৫০ - ৬.৫০', correct: 'A', exp: 'মানুষের রক্তের গড় pH হলো ৭.৪ (সামান্য ক্ষারীয়)।' },
-    { q: 'ফেনল ও ক্লোরোফর্মের সাথে ক্ষারের বিক্রিয়ায় স্যালিসিল্যালডিহাইড তৈরি হওয়ার বিক্রিয়া কোনটি?', a: 'রাইমার-টাইম্যান বিক্রিয়া', b: 'কোলব বিক্রিয়া', c: 'ক্যানিজারো বিক্রিয়া', d: 'উর্টজ বিক্রিয়া', correct: 'A', exp: 'রাইমার-টাইম্যান বিক্রিয়ার মাধ্যমে অর্থো-হাইড্রক্সি বেনজালডিহাইড পাওয়া যায়।' },
-
-    // Physics & General Knowledge
-    { q: 'মহাকর্ষীয় ধ্রুবক G এর মাত্রা সমীকরণ কোনটি?', a: '[M⁻¹ L³ T⁻²]', b: '[M L² T⁻²]', c: '[M L T⁻¹]', d: '[M⁻² L² T⁻¹]', correct: 'A', exp: 'F = G * m1*m2 / r² থেকে G = F*r² / m² যার মাত্রা [M⁻¹ L³ T⁻²]।' },
-    { q: 'একটি সরল দোলকের দৈর্ঘ্য চারগুণ বৃদ্ধি করলে তার দোলনকাল কতগুণ হবে?', a: 'দ্বিগুণ', b: 'চারগুণ', c: 'অর্ধেক', d: 'এক-চতুর্থাংশ', correct: 'A', exp: 'T ∝ √L হওয়ায় দৈর্ঘ্য ৪ গুণ হলে দোলনকাল √৪ = ২ গুণ বৃদ্ধি পাবে।' },
-    { q: 'কোন বর্ণের আলোর প্রতিসরাঙ্ক সবচেয়ে বেশি?', a: 'বেগুনি', b: 'লাল', c: 'হলুদ', d: 'সবুজ', correct: 'A', exp: 'তরঙ্গদৈর্ঘ্য কম হলে প্রতিসরাঙ্ক বেশি হয়, বেগুনির তরঙ্গদৈর্ঘ্য সর্বনিম্ন।' },
-    { q: 'অর্ধপরিবাহীতে তাপমাত্রা বৃদ্ধি করলে এর রোধের কী পরিবর্তন হয়?', a: 'হ্রাস পায়', b: 'বৃদ্ধি পায়', c: 'অপরিবর্তিত থাকে', d: 'প্রথমে বাড়ে পরে কমে', correct: 'A', exp: 'সেমিকন্ডাক্টরের রোধের উষ্ণতা গুণাঙ্ক ঋণাত্মক, ফলে তাপমাত্রা বাড়লে রোধ কমে।' },
-    { q: 'বাংলাদেশকে স্বীকৃতি দানকারী প্রথম ইউরোপীয় দেশ কোনটি?', a: 'পোল্যান্ড / পূর্ব জার্মানি', b: 'যুক্তরাজ্য', c: 'রাশিয়া', d: 'ফ্রান্স', correct: 'A', exp: 'ইউরোপের দেশগুলোর মধ্যে পূর্ব জার্মানি ও পোল্যান্ড সর্বপ্রথম বাংলাদেশকে স্বীকৃতি দেয়।' },
-    { q: 'কোন ভিটামিন রক্ত জমাট বাঁধতে সাহায্য করে?', a: 'ভিটামিন K', b: 'ভিটামিন C', c: 'ভিটামিন A', d: 'ভিটামিন D', correct: 'A', exp: 'ভিটামিন K যকৃতে প্রোথ্রম্বিন তৈরিতে সহায়তা করে যা রক্ত জমাট বাঁধতে দরকার।' }
-  ];
-
-  // Fill up to 100 questions deterministically
-  const full100 = [];
-  for (let i = 1; i <= 100; i++) {
-    const base = questionBank[(i - 1) % questionBank.length];
-    const subjectIndex = Math.floor((i - 1) / 25);
-    const subjectName = subjects[subjectIndex].name;
-
-    full100.push({
-      id: `q_med_${i}`,
-      text: `[${subjectName}] প্রশ্ন ${i}: ${base.q}`,
-      options: [
-        { id: 'A', text: base.a },
-        { id: 'B', text: base.b },
-        { id: 'C', text: base.c },
-        { id: 'D', text: base.d }
-      ],
-      correctOption: base.correct,
-      explanation: base.exp
-    });
-  }
-
-  return full100;
+/**
+ * Convert the 100 questions array into raw text in the exact bulk upload format:
+ * "1. Question stem
+ *  A. Option 1
+ *  B. Option 2
+ *  C. Option 3
+ *  D. Option 4
+ *  Ans: B
+ *  Explanation: ..."
+ */
+export const getDemo100QuestionsRawText = (): string => {
+  return DEMO_100_QUESTIONS.map((item, idx) => {
+    const num = idx + 1;
+    return `${num}. ${item.q}
+A. ${item.a}
+B. ${item.b}
+C. ${item.c}
+D. ${item.d}
+Ans: ${item.ans}
+${item.exp ? `Explanation: ${item.exp}\n` : ''}`;
+  }).join('\n');
 };
 
+/**
+ * Creates 100 Question objects for database
+ */
+export const createSample100Questions = (): Question[] => {
+  return DEMO_100_QUESTIONS.map((item, idx) => ({
+    id: `q_sample_${idx + 1}`,
+    text: item.q,
+    options: [
+      { id: 'A', text: item.a },
+      { id: 'B', text: item.b },
+      { id: 'C', text: item.c },
+      { id: 'D', text: item.d }
+    ],
+    correctOption: item.ans,
+    explanation: item.exp || ''
+  }));
+};
+
+/**
+ * Create Full Offline Exam object ready for Firestore
+ */
 export const createSampleOfflineExam = (): Exam => {
   const questions = createSample100Questions();
 
   const baseExam: Exam = {
-    id: 'offline_medical_admission_model_1',
+    id: 'offline_medical_model_01',
     courseId: 'general',
-    courseName: 'মেডিকেল ও ডেন্টাল ভর্তি পরীক্ষা ২০২৬',
-    title: 'মেডিকেল ভর্তি পূর্ণাঙ্গ মডেল টেস্ট - ০১ (১০০ MCQ মাস্টার সেট ও ৪-কলাম ওএমআর)',
-    durationMinutes: 60,
+    courseName: 'Biology 1st Paper (Chapter-01)',
+    title: 'Weekly Exam - 01',
+    durationMinutes: 90,
     totalMarks: 100,
     totalQuestions: 100,
     passMark: 40,
@@ -85,8 +176,8 @@ export const createSampleOfflineExam = (): Exam => {
     markPerQuestion: 1.0,
     isOffline: true,
     examType: 'offline',
-    subject: 'জীববিজ্ঞান, রসায়ন, পদার্থবিজ্ঞান ও সাধারণ জ্ঞান',
-    instructions: '১০০টি বহুনির্বাচনী প্রশ্ন রয়েছে। প্রতিটি সঠিক উত্তরের জন্য ১ নম্বর এবং প্রতিটি ভুল উত্তরের জন্য ০.২৫ নম্বর কাটা যাবে। কালো কালির বলপয়েন্ট কলম দ্বারা ওএমআর বৃত্ত ভরাট করুন।',
+    subject: 'General Knowledge & Science',
+    instructions: '1. Use black ballpoint pen only. 2. Fill the bubbles completely. 3. Negative marking -0.25 for wrong answers.',
     startTime: 0,
     endTime: 0,
     resultPublishTime: 0,
@@ -95,8 +186,8 @@ export const createSampleOfflineExam = (): Exam => {
     questions: questions
   };
 
-  // Generate 4 deterministic shuffled sets (Set-A, Set-B, Set-C, Set-D)
-  const sets = generateBatchSets(baseExam, 4, 1001);
+  // Generate 10 deterministic shuffled sets (Set-01 to Set-10)
+  const sets = generateBatchSets(baseExam, 10, 1);
   baseExam.offlineSets = sets;
 
   return baseExam;
