@@ -616,13 +616,17 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         // Double tap right: Fast Forward 10s
         handleSkipForward();
       } else {
-        // Double tap center: toggle play/pause
-        togglePlay();
+        // Double tap center: toggle controls visibility without pausing
+        setControlsVisible(prev => {
+          const next = !prev;
+          if (next && isPlaying) resetHideTimer();
+          return next;
+        });
       }
       return;
     }
 
-    // First tap: register timestamp and position, wait 300ms for potential second tap
+    // First tap: register timestamp and position, wait 280ms for potential second tap
     lastTapRef.current = { time: now, x: clientX, y: clientY };
 
     if (singleTapTimerRef.current) {
@@ -632,10 +636,15 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     singleTapTimerRef.current = setTimeout(() => {
       singleTapTimerRef.current = null;
       lastTapRef.current = { time: 0, x: 0, y: 0 };
-      // Single tap: Strictly toggle play/pause and show controls. NEVER skip 10s!
-      togglePlay();
-      showControlsTemporarily();
-    }, 300);
+      // Single tap: Strictly toggle controls visibility! NEVER toggle play/pause!
+      setControlsVisible(prev => {
+        const next = !prev;
+        if (next && isPlaying) {
+          resetHideTimer();
+        }
+        return next;
+      });
+    }, 280);
   };
 
   const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
@@ -749,8 +758,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       onMouseMove={showControlsTemporarily}
       className={`relative w-full bg-black flex flex-col select-none overflow-hidden transition-all duration-300 ${
         isFullscreen 
-          ? 'fixed inset-0 w-screen h-screen max-w-none rounded-none z-[9999]' 
-          : 'w-full rounded-2xl border border-slate-800 shadow-2xl'
+          ? 'fixed inset-0 w-screen h-screen max-w-none rounded-none z-[9999] justify-between' 
+          : 'w-full rounded-2xl border border-slate-800 shadow-2xl justify-center'
       }`}
       style={{ borderRadius: isFullscreen ? 0 : '16px' }}
       onContextMenu={(e) => {
@@ -768,8 +777,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             : 'opacity-0 -translate-y-full pointer-events-none'
         } ${
           isFullscreen 
-            ? 'absolute top-0 inset-x-0 bg-gradient-to-b from-black/95 via-black/60 to-transparent' 
-            : 'absolute top-0 inset-x-0 bg-gradient-to-b from-black/90 via-black/40 to-transparent border-b border-white/5'
+            ? 'absolute top-0 inset-x-0 bg-gradient-to-b from-black via-black/90 to-transparent pt-3 sm:pt-4' 
+            : 'absolute top-0 inset-x-0 bg-gradient-to-b from-black via-black/90 to-transparent border-b border-white/5'
         }`}
       >
         <div className="flex items-center gap-2.5 min-w-0">
@@ -804,151 +813,175 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         </div>
       </div>
 
-      {/* Video Canvas Container (16:9 aspect ratio, 100% width) */}
+      {/* Video Stage Container: In Fullscreen, takes all vertical space and centers the 16:9 video box vertically and horizontally */}
       <div 
-        className="relative w-full aspect-video max-w-full bg-black flex items-center justify-center overflow-hidden"
-        style={{ filter: `brightness(${brightness})` }}
+        className={`w-full flex items-center justify-center relative overflow-hidden bg-black ${
+          isFullscreen ? 'flex-1 h-full' : ''
+        }`}
       >
-        {/* Case 1: YouTube video - In-App Playback with Complete Anti-Download Shield */}
-        {videoId && (
-          <div className="absolute inset-0 w-full h-full select-none pointer-events-none">
+        {/* Video Canvas Container (16:9 aspect ratio, 100% width, centered) */}
+        <div 
+          className={`relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden ${
+            isFullscreen ? 'max-h-full max-w-full my-auto' : 'max-w-full'
+          }`}
+          style={{ 
+            filter: `brightness(${brightness})`,
+            maxWidth: isFullscreen ? 'min(100vw, calc(100vh * 16 / 9))' : '100%',
+            maxHeight: isFullscreen ? 'min(100vh, calc(100vw * 9 / 16))' : 'none'
+          }}
+        >
+          {/* Case 1: YouTube video - In-App Playback with 100% Brand Shielding */}
+          {videoId && (
+            <div className="absolute inset-0 w-full h-full overflow-hidden select-none pointer-events-none flex items-center justify-center bg-black">
+              <iframe
+                ref={iframeRef}
+                id={uniquePlayerId.current}
+                src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=${hasStarted ? 1 : 0}&enablejsapi=1&rel=0&playsinline=1&modestbranding=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`}
+                title={title}
+                className="border-0 pointer-events-none select-none"
+                style={{
+                  position: 'absolute',
+                  width: '100%',
+                  height: '100%',
+                  transform: 'scale(1.32)',
+                  transformOrigin: 'center center',
+                  pointerEvents: 'none',
+                  userSelect: 'none'
+                }}
+                sandbox="allow-scripts allow-same-origin allow-presentation"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+          )}
+
+          {/* Case 2: Google Drive Video */}
+          {isDriveVideo && (
             <iframe
-              ref={iframeRef}
-              id={uniquePlayerId.current}
-              src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=${hasStarted ? 1 : 0}&enablejsapi=1&rel=0&playsinline=1&modestbranding=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`}
+              src={getGoogleDriveEmbedUrl(url)}
+              className="w-full h-full absolute inset-0 border-none"
               title={title}
-              className="w-full h-full border-0 absolute inset-0 pointer-events-none select-none"
               sandbox="allow-scripts allow-same-origin allow-presentation"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allow="autoplay; encrypted-media"
               allowFullScreen
             />
-          </div>
-        )}
+          )}
 
-        {/* Case 2: Google Drive Video */}
-        {isDriveVideo && (
-          <iframe
-            src={getGoogleDriveEmbedUrl(url)}
-            className="w-full h-full absolute inset-0 border-none"
-            title={title}
-            sandbox="allow-scripts allow-same-origin allow-presentation"
-            allow="autoplay; encrypted-media"
-            allowFullScreen
-          />
-        )}
-
-        {/* Case 3: Direct video file */}
-        {isDirectVideo && (
-          <video
-            ref={html5VideoRef}
-            src={url}
-            playsInline
-            controlsList="nodownload nofullscreen noplaybackrate"
-            disablePictureInPicture
-            onContextMenu={(e) => e.preventDefault()}
-            onDragStart={(e) => e.preventDefault()}
-            onTimeUpdate={() => {
-              if (html5VideoRef.current) {
-                setCurrentTime(html5VideoRef.current.currentTime);
-              }
-            }}
-            onLoadedMetadata={() => {
-              if (html5VideoRef.current) {
-                setDuration(html5VideoRef.current.duration);
-              }
-            }}
-            onEnded={() => {
-              setIsPlaying(false);
-              setControlsVisible(true);
-            }}
-            className="w-full h-full object-contain pointer-events-none select-none"
-          />
-        )}
-
-        {/* Transparent DOM Shield Overlay: Captures Taps/Gestures and Blocks Third-Party Extension Interception */}
-        {!isDriveVideo && (
-          <div 
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            onClick={handleMouseClick}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              return false;
-            }}
-            className="absolute inset-0 z-10 cursor-pointer pointer-events-auto"
-            style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
-          />
-        )}
-
-        {/* Initial Big Play Button before starting */}
-        {!hasStarted && !isDriveVideo && (
-          <div 
-            onClick={(e) => {
-              e.stopPropagation();
-              togglePlay();
-            }}
-            className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-[2px] cursor-pointer group"
-          >
-            <div 
-              className="w-16 sm:w-20 h-16 sm:h-20 rounded-full text-white flex items-center justify-center shadow-2xl transition-all transform group-hover:scale-110 active:scale-95"
-              style={{ 
-                backgroundColor: 'var(--theme-primary)',
-                boxShadow: '0 0 35px var(--theme-primary-glow)' 
+          {/* Case 3: Direct video file */}
+          {isDirectVideo && (
+            <video
+              ref={html5VideoRef}
+              src={url}
+              playsInline
+              controlsList="nodownload nofullscreen noplaybackrate"
+              disablePictureInPicture
+              onContextMenu={(e) => e.preventDefault()}
+              onDragStart={(e) => e.preventDefault()}
+              onTimeUpdate={() => {
+                if (html5VideoRef.current) {
+                  setCurrentTime(html5VideoRef.current.currentTime);
+                }
               }}
+              onLoadedMetadata={() => {
+                if (html5VideoRef.current) {
+                  setDuration(html5VideoRef.current.duration);
+                }
+              }}
+              onEnded={() => {
+                setIsPlaying(false);
+                setControlsVisible(true);
+              }}
+              className="w-full h-full object-contain pointer-events-none select-none"
+            />
+          )}
+
+          {/* Permanent Top Protective Mask: Prevents any background YouTube title or channel header bleed */}
+          <div className="absolute top-0 inset-x-0 h-12 sm:h-14 bg-gradient-to-b from-black via-black/85 to-transparent pointer-events-none z-10" />
+
+          {/* Permanent Bottom Protective Mask: Prevents any background YouTube logo or card shelf bleed */}
+          <div className="absolute bottom-0 inset-x-0 h-12 sm:h-14 bg-gradient-to-t from-black via-black/85 to-transparent pointer-events-none z-10" />
+
+          {/* Transparent DOM Shield Overlay: Captures Taps/Gestures and Blocks Third-Party Extension Interception */}
+          {!isDriveVideo && (
+            <div 
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              onClick={handleMouseClick}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+              }}
+              className="absolute inset-0 z-15 cursor-pointer pointer-events-auto"
+              style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
+            />
+          )}
+
+          {/* Initial Compact Start Button before starting (Smaller size, No 'Tap to Play Video' text) */}
+          {!hasStarted && !isDriveVideo && (
+            <div 
+              onClick={(e) => {
+                e.stopPropagation();
+                togglePlay();
+              }}
+              className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 backdrop-blur-[1px] cursor-pointer group"
             >
-              <Play className="w-8 sm:w-10 h-8 sm:h-10 fill-white ml-1" />
+              <div 
+                className="w-12 h-12 sm:w-14 sm:h-14 rounded-full text-white flex items-center justify-center shadow-xl transition-all transform group-hover:scale-110 active:scale-95"
+                style={{ 
+                  backgroundColor: 'var(--theme-primary)',
+                  boxShadow: '0 0 24px var(--theme-primary-glow)' 
+                }}
+              >
+                <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-white ml-0.5" />
+              </div>
             </div>
-            <span className="mt-4 text-xs sm:text-sm font-bold text-white bg-black/80 px-4 py-2 rounded-full border border-white/10 shadow-lg flex items-center gap-2">
-              <Play className="w-3.5 h-3.5 fill-current" style={{ color: 'var(--theme-primary)' }} />
-              <span>Tap to Play Video</span>
-            </span>
-          </div>
-        )}
+          )}
 
-        {/* Double-Tap 10s Skip Feedback Overlay */}
-        {skipFeedback && (
-          <div 
-            className={`absolute top-0 bottom-0 z-20 w-1/3 flex items-center justify-center pointer-events-none ${
-              skipFeedback.side === 'left' ? 'left-0 bg-gradient-to-r from-blue-600/30 to-transparent' : 'right-0 bg-gradient-to-l from-blue-600/30 to-transparent'
-            }`}
-          >
-            <div className="flex flex-col items-center text-white bg-black/90 px-4 py-2.5 rounded-2xl backdrop-blur-md shadow-2xl border border-white/15 animate-in fade-in zoom-in duration-150">
-              {skipFeedback.side === 'left' ? (
-                <RotateCcw className="w-6 h-6 mb-1 text-blue-400" />
+          {/* Double-Tap 10s Skip Feedback Overlay */}
+          {skipFeedback && (
+            <div 
+              className={`absolute top-0 bottom-0 z-20 w-1/3 flex items-center justify-center pointer-events-none ${
+                skipFeedback.side === 'left' ? 'left-0 bg-gradient-to-r from-blue-600/30 to-transparent' : 'right-0 bg-gradient-to-l from-blue-600/30 to-transparent'
+              }`}
+            >
+              <div className="flex flex-col items-center text-white bg-black/90 px-4 py-2.5 rounded-2xl backdrop-blur-md shadow-2xl border border-white/15 animate-in fade-in zoom-in duration-150">
+                {skipFeedback.side === 'left' ? (
+                  <RotateCcw className="w-6 h-6 mb-1 text-blue-400" />
+                ) : (
+                  <RotateCw className="w-6 h-6 mb-1 text-blue-400" />
+                )}
+                <span className="text-xs font-bold font-mono tracking-wider">{skipFeedback.text}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Brightness & Volume HUD Feedback */}
+          {gestureFeedback && (
+            <div className="absolute top-14 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-black/85 backdrop-blur-md text-white shadow-2xl pointer-events-none border border-white/10 animate-in fade-in duration-150">
+              {gestureFeedback.type === 'brightness' ? (
+                <>
+                  <Sun className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-bold font-mono">Brightness: {gestureFeedback.value}%</span>
+                </>
               ) : (
-                <RotateCw className="w-6 h-6 mb-1 text-blue-400" />
+                <>
+                  <Volume2 className="w-4 h-4 text-blue-400" />
+                  <span className="text-xs font-bold font-mono">Volume: {gestureFeedback.value}%</span>
+                </>
               )}
-              <span className="text-xs font-bold font-mono tracking-wider">{skipFeedback.text}</span>
             </div>
-          </div>
-        )}
-
-        {/* Brightness & Volume HUD Feedback */}
-        {gestureFeedback && (
-          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-black/85 backdrop-blur-md text-white shadow-2xl pointer-events-none border border-white/10 animate-in fade-in duration-150">
-            {gestureFeedback.type === 'brightness' ? (
-              <>
-                <Sun className="w-4 h-4 text-amber-400" />
-                <span className="text-xs font-bold font-mono">Brightness: {gestureFeedback.value}%</span>
-              </>
-            ) : (
-              <>
-                <Volume2 className="w-4 h-4 text-blue-400" />
-                <span className="text-xs font-bold font-mono">Volume: {gestureFeedback.value}%</span>
-              </>
-            )}
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Bottom Control Bar - Auto-hides after 3s, reveals on screen tap */}
       {!isDriveVideo && (
         <div 
-          className={`absolute bottom-0 inset-x-0 z-30 px-3 sm:px-5 py-2.5 bg-gradient-to-t from-black/95 via-black/85 to-transparent text-white transition-all duration-200 ${
+          className={`absolute bottom-0 inset-x-0 z-30 px-3 sm:px-5 py-2.5 sm:py-3 bg-gradient-to-t from-black/95 via-black/85 to-transparent text-white transition-all duration-200 ${
             controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full pointer-events-none'
-          }`}
+          } ${isFullscreen ? 'pb-3 sm:pb-5' : ''}`}
         >
           {/* Timeline Scrubber */}
           <div className="relative flex items-center w-full mb-1.5 group">
@@ -1082,7 +1115,9 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       {showNotesPanel && (
         <div 
           onClick={(e) => e.stopPropagation()}
-          className="absolute top-12 right-3 sm:right-5 bottom-16 w-80 max-w-[85%] bg-slate-900/95 backdrop-blur-md border border-white/15 rounded-2xl shadow-2xl z-40 flex flex-col overflow-hidden text-white animate-in slide-in-from-right duration-200"
+          className={`absolute right-3 sm:right-5 w-80 max-w-[85%] bg-slate-900/95 backdrop-blur-md border border-white/15 rounded-2xl shadow-2xl z-40 flex flex-col overflow-hidden text-white animate-in slide-in-from-right duration-200 ${
+            isFullscreen ? 'top-16 bottom-20' : 'top-12 bottom-16'
+          }`}
         >
           {/* Panel Header */}
           <div className="p-3.5 border-b border-white/10 flex items-center justify-between bg-black/30">
