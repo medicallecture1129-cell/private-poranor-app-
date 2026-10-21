@@ -93,25 +93,25 @@
 
     .btn-center-play {
       pointer-events: auto;
-      width: 68px;
-      height: 68px;
+      width: 50px;
+      height: 50px;
       border-radius: 50%;
-      background: rgba(0, 0, 0, 0.65);
+      background: rgba(0, 0, 0, 0.75);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.25);
       color: #ffffff;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.65);
       cursor: pointer;
       transition: transform 0.18s ease, background-color 0.18s ease;
     }
 
     .btn-center-play:hover {
-      background: rgba(0, 0, 0, 0.85);
-      transform: scale(1.1);
+      background: rgba(0, 0, 0, 0.9);
+      transform: scale(1.08);
     }
 
     .btn-center-play:active {
@@ -119,13 +119,13 @@
     }
 
     .btn-center-play svg {
-      width: 30px;
-      height: 30px;
+      width: 22px;
+      height: 22px;
       fill: #ffffff;
     }
 
     .btn-center-play svg.play-icon {
-      margin-left: 3px;
+      margin-left: 2px;
     }
 
     /* 1. TOP APP BAR */
@@ -251,36 +251,35 @@
       cursor: pointer;
     }
 
-    /* Unplayed Portion: Thin 2.5px faded translucent line */
+    /* Unplayed Portion: Pure Solid White (5px, Zero Blur) */
     .timeline-track-unplayed {
       position: absolute;
       inset-x: 0;
-      height: 2.5px;
-      background: rgba(255, 255, 255, 0.2);
+      height: 5px;
+      background: #ffffff;
       border-radius: 4px;
       overflow: hidden;
     }
 
-    /* Buffered Portion: 3.5px translucent white loaded in advance */
+    /* Buffered Portion: 5px translucent white loaded in advance */
     .timeline-track-buffered {
       position: absolute;
       left: 0;
-      height: 3.5px;
+      height: 5px;
       width: 0%;
       background: rgba(255, 255, 255, 0.45);
       border-radius: 4px;
       transition: width 0.25s ease;
     }
 
-    /* Played Portion: Bold, bright, theme-colored line (5.5px) */
+    /* Played Portion: Crisp, sharp theme-colored line (5px, Zero Blur) */
     .timeline-track-played {
       position: absolute;
       left: 0;
-      height: 5.5px;
+      height: 5px;
       width: 0%;
       background: #2563eb;
       border-radius: 4px;
-      box-shadow: 0 0 10px rgba(37, 99, 235, 0.8);
       transition: width 0.08s linear;
     }
 
@@ -413,12 +412,18 @@
         </div>
         <div class="app-titles">
           <span class="app-name">Medical Admission Hub</span>
-          <span class="video-name">Lec-2; Botany-08 • ইন-অ্যাপ ভিডিও প্লেয়ার</span>
+          <span class="video-name">Lec-2: Botany-08 • In-App Video Player</span>
         </div>
       </div>
-      <button class="btn-close-app" id="btnCloseApp" title="Close">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-      </button>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #34d399; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4);">
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: #34d399;"></span>
+          Protected
+        </span>
+        <button class="btn-close-app" id="btnCloseApp" title="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
     </div>
 
     <!-- Video Canvas (Aspect Ratio Contain, Zero Dark Border Letterboxing) -->
