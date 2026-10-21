@@ -61,8 +61,8 @@ const QUALITY_OPTIONS: QualityOption[] = [
   { id: 'tiny', label: '144p', desc: 'Ultra Low Data' }
 ];
 
-// Presets including 0.5x, 1.0x, 1.25x, 1.5x, 2.0x, 3.0x, 4.0x
-const SPEED_PRESETS = [0.5, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0];
+// Presets capped at 3.0x as requested (0.5x, 0.75x, 1.0x, 1.25x, 1.5x, 2.0x, 2.5x, 3.0x)
+const SPEED_PRESETS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0];
 
 export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   title,
@@ -302,6 +302,10 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     let isMounted = true;
     let pollInterval: any = null;
 
+    // Reset started/playing when video ID changes
+    setIsPlaying(false);
+    setHasStarted(false);
+
     // 1. Clean up previous player instance
     if (ytPlayerRef.current) {
       try {
@@ -481,10 +485,13 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     };
   }, [videoId, isPlaying]);
 
-  // 3.0x & 4.0x YouTube Speed Engine:
-  // YouTube iframe API natively caps setPlaybackRate at 2.0x.
-  // For speeds > 2.0x (e.g. 3.0x or 4.0x): we keep native playback rate at 2.0x (maintaining audio decoding)
-  // and smoothly nudge the playhead forward by (targetSpeed - 2.0) * intervalSeconds every 400ms!
+  // =========================================================================
+  // 2.5x & 3.0x YouTube Speed Optimization (Max 3.0x, smooth keyframe stepping)
+  // =========================================================================
+  // YouTube API natively supports up to 2.0x with smooth audio decoding.
+  // For speeds > 2.0x (e.g. 2.5x or 3.0x): we keep native playback rate at 2.0x
+  // and smoothly nudge forward by (targetSpeed - 2.0) * interval every 1200ms
+  // (1.2s cadence aligns with H.264/VP9 keyframes, preventing stutter or decoder stalls)
   useEffect(() => {
     if (hyperSpeedIntervalRef.current) {
       clearInterval(hyperSpeedIntervalRef.current);
@@ -492,20 +499,22 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
 
     if (videoId && isPlaying && playbackSpeed > 2.0) {
-      const intervalMs = 400;
-      const extraSpeed = playbackSpeed - 2.0; // e.g. 1.0 for 3x, 2.0 for 4x
+      const intervalMs = 1200;
+      const extraSpeed = playbackSpeed - 2.0; // e.g. 0.5 for 2.5x, 1.0 for 3x
       const deltaSeconds = extraSpeed * (intervalMs / 1000);
 
       hyperSpeedIntervalRef.current = setInterval(() => {
-        setCurrentTime((prevTime) => {
-          const nextTime = Math.min(duration || 999999, prevTime + deltaSeconds);
-          if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
-            try {
+        if (ytPlayerRef.current && typeof ytPlayerRef.current.getCurrentTime === 'function' && typeof ytPlayerRef.current.seekTo === 'function') {
+          try {
+            const cur = ytPlayerRef.current.getCurrentTime();
+            const dur = ytPlayerRef.current.getDuration() || 999999;
+            if (typeof cur === 'number' && cur < dur - 1) {
+              const nextTime = Math.min(dur, cur + deltaSeconds);
               ytPlayerRef.current.seekTo(nextTime, true);
-            } catch (e) {}
-          }
-          return nextTime;
-        });
+              setCurrentTime(nextTime);
+            }
+          } catch (e) {}
+        }
       }, intervalMs);
     }
 
@@ -687,9 +696,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   };
 
   // Screen Tap Engine:
-  // 1. Single Tap: Toggles visibility of the ENTIRE control interface simultaneously.
-  // 2. Hide Everything on Tap: Tapping anywhere outside active buttons hides everything completely.
-  // 3. Double Tap: Outer left = -10s, Outer right = +10s, Center = toggle play/pause.
+  // 1. Single Tap: Smoothly toggles visibility of all player controls simultaneously.
+  // 2. Double Tap: Outer left = -10s, Outer right = +10s, Center = toggle play/pause.
   const handleScreenTap = (clientX: number, clientY: number) => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -803,9 +811,9 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     showControlsTemporarily();
   };
 
-  // Playback speed setter supporting 0.5x, 1.0x, 1.25x, 1.5x, 2.0x, 3.0x, 4.0x
+  // Playback speed setter capped at 3.0x max
   const handleSetSpeed = (speed: number) => {
-    const clamped = Math.round(Math.min(4.0, Math.max(0.25, speed)) * 100) / 100;
+    const clamped = Math.round(Math.min(3.0, Math.max(0.5, speed)) * 100) / 100;
     setPlaybackSpeed(clamped);
 
     if (isDirectVideo && html5VideoRef.current) {
@@ -896,39 +904,45 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       }}
       onDragStart={(e) => e.preventDefault()}
     >
-      {/* 1. TOP APP BAR: App Logo + App Title + Video Name + Close Button */}
+      {/* =========================================================================
+          1. TOP APP BAR: Dynamic Theme-Aware App Logo + Video Lecture Title + Close Button
+          - Removed hardcoded "Medical Admission Hub"
+          - Displays ONLY user-saved video lecture title
+          - Theme-aware app logo dynamically changes color with App Theme
+          - Smooth fade-in and fade-out transition
+         ========================================================================= */}
       <div 
-        className={`absolute top-0 inset-x-0 z-30 px-3 sm:px-6 py-2.5 sm:py-3.5 bg-gradient-to-b from-black/95 via-black/85 to-transparent flex items-center justify-between text-white transition-all duration-300 ${
-          controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-full pointer-events-none'
+        className={`absolute top-0 inset-x-0 z-30 px-3 sm:px-6 py-2.5 sm:py-3.5 bg-gradient-to-b from-black/85 via-black/55 to-transparent flex items-center justify-between text-white transition-opacity duration-300 ease-in-out ${
+          controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
       >
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 pr-2">
-          {/* App Logo */}
-          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-black/60 border border-white/20 p-1 flex items-center justify-center shrink-0 shadow-md">
-            <img 
-              src="/icon.svg" 
-              alt="App Logo" 
-              className="w-full h-full object-contain rounded" 
-              onError={(e) => {
-                (e.target as HTMLElement).style.display = 'none';
-              }}
-            />
+          {/* Theme-aware App Logo */}
+          <div 
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 shadow-md transition-colors border"
+            style={{ 
+              backgroundColor: `${themePrimary}25`, 
+              borderColor: `${themePrimary}60`,
+              color: themePrimary 
+            }}
+          >
+            <svg 
+              viewBox="0 0 24 24" 
+              fill="currentColor"
+              className="w-4 h-4 sm:w-4.5 sm:h-4.5"
+              style={{ color: themePrimary }}
+            >
+              <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/>
+            </svg>
           </div>
           
-          <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="font-bold text-xs sm:text-sm tracking-wide text-white shrink-0">
-                Medical Admission Hub
-              </span>
-              <span className="text-[10px] sm:text-xs px-1.5 py-0.5 rounded-full font-semibold bg-white/10 text-white/80 border border-white/10 shrink-0 hidden xs:inline">
-                প্রোটেক্টেড প্লেয়ার
-              </span>
-            </div>
-            {title && (
-              <span className="text-[11px] sm:text-xs text-slate-300 font-medium truncate max-w-[200px] sm:max-w-md lg:max-w-xl" title={title}>
-                {title}
-              </span>
-            )}
+          <div className="flex items-center min-w-0">
+            <span 
+              className="font-bold text-xs sm:text-sm text-white truncate max-w-[220px] sm:max-w-md lg:max-w-xl" 
+              title={title}
+            >
+              {title || 'ভিডিও লেকচার'}
+            </span>
           </div>
         </div>
 
@@ -969,14 +983,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               - Managed via YouTube IFrame Player API
               - Scaled & positioned with offset to push YouTube's native header, channel title,
                 avatar, and bottom watermark OUTSIDE the canvas bounding box
-              - Layout shields at top & bottom corners guarantee 0% visibility of external branding
+              - ALL dark tint/gradient overlays on the video REMOVED (Crystal clear original video)
               - pointer-events: none on the entire iframe hierarchy prevents any external click
              ========================================================================= */}
           {videoId && (
             <div className="absolute inset-0 w-full h-full overflow-hidden select-none pointer-events-none flex items-center justify-center bg-black">
-              {/* Top Layout Mask Barrier: completely covers top edge channel title & buttons */}
-              <div className="absolute top-0 inset-x-0 h-16 sm:h-20 bg-gradient-to-b from-black via-black/95 to-transparent pointer-events-none z-10" />
-
               {/* YouTube Player Mount Container (Programmatically managed by YT.Player) */}
               <div 
                 ref={ytMountContainerRef}
@@ -986,15 +997,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                   userSelect: 'none'
                 }}
               />
-
-              {/* Bottom Layout Mask Barrier: completely blocks YouTube watermark and branding */}
-              <div className="absolute bottom-0 inset-x-0 h-16 sm:h-20 bg-gradient-to-t from-black via-black/95 to-transparent pointer-events-none z-10" />
-
-              {/* Bottom-right Corner Layout Shield: specifically guards against YouTube watermark logo */}
-              <div className="absolute bottom-0 right-0 w-32 h-16 bg-gradient-to-tl from-black via-black/95 to-transparent pointer-events-none z-10" />
-
-              {/* Top-left Corner Layout Shield: specifically guards against YouTube channel info badge */}
-              <div className="absolute top-0 left-0 w-56 h-16 bg-gradient-to-br from-black via-black/95 to-transparent pointer-events-none z-10" />
             </div>
           )}
 
@@ -1064,8 +1066,22 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           )}
 
           {/* =========================================================================
+              2. PURE SOLID BLACK COVER (Hide Initial Thumbnail, Channel Bar & Red Play Button)
+              - Solid black overlay is 100% opaque until video playback actually starts
+              - Completely shields the initial YouTube thumbnail and red play button
+              - Seamlessly dissolves (fade-out) once playing begins
+             ========================================================================= */}
+          {videoId && !isPlaying && (
+            <div 
+              className={`absolute inset-0 bg-black z-15 pointer-events-none transition-opacity duration-500 ${
+                hasStarted && isPlaying ? 'opacity-0' : 'opacity-100'
+              }`}
+            />
+          )}
+
+          {/* =========================================================================
               CRITICAL: Transparent Overlay Div (Transparent Shield)
-              - Placed over the entire video canvas at z-20 (above video and masks)
+              - Placed over the entire video canvas at z-20 (above video)
               - pointer-events: auto ensures ALL clicks, taps, and gestures are intercepted
               - Physically blocks ANY click from reaching the YouTube iframe underneath
               - Redirection to YouTube or opening channel link is 100% prevented
@@ -1095,24 +1111,30 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           {/* Buffering Indicator */}
           {isBuffering && (
             <div className="absolute inset-0 z-25 flex items-center justify-center pointer-events-none">
-              <div className="flex flex-col items-center gap-2 px-4 py-3 rounded-2xl bg-black/75 backdrop-blur-md border border-white/10 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-                <div className="w-8 h-8 border-3 border-white/20 border-t-blue-500 rounded-full animate-spin" />
+              <div className="flex flex-col items-center gap-2 px-4 py-3 rounded-2xl bg-black/80 backdrop-blur-md border border-white/10 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+                <div 
+                  className="w-8 h-8 border-3 border-white/20 rounded-full animate-spin" 
+                  style={{ borderTopColor: themePrimary }}
+                />
                 <span className="text-[11px] font-semibold text-slate-300">লোড হচ্ছে...</span>
               </div>
             </div>
           )}
 
-          {/* 3. DEDICATED CENTER PLAY/PAUSE BUTTON:
-              Appears in the exact center when controls are visible.
-              Tapping it toggles play/pause without hiding controls! */}
-          {controlsVisible && !isDriveVideo && (
-            <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none animate-in fade-in zoom-in-95 duration-150">
+          {/* DEDICATED CENTER PLAY/PAUSE BUTTON:
+              Smoothly fades in and out with all other controls! */}
+          {!isDriveVideo && (
+            <div 
+              className={`absolute inset-0 z-30 flex items-center justify-center transition-opacity duration-300 ease-in-out ${
+                controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+              }`}
+            >
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   togglePlay();
                 }}
-                className="pointer-events-auto w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-black/65 hover:bg-black/85 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-2xl transition-all transform hover:scale-110 active:scale-95 cursor-pointer"
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-black/65 hover:bg-black/85 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-2xl transition-all transform hover:scale-110 active:scale-95 cursor-pointer"
                 title={isPlaying ? 'Pause' : 'Play'}
               >
                 {isPlaying ? (
@@ -1161,11 +1183,15 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         </div>
       </div>
 
-      {/* 4 & 5. CLEAN BOTTOM CONTROL BAR & ADVANCED TIMELINE */}
+      {/* =========================================================================
+          4 & 5. CLEAN BOTTOM CONTROL BAR & ADVANCED TIMELINE
+          - Smooth fade-in & fade-out with controlsVisible
+          - Flexbox single-line timer alignment (no text break/jumping)
+         ========================================================================= */}
       {!isDriveVideo && (
         <div 
-          className={`absolute bottom-0 inset-x-0 z-30 px-3 sm:px-5 py-2.5 sm:py-3.5 bg-gradient-to-t from-black/95 via-black/80 to-transparent text-white transition-all duration-200 ${
-            controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full pointer-events-none'
+          className={`absolute bottom-0 inset-x-0 z-30 px-3 sm:px-5 py-2.5 sm:py-3.5 bg-gradient-to-t from-black/90 via-black/60 to-transparent text-white transition-opacity duration-300 ease-in-out ${
+            controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
           } ${isFullscreen ? 'pb-4 sm:pb-6' : ''}`}
         >
           {/* ADVANCED TIMELINE / PROGRESS BAR STYLING:
@@ -1219,30 +1245,51 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 
           {/* Clean Controls Row */}
           <div className="flex items-center justify-between gap-2 text-xs">
-            <div className="flex items-center gap-2">
-              {/* Interactive Time Display: Tapping toggles between Elapsed Time and Remaining Time */}
+            <div className="flex items-center gap-2 min-w-0 shrink-0">
+              {/* =========================================================================
+                  4. SINGLE-LINE TIMER ALIGNMENT (CSS Flexbox inline-flex, whitespace-nowrap)
+                  - Guaranteed never to wrap or break into two lines in any screen mode
+                 ========================================================================= */}
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowRemainingTime(prev => !prev);
                 }}
-                className="font-mono text-xs sm:text-sm text-slate-200 tracking-wide font-medium cursor-pointer hover:text-white transition-colors px-1.5 py-0.5 rounded-md hover:bg-white/10 active:scale-95 flex items-center gap-1 select-none border border-transparent hover:border-white/15"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0
+                }}
+                className="font-mono text-xs sm:text-sm text-slate-200 tracking-wide font-medium cursor-pointer hover:text-white transition-colors px-1.5 py-0.5 rounded-md hover:bg-white/10 active:scale-95 select-none border border-transparent hover:border-white/15 whitespace-nowrap shrink-0"
                 title={showRemainingTime ? 'ক্লিক করে অতিক্রান্ত সময় দেখুন' : 'ক্লিক করে অবশিষ্ট সময় দেখুন'}
               >
-                {showRemainingTime ? (
-                  <span>
-                    <span className="font-bold" style={{ color: themePrimary }}>
-                      -{formatTime(Math.max(0, duration - currentTime), duration)}
-                    </span>
-                    <span className="text-slate-400"> / {formatTime(duration, duration)}</span>
-                  </span>
-                ) : (
-                  <span>
-                    <span>{formatTime(currentTime, duration)}</span>
-                    <span className="text-slate-400"> / {formatTime(duration, duration)}</span>
-                  </span>
-                )}
+                <span 
+                  style={{ 
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    whiteSpace: 'nowrap', 
+                    gap: '4px' 
+                  }}
+                  className="whitespace-nowrap"
+                >
+                  {showRemainingTime ? (
+                    <>
+                      <span className="font-bold whitespace-nowrap" style={{ color: themePrimary }}>
+                        -{formatTime(Math.max(0, duration - currentTime), duration)}
+                      </span>
+                      <span className="text-slate-400 whitespace-nowrap">/</span>
+                      <span className="text-slate-400 whitespace-nowrap">{formatTime(duration, duration)}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="whitespace-nowrap">{formatTime(currentTime, duration)}</span>
+                      <span className="text-slate-400 whitespace-nowrap">/</span>
+                      <span className="text-slate-400 whitespace-nowrap">{formatTime(duration, duration)}</span>
+                    </>
+                  )}
+                </span>
               </button>
 
               {/* Mute / Unmute Toggle */}
@@ -1252,14 +1299,14 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                   e.stopPropagation();
                   toggleMute();
                 }}
-                className="p-1 rounded-lg hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                className="p-1 rounded-lg hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer shrink-0"
                 title={isMuted ? 'Unmute' : 'Mute'}
               >
                 {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
               </button>
             </div>
 
-            <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               {/* Quality Selector Button */}
               <button
                 onClick={(e) => {
@@ -1267,21 +1314,21 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                   window.history.pushState({ modal: 'quality' }, '');
                   setShowQualityMenu(true);
                 }}
-                className="px-2 sm:px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-mono text-[11px] sm:text-xs flex items-center gap-1 transition-all cursor-pointer border border-white/10"
+                className="px-2 sm:px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-mono text-[11px] sm:text-xs flex items-center gap-1 transition-all cursor-pointer border border-white/10 shrink-0"
                 title="Resolution & Quality"
               >
                 <Settings className="w-3.5 h-3.5 text-blue-400" />
                 <span>{currentQualityLabel}</span>
               </button>
 
-              {/* Playback Speed Button (0.5x to 4.0x) */}
+              {/* Playback Speed Button (0.5x to 3.0x) */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   window.history.pushState({ modal: 'speed' }, '');
                   setShowSpeedMenu(true);
                 }}
-                className="px-2 sm:px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-mono text-[11px] sm:text-xs flex items-center gap-1 transition-all cursor-pointer border border-white/10"
+                className="px-2 sm:px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-mono text-[11px] sm:text-xs flex items-center gap-1 transition-all cursor-pointer border border-white/10 shrink-0"
                 title="Playback Speed"
               >
                 <Gauge className="w-3.5 h-3.5 text-emerald-400" />
@@ -1294,7 +1341,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                   e.stopPropagation();
                   setShowNotesPanel(prev => !prev);
                 }}
-                className={`px-2 sm:px-2.5 py-1 rounded-lg text-white font-medium text-[11px] sm:text-xs flex items-center gap-1 transition-all cursor-pointer border ${
+                className={`px-2 sm:px-2.5 py-1 rounded-lg text-white font-medium text-[11px] sm:text-xs flex items-center gap-1 transition-all cursor-pointer border shrink-0 ${
                   showNotesPanel
                     ? 'bg-amber-500/30 border-amber-400 text-amber-300'
                     : 'bg-white/10 hover:bg-white/20 border-white/10'
@@ -1311,7 +1358,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                   e.stopPropagation();
                   toggleFullscreen();
                 }}
-                className="p-1.5 rounded-lg hover:bg-white/10 text-white transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg hover:bg-white/10 text-white transition-colors cursor-pointer shrink-0"
                 title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
               >
                 {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
@@ -1325,12 +1372,12 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       {showNotesPanel && (
         <div 
           onClick={(e) => e.stopPropagation()}
-          className={`absolute right-3 sm:right-5 w-80 max-w-[85%] bg-slate-900/95 backdrop-blur-md border border-white/15 rounded-2xl shadow-2xl z-40 flex flex-col overflow-hidden text-white animate-in slide-in-from-right duration-200 ${
-            isFullscreen ? 'top-16 bottom-20' : 'top-12 bottom-16'
+          className={`absolute right-3 sm:right-5 w-80 max-w-[85%] max-h-[85vh] bg-slate-900/98 backdrop-blur-md border border-white/15 rounded-2xl shadow-2xl z-40 flex flex-col overflow-hidden text-white animate-in slide-in-from-right duration-200 ${
+            isFullscreen ? 'top-14 bottom-16' : 'top-12 bottom-14'
           }`}
         >
           {/* Panel Header */}
-          <div className="p-3.5 border-b border-white/10 flex items-center justify-between bg-black/30">
+          <div className="p-3.5 border-b border-white/10 flex items-center justify-between bg-black/30 shrink-0">
             <div className="flex items-center gap-2">
               <Bookmark className="w-4 h-4 text-amber-400" />
               <h4 className="font-bold text-xs sm:text-sm">ক্লাস নোটস ও বুকমার্ক</h4>
@@ -1344,7 +1391,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           </div>
 
           {/* Input Form to Capture current second */}
-          <form onSubmit={handleCreateNote} className="p-3 border-b border-white/10 space-y-2 bg-black/20">
+          <form onSubmit={handleCreateNote} className="p-3 border-b border-white/10 space-y-2 bg-black/20 shrink-0">
             <div className="flex items-center justify-between text-[11px] text-slate-400">
               <span>টাইমস্ট্যাম্প:</span>
               <span className="font-mono font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20">
@@ -1416,167 +1463,180 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         </div>
       )}
 
-      {/* PLAYBACK SPEED MODAL - Supports 0.5x, 1.0x, 1.25x, 1.5x, 2.0x, 3.0x, 4.0x accurately */}
+      {/* =========================================================================
+          6 & 7. PLAYBACK SPEED MODAL - Max 3.0x, Responsive & Compact for Landscape/Fullscreen
+          - Capped at 3.0x max with optimized smooth steps
+          - Bounded by max-h-[88vh] with internal scrolling to prevent cutting off in landscape
+         ========================================================================= */}
       {showSpeedMenu && (
         <div 
           onClick={() => setShowSpeedMenu(false)}
-          className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-150"
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-150"
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm bg-slate-900 border border-slate-700/80 rounded-3xl p-6 shadow-2xl text-white space-y-5 animate-in zoom-in-95 duration-150"
+            className="w-full max-w-sm sm:max-w-md max-h-[88vh] bg-slate-900/98 border border-slate-700/80 rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-2xl text-white flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 my-auto"
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5 shrink-0">
               <div className="flex items-center gap-2">
-                <Gauge className="w-5 h-5 text-emerald-400" />
-                <h3 className="font-bold text-base text-white">Playback Speed</h3>
+                <Gauge className="w-4.5 h-4.5 text-emerald-400" />
+                <h3 className="font-bold text-sm sm:text-base text-white">Playback Speed</h3>
               </div>
               <button
                 onClick={() => setShowSpeedMenu(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4.5 h-4.5" />
               </button>
             </div>
 
-            {/* Current Speed Display */}
-            <div className="text-center py-1">
-              <span 
-                className="text-4xl font-extrabold font-mono tracking-tight"
-                style={{ color: 'var(--theme-primary)' }}
-              >
-                {playbackSpeed.toFixed(2)}x
-              </span>
-              <p className="text-xs text-slate-400 mt-1">
-                Precision speed control from 0.5x up to 4.0x
-              </p>
-            </div>
+            {/* Scrollable Content for small heights (e.g. mobile landscape) */}
+            <div className="overflow-y-auto pr-1 py-2 space-y-3 sm:space-y-4 flex-1">
+              {/* Current Speed Display */}
+              <div className="text-center py-0.5">
+                <span 
+                  className="text-3xl sm:text-4xl font-extrabold font-mono tracking-tight"
+                  style={{ color: 'var(--theme-primary)' }}
+                >
+                  {playbackSpeed.toFixed(2)}x
+                </span>
+                <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
+                  Precision speed control (0.5x – 3.0x)
+                </p>
+              </div>
 
-            {/* Continuous Precision Slider: 0.25 to 4.0 */}
-            <div className="space-y-1.5">
-              <input
-                type="range"
-                min={0.25}
-                max={4.0}
-                step={0.05}
-                value={playbackSpeed}
-                onChange={(e) => handleSetSpeed(Number(e.target.value))}
-                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
-                style={{ accentColor: 'var(--theme-primary)' }}
-              />
-              <div className="flex justify-between text-[10px] text-slate-400 font-mono pt-1">
-                <span>0.5x</span>
-                <span>1.0x</span>
-                <span>2.0x</span>
-                <span>3.0x</span>
-                <span>4.0x</span>
+              {/* Continuous Precision Slider: 0.5 to 3.0 */}
+              <div className="space-y-1">
+                <input
+                  type="range"
+                  min={0.5}
+                  max={3.0}
+                  step={0.05}
+                  value={playbackSpeed}
+                  onChange={(e) => handleSetSpeed(Number(e.target.value))}
+                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                  style={{ accentColor: 'var(--theme-primary)' }}
+                />
+                <div className="flex justify-between text-[10px] text-slate-400 font-mono pt-0.5">
+                  <span>0.5x</span>
+                  <span>1.0x</span>
+                  <span>1.5x</span>
+                  <span>2.0x</span>
+                  <span>2.5x</span>
+                  <span>3.0x</span>
+                </div>
+              </div>
+
+              {/* Minus / Plus fine-tuning */}
+              <div className="flex items-center justify-center gap-2">
+                <button
+                  onClick={() => handleSetSpeed(playbackSpeed - 0.05)}
+                  className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <Minus className="w-3 h-3" /> -0.05
+                </button>
+                <button
+                  onClick={() => handleSetSpeed(1.0)}
+                  className="px-3 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Normal (1.0x)
+                </button>
+                <button
+                  onClick={() => handleSetSpeed(playbackSpeed + 0.05)}
+                  className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" /> +0.05
+                </button>
+              </div>
+
+              {/* Quick Presets Grid (0.5x, 0.75x, 1.0x, 1.25x, 1.5x, 2.0x, 2.5x, 3.0x) */}
+              <div className="grid grid-cols-4 gap-1.5 pt-1 border-t border-slate-800">
+                {SPEED_PRESETS.map((preset) => {
+                  const isMatch = Math.abs(playbackSpeed - preset) < 0.005;
+                  return (
+                    <button
+                      key={preset}
+                      onClick={() => handleSetSpeed(preset)}
+                      className="py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer border"
+                      style={{
+                        backgroundColor: isMatch ? 'var(--theme-primary)' : 'rgba(30, 41, 59, 0.8)',
+                        borderColor: isMatch ? 'var(--theme-primary)' : 'rgba(51, 65, 85, 0.5)',
+                        color: isMatch ? '#ffffff' : '#cbd5e1'
+                      }}
+                    >
+                      {preset.toFixed(2)}x
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Minus / Plus fine-tuning */}
-            <div className="flex items-center justify-center gap-2">
-              <button
-                onClick={() => handleSetSpeed(playbackSpeed - 0.05)}
-                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-              >
-                <Minus className="w-3.5 h-3.5" /> -0.05
-              </button>
-              <button
-                onClick={() => handleSetSpeed(1.0)}
-                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold transition-colors cursor-pointer"
-              >
-                Normal (1.0x)
-              </button>
-              <button
-                onClick={() => handleSetSpeed(playbackSpeed + 0.05)}
-                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" /> +0.05
-              </button>
-            </div>
-
-            {/* Quick Presets Grid (0.5x, 1.0x, 1.25x, 1.5x, 2.0x, 3.0x, 4.0x) */}
-            <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-800">
-              {SPEED_PRESETS.map((preset) => {
-                const isMatch = Math.abs(playbackSpeed - preset) < 0.005;
-                return (
-                  <button
-                    key={preset}
-                    onClick={() => handleSetSpeed(preset)}
-                    className="py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer border"
-                    style={{
-                      backgroundColor: isMatch ? 'var(--theme-primary)' : 'rgba(30, 41, 59, 0.8)',
-                      borderColor: isMatch ? 'var(--theme-primary)' : 'rgba(51, 65, 85, 0.5)',
-                      color: isMatch ? '#ffffff' : '#cbd5e1'
-                    }}
-                  >
-                    {preset.toFixed(2)}x
-                  </button>
-                );
-              })}
-            </div>
-
             {/* Done button */}
-            <button
-              onClick={() => setShowSpeedMenu(false)}
-              className="w-full py-2.5 rounded-xl text-white font-bold text-xs sm:text-sm cursor-pointer shadow-md transition-all"
-              style={{ backgroundColor: 'var(--theme-primary)' }}
-            >
-              Done
-            </button>
+            <div className="pt-2 border-t border-slate-800 shrink-0">
+              <button
+                onClick={() => setShowSpeedMenu(false)}
+                className="w-full py-2 sm:py-2.5 rounded-xl text-white font-bold text-xs sm:text-sm cursor-pointer shadow-md transition-all"
+                style={{ backgroundColor: 'var(--theme-primary)' }}
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* VIDEO QUALITY MODAL */}
+      {/* =========================================================================
+          7. VIDEO QUALITY MODAL - Responsive & Compact for Landscape/Fullscreen
+          - Bounded by max-h-[88vh] with internal scrolling to prevent cutting off in landscape
+         ========================================================================= */}
       {showQualityMenu && (
         <div 
           onClick={() => setShowQualityMenu(false)}
-          className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-150"
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-150"
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm bg-slate-900 border border-slate-700/80 rounded-3xl p-6 shadow-2xl text-white space-y-4 animate-in zoom-in-95 duration-150"
+            className="w-full max-w-sm sm:max-w-md max-h-[88vh] bg-slate-900/98 border border-slate-700/80 rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-2xl text-white flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 my-auto"
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5 shrink-0">
               <div className="flex items-center gap-2">
-                <Settings className="w-5 h-5 text-blue-400" />
-                <h3 className="font-bold text-base text-white">Video Quality</h3>
+                <Settings className="w-4.5 h-4.5 text-blue-400" />
+                <h3 className="font-bold text-sm sm:text-base text-white">Video Quality</h3>
               </div>
               <button
                 onClick={() => setShowQualityMenu(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4.5 h-4.5" />
               </button>
             </div>
 
-            {/* Quality List */}
-            <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+            {/* Quality List (Scrollable) */}
+            <div className="space-y-1.5 overflow-y-auto pr-1 py-2 flex-1 max-h-[55vh] sm:max-h-64">
               {QUALITY_OPTIONS.map((q) => {
                 const isSelected = selectedQuality === q.id;
                 return (
                   <button
                     key={q.id}
                     onClick={() => handleSetQuality(q.id)}
-                    className={`w-full p-3 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                    className={`w-full p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
                       isSelected
                         ? 'border-blue-500 bg-blue-600/20 text-white font-bold ring-1 ring-blue-500/30'
                         : 'border-slate-800 bg-slate-800/40 text-slate-300 hover:bg-slate-800'
                     }`}
                   >
                     <div>
-                      <span className="text-sm font-semibold block">{q.label}</span>
-                      <span className="text-[11px] text-slate-400 block">{q.desc}</span>
+                      <span className="text-xs sm:text-sm font-semibold block">{q.label}</span>
+                      <span className="text-[10px] sm:text-[11px] text-slate-400 block">{q.desc}</span>
                     </div>
                     {isSelected && (
                       <div 
-                        className="w-6 h-6 rounded-full text-white flex items-center justify-center shadow-xs"
+                        className="w-5 h-5 sm:w-6 sm:h-6 rounded-full text-white flex items-center justify-center shadow-xs shrink-0"
                         style={{ backgroundColor: 'var(--theme-primary)' }}
                       >
-                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[3]" />
                       </div>
                     )}
                   </button>
@@ -1585,13 +1645,15 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             </div>
 
             {/* Close button */}
-            <button
-              onClick={() => setShowQualityMenu(false)}
-              className="w-full py-2.5 rounded-xl text-white font-bold text-xs sm:text-sm cursor-pointer shadow-md transition-all"
-              style={{ backgroundColor: 'var(--theme-primary)' }}
-            >
-              Close
-            </button>
+            <div className="pt-2 border-t border-slate-800 shrink-0">
+              <button
+                onClick={() => setShowQualityMenu(false)}
+                className="w-full py-2 sm:py-2.5 rounded-xl text-white font-bold text-xs sm:text-sm cursor-pointer shadow-md transition-all"
+                style={{ backgroundColor: 'var(--theme-primary)' }}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
