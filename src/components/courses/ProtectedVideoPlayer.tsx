@@ -600,18 +600,14 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   };
 
   // Screen Tap Engine:
-  // 1. Center Region: Direct Play/Pause toggle with NO icon overlay (silent and seamless).
-  // 2. Outside Region: Toggles top & bottom control panels (keeps visible for 5s, permanently while paused).
-  // 3. Double Tap: Left side = -10s rewind, Right side = +10s forward.
+  // 1. Single Tap: Toggles visibility of the ENTIRE control interface (center play button & bottom bar) simultaneously.
+  // 2. Hide Everything on Tap: Tapping anywhere outside active buttons hides everything completely.
+  // 3. Double Tap: Outer left = -10s, Outer right = +10s.
   const handleScreenTap = (clientX: number, clientY: number) => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
 
     const relX = (clientX - rect.left) / rect.width;
-    const relY = (clientY - rect.top) / rect.height;
-
-    // Center Trigger Zone: horizontal 25% - 75%, vertical 20% - 80%
-    const isCenterRegion = relX >= 0.25 && relX <= 0.75 && relY >= 0.20 && relY <= 0.80;
 
     const now = Date.now();
     const timeSinceLast = now - lastTapRef.current.time;
@@ -634,13 +630,13 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         // Double tap right: Fast Forward 10s
         handleSkipForward();
       } else {
-        // Double tap center: directly toggle play/pause silently
+        // Double tap center: toggle play/pause
         togglePlay();
       }
       return;
     }
 
-    // First tap: register timestamp and position, wait 260ms for potential second tap
+    // First tap: register timestamp and position, wait 240ms for potential second tap
     lastTapRef.current = { time: now, x: clientX, y: clientY };
 
     if (singleTapTimerRef.current) {
@@ -651,27 +647,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       singleTapTimerRef.current = null;
       lastTapRef.current = { time: 0, x: 0, y: 0 };
 
-      if (isCenterRegion) {
-        // 2. CENTER TOUCH FOR PLAY/PAUSE (NO ICON OVERLAY):
-        // Tapping/clicking exactly on the center region of the screen toggles Play/Pause directly.
-        // CRITICAL: Completely silent and seamless with ZERO big play/pause icons or animations!
-        togglePlay();
-      } else {
-        // 3. CONTROL PANEL DISPLAY & TIMEOUT FIX:
-        // Tapping anywhere ELSE toggles the visibility of the top and bottom control panels.
-        // Keep visible for 5 seconds when revealed while playing; keep permanently visible while paused.
-        setControlsVisible(prev => {
-          const next = !prev;
-          if (next && isPlaying) {
-            resetHideTimer(); // stays visible for 5 full seconds
-          } else if (!next && !isPlaying) {
-            // Keep control panels fully visible while paused!
-            return true;
-          }
-          return next;
-        });
-      }
-    }, 260);
+      // SINGLE-TAP TOGGLE: Tapping anywhere on the video screen toggles the visibility
+      // of the ENTIRE control interface (Center Play/Pause button & Bottom control bar) simultaneously!
+      // HIDE EVERYTHING ON TAP: Tapping again anywhere hides the entire control overlay completely.
+      setControlsVisible(prev => !prev);
+    }, 240);
   };
 
   const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
@@ -770,10 +750,19 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
   };
 
-  const formatTime = (secs: number) => {
-    const mins = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
-    return `${mins}:${s < 10 ? '0' + s : s}`;
+  const formatTime = (secs: number, totalDuration: number = duration) => {
+    if (isNaN(secs) || secs < 0) return '00:00';
+    const totalSecs = Math.floor(secs);
+    const h = Math.floor(totalSecs / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = Math.floor(totalSecs % 60);
+    const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
+
+    // If total duration crosses 60 minutes (>= 3600 sec), format with hours (e.g. 1:27:50)
+    if (totalDuration >= 3600 || h > 0) {
+      return `${h}:${pad(m)}:${pad(s)}`;
+    }
+    return `${pad(m)}:${pad(s)}`;
   };
 
   const currentQualityLabel = QUALITY_OPTIONS.find(q => q.id === selectedQuality)?.label || 'Auto';
@@ -786,7 +775,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       className={`relative w-full bg-black flex flex-col select-none overflow-hidden transition-all duration-300 ${
         isFullscreen 
           ? 'fixed inset-0 w-screen h-screen max-w-none rounded-none z-[9999] justify-between' 
-          : 'w-full rounded-2xl border border-slate-800 shadow-2xl justify-center'
+          : 'w-full rounded-2xl overflow-hidden justify-center'
       }`}
       style={{ borderRadius: isFullscreen ? 0 : '16px' }}
       onContextMenu={(e) => {
@@ -796,57 +785,33 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       }}
       onDragStart={(e) => e.preventDefault()}
     >
-      {/* Top Header Bar */}
-      <div 
-        className={`flex items-center justify-between px-4 py-3 z-30 transition-all duration-200 ${
-          controlsVisible 
-            ? 'opacity-100 translate-y-0' 
-            : 'opacity-0 -translate-y-full pointer-events-none'
-        } ${
-          isFullscreen 
-            ? 'absolute top-0 inset-x-0 bg-gradient-to-b from-black via-black/90 to-transparent pt-3 sm:pt-4' 
-            : 'absolute top-0 inset-x-0 bg-gradient-to-b from-black via-black/90 to-transparent border-b border-white/5'
-        }`}
-      >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div 
-            className="w-7 h-7 rounded-lg text-white flex items-center justify-center shadow-xs shrink-0"
-            style={{ backgroundColor: 'var(--theme-primary)' }}
+      {/* Floating Close Button (Clean & Minimal, without title bar) */}
+      {onClose && !isInline && (
+        <div 
+          className={`absolute top-3 right-3 z-30 transition-opacity duration-200 ${
+            controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            className="p-2 bg-black/60 hover:bg-black/80 backdrop-blur-md rounded-full text-white/80 hover:text-white transition-colors cursor-pointer border border-white/10 shadow-lg"
+            title="Close Player"
           >
-            <GraduationCap className="w-4 h-4" />
-          </div>
-          <span className="font-semibold text-xs sm:text-sm text-white truncate max-w-xs sm:max-w-md drop-shadow-md">
-            {title}
-          </span>
+            <X className="w-5 h-5" />
+          </button>
         </div>
+      )}
 
-        <div className="flex items-center gap-2">
-          {/* Strictly Protected In-App Player Badge */}
-          <span className="text-[11px] font-semibold text-slate-200 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10 flex items-center gap-1.5 shadow-xs">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden sm:inline">Protected In-App Player</span>
-            <span className="sm:hidden">Protected</span>
-          </span>
-
-          {onClose && !isInline && (
-            <button
-              onClick={onClose}
-              className="p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
-              title="Close Player"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Video Stage Container: In Fullscreen, takes all vertical space and centers the 16:9 video box vertically and horizontally */}
+      {/* Video Stage Container: Seamless, uncropped, zero dark border letterboxing */}
       <div 
         className={`w-full flex items-center justify-center relative overflow-hidden bg-black ${
           isFullscreen ? 'flex-1 h-full' : ''
         }`}
       >
-        {/* Video Canvas Container (16:9 aspect ratio, 100% width, centered) */}
+        {/* Video Canvas Container (16:9 natural aspect ratio, object-fit contain, zero crop) */}
         <div 
           className={`relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden ${
             isFullscreen ? 'max-h-full max-w-full my-auto' : 'max-w-full'
@@ -893,7 +858,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             />
           )}
 
-          {/* Case 3: Direct video file */}
+          {/* Case 3: Direct video file (object-fit: contain) */}
           {isDirectVideo && (
             <video
               ref={html5VideoRef}
@@ -921,11 +886,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             />
           )}
 
-          {/* Subtle Top & Bottom Edge Vignettes: Keep video clear and uncropped */}
-          <div className="absolute top-0 inset-x-0 h-6 sm:h-8 bg-gradient-to-b from-black/75 to-transparent pointer-events-none z-10" />
-          <div className="absolute bottom-0 inset-x-0 h-6 sm:h-8 bg-gradient-to-t from-black/75 to-transparent pointer-events-none z-10" />
-
-          {/* Transparent DOM Shield Overlay: Captures Taps/Gestures and Blocks Third-Party Extension Interception */}
+          {/* Transparent DOM Shield Overlay: Captures screen taps to toggle controls */}
           {!isDriveVideo && (
             <div 
               onTouchStart={handleTouchStart}
@@ -942,24 +903,25 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             />
           )}
 
-          {/* Initial Compact Start Button before starting (Smaller size, No 'Tap to Play Video' text) */}
-          {!hasStarted && !isDriveVideo && (
-            <div 
-              onClick={(e) => {
-                e.stopPropagation();
-                togglePlay();
-              }}
-              className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 backdrop-blur-[1px] cursor-pointer group"
-            >
-              <div 
-                className="w-12 h-12 sm:w-14 sm:h-14 rounded-full text-white flex items-center justify-center shadow-xl transition-all transform group-hover:scale-110 active:scale-95"
-                style={{ 
-                  backgroundColor: 'var(--theme-primary)',
-                  boxShadow: '0 0 24px var(--theme-primary-glow)' 
+          {/* 3. DEDICATED CENTER PLAY/PAUSE BUTTON:
+              Appears in the exact center when controls are visible.
+              Tapping it toggles play/pause without hiding controls! */}
+          {controlsVisible && !isDriveVideo && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none animate-in fade-in zoom-in-95 duration-150">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePlay();
                 }}
+                className="pointer-events-auto w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-black/65 hover:bg-black/85 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-2xl transition-all transform hover:scale-110 active:scale-95 cursor-pointer"
+                title={isPlaying ? 'Pause' : 'Play'}
               >
-                <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-white ml-0.5" />
-              </div>
+                {isPlaying ? (
+                  <Pause className="w-8 h-8 sm:w-10 sm:h-10 fill-white" />
+                ) : (
+                  <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-white ml-1" />
+                )}
+              </button>
             </div>
           )}
 
@@ -1000,76 +962,43 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         </div>
       </div>
 
-      {/* Bottom Control Bar - Auto-hides after 3s, reveals on screen tap */}
+      {/* 4 & 5. CLEAN BOTTOM CONTROL BAR & ADVANCED TIMELINE */}
       {!isDriveVideo && (
         <div 
-          className={`absolute bottom-0 inset-x-0 z-30 px-3 sm:px-5 py-2.5 sm:py-3 bg-gradient-to-t from-black/95 via-black/85 to-transparent text-white transition-all duration-200 ${
+          className={`absolute bottom-0 inset-x-0 z-30 px-3 sm:px-5 py-2.5 sm:py-3.5 bg-gradient-to-t from-black/95 via-black/80 to-transparent text-white transition-all duration-200 ${
             controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full pointer-events-none'
-          } ${isFullscreen ? 'pb-3 sm:pb-5' : ''}`}
+          } ${isFullscreen ? 'pb-4 sm:pb-6' : ''}`}
         >
-          {/* Timeline Scrubber */}
-          <div className="relative flex items-center w-full mb-1.5 group">
+          {/* 5. ADVANCED TIMELINE / PROGRESS BAR STYLING:
+              - Played portion: Highlighted with bold, bright solid red track
+              - Remaining unplayed portion: Rendered as thinner (2px), lighter/faded background line */}
+          <div className="relative flex items-center w-full mb-2 h-4 cursor-pointer group">
+            {/* Unplayed Portion: Thin 2px faded background track */}
+            <div className="absolute inset-x-0 h-[2.5px] group-hover:h-[4px] bg-white/25 rounded-full overflow-hidden transition-all">
+              {/* Played Portion: Bold, bright, solid-colored line (4px red track) */}
+              <div 
+                className="h-full bg-red-600 rounded-full transition-[width] duration-75 shadow-xs"
+                style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+              />
+            </div>
+
+            {/* Seamless Scrub Input Overlay */}
             <input
               type="range"
               min={0}
               max={duration || 100}
               value={currentTime}
               onChange={handleSeek}
-              className="w-full h-1.5 bg-slate-700/80 rounded-lg appearance-none cursor-pointer hover:h-2 transition-all"
-              style={{ accentColor: 'var(--theme-primary)' }}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
             />
           </div>
 
-          {/* Clean Controls Row (Separate 10s buttons removed for clean design) */}
+          {/* Clean Controls Row (No bottom play/pause, No volume slider) */}
           <div className="flex items-center justify-between gap-2 text-xs">
-            <div className="flex items-center gap-2 sm:gap-3">
-              {/* Play / Pause button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  togglePlay();
-                }}
-                className="p-1.5 rounded-lg hover:bg-white/10 text-white transition-colors cursor-pointer"
-                title={isPlaying ? 'Pause' : 'Play'}
-              >
-                {isPlaying ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white" />}
-              </button>
-
-              {/* Volume & Mute */}
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleMute();
-                  }}
-                  className="p-1.5 rounded-lg hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                  title={isMuted ? 'Unmute' : 'Mute'}
-                >
-                  {isMuted || volume === 0 ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
-                </button>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={isMuted ? 0 : volume}
-                  onChange={(e) => {
-                    const newVol = Number(e.target.value);
-                    setVolume(newVol);
-                    setIsMuted(newVol === 0);
-                    if (isDirectVideo && html5VideoRef.current) {
-                      html5VideoRef.current.volume = newVol / 100;
-                    } else if (videoId) {
-                      dispatchCommand('setVolume', [newVol]);
-                    }
-                  }}
-                  className="w-14 sm:w-20 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer hidden sm:inline-block"
-                  style={{ accentColor: 'var(--theme-primary)' }}
-                />
-              </div>
-
-              {/* Time display */}
-              <span className="font-mono text-[11px] text-slate-300">
-                {formatTime(currentTime)} / {formatTime(duration)}
+            <div className="flex items-center gap-2">
+              {/* 6. SMART TIME DURATION: Converts >= 60 min to hours, e.g. 1:27:50 instead of 87:50 */}
+              <span className="font-mono text-xs sm:text-sm text-slate-200 tracking-wide font-medium">
+                {formatTime(currentTime, duration)} / {formatTime(duration, duration)}
               </span>
             </div>
 
@@ -1088,7 +1017,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 <span>{currentQualityLabel}</span>
               </button>
 
-              {/* Playback Speed Button (0.5x, 1.0x, 1.25x, 1.5x, 2.0x, 3.0x, 4.0x) */}
+              {/* Playback Speed Button (0.5x to 4.0x) */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1134,6 +1063,8 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           </div>
         </div>
       )}
+
+
 
       {/* VIDEO NOTES & TIMESTAMP BOOKMARKS DRAWER */}
       {showNotesPanel && (
