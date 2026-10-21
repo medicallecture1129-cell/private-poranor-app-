@@ -879,15 +879,13 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
   };
 
-  // Smart Dynamic Timer Display: MM:SS under 1 hour, HH:MM:SS (or H:MM:SS) at 1+ hours
-  const formatTime = (secs: number, totalDuration: number = duration) => {
+  // Smart Dynamic Timer Display: MM:SS under 1 hour, H:MM:SS at 1+ hours
+  const formatTime = (secs: number) => {
     if (isNaN(secs) || secs < 0) return '00:00';
     const totalSecs = Math.floor(secs);
     const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
 
-    const isOverHour = (totalDuration >= 3600) || (totalSecs >= 3600);
-
-    if (!isOverHour) {
+    if (totalSecs < 3600) {
       const m = Math.floor(totalSecs / 60);
       const s = totalSecs % 60;
       return `${pad(m)}:${pad(s)}`;
@@ -919,64 +917,13 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       }}
       onDragStart={(e) => e.preventDefault()}
     >
-      {/* =========================================================================
-          1 & 4. YOUTUBE-STYLE TOP BAR WITH OFFICIAL EXAM PORTAL ICON & TITLE
-          - Official Exam Portal GraduationCap app icon
-          - Custom video title strictly displayed (hiding YouTube title & channel)
-          - Gentle top-to-bottom dark gradient: from-black/90 via-black/50 to-transparent
-          - Absolutely no hard borders! Soft subtle gradient for high visibility
-          - Smooth toggle with controlsVisible
-         ========================================================================= */}
-      <div 
-        className={`absolute top-0 inset-x-0 z-30 pt-3 sm:pt-4 pb-8 sm:pb-10 px-3 sm:px-5 flex items-center justify-between text-white bg-gradient-to-b from-black/90 via-black/50 to-transparent transition-opacity duration-200 ease-in-out pointer-events-auto ${
-          controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-        }`}
-      >
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 pr-2">
-          {/* Official Exam Portal App Icon */}
-          <div 
-            className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-white shadow-md ring-1 ring-white/20 shrink-0"
-            style={{ 
-              backgroundColor: 'var(--theme-logo, var(--theme-primary, #2563eb))', 
-              boxShadow: '0 2px 10px -1px var(--theme-logo-glow, var(--theme-primary-glow, rgba(37, 99, 235, 0.5)))' 
-            }}
-            title="Exam Portal"
-          >
-            <GraduationCap className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[2.2]" />
-          </div>
-          
-          <div className="flex items-center min-w-0">
-            <span 
-              className="font-bold text-xs sm:text-sm text-white truncate max-w-[220px] sm:max-w-md drop-shadow-md tracking-tight" 
-              title={title}
-            >
-              {title || 'Video Lecture'}
-            </span>
-          </div>
-        </div>
-
-        {/* Close Button */}
-        {onClose && !isInline && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onClose();
-            }}
-            className="p-1 sm:p-1.5 text-white/90 hover:text-white hover:bg-white/20 active:bg-white/30 rounded-full transition-colors cursor-pointer shrink-0 drop-shadow-md"
-            title="Close Player"
-          >
-            <X className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
-        )}
-      </div>
-
       {/* Video Stage Container: Seamless, uncropped, zero dark border letterboxing */}
       <div 
         className={`w-full flex items-center justify-center relative overflow-hidden bg-black ${
           isFullscreen ? 'w-full h-full' : ''
         }`}
       >
-        {/* Video Canvas Container (16:9 natural aspect ratio, 100% uncropped fit) */}
+        {/* Video Canvas Container (16:9 natural aspect ratio, 100% clean fit) */}
         <div 
           className={`relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden ${
             isFullscreen ? 'max-h-full max-w-full my-auto' : 'max-w-full'
@@ -986,15 +933,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             maxHeight: isFullscreen ? 'min(100vh, calc(100vw * 9 / 16))' : 'none'
           }}
         >
-          {/* =========================================================================
-              1. STRICT EDGE MASKS (Top & Bottom Edge Covers)
-              - Masks YouTube's native top title banner, channel avatar & share buttons
-              - Masks YouTube's bottom watermark & native controls
-             ========================================================================= */}
-          <div className="absolute top-0 inset-x-0 h-14 sm:h-16 bg-gradient-to-b from-black via-black/85 to-transparent z-21 pointer-events-none" />
-          <div className="absolute bottom-0 inset-x-0 h-14 sm:h-16 bg-gradient-to-t from-black via-black/85 to-transparent z-21 pointer-events-none" />
-
-          {/* Non-blocking Hardware Brightness Overlays (zero video decode stall) */}
+          {/* Hardware Brightness Overlays (zero video decode stall) */}
           {brightness < 1 && (
             <div 
               className="absolute inset-0 z-12 bg-black pointer-events-none transition-opacity duration-75"
@@ -1011,17 +950,27 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           {/* =========================================================================
               Case 1: YouTube Video Player
               - Managed via YouTube IFrame Player API
-              - 100% natural uncropped aspect ratio (zero zoom, zero crop)
+              - 100% natural, uncropped & unzoomed aspect ratio (full video frame visible)
               - ZERO user clicks reach iframe: pointer-events: none
              ========================================================================= */}
           {videoId && (
             <div className="absolute inset-0 w-full h-full overflow-hidden select-none pointer-events-none flex items-center justify-center bg-black">
+              <style>{`
+                #${uniquePlayerId.current} {
+                  width: 100% !important;
+                  height: 100% !important;
+                  border: 0 !important;
+                }
+              `}</style>
               <div 
                 ref={ytMountContainerRef}
-                className="absolute inset-0 w-full h-full pointer-events-none select-none flex items-center justify-center"
+                className="absolute inset-x-0 w-full pointer-events-none select-none flex items-center justify-center"
                 style={{
                   pointerEvents: 'none',
-                  userSelect: 'none'
+                  userSelect: 'none',
+                  top: '-52px',
+                  height: 'calc(100% + 104px)',
+                  width: '100%'
                 }}
               />
             </div>
@@ -1092,14 +1041,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             />
           )}
 
-          {/* Paused state clean mask: zero blur, 100% natural clarity */}
-          {videoId && !isPlaying && hasStarted && (
-            <div 
-              className="absolute inset-0 z-24 bg-black/35 pointer-events-none transition-opacity duration-150" 
-            />
-          )}
-
-          {/* Solid pure black cover to hide initial YouTube thumbnail & red button */}
+          {/* Solid pure black cover to hide initial YouTube thumbnail & red button until first play */}
           {videoId && !hasStarted && (
             <div 
               className="absolute inset-0 bg-black z-25 pointer-events-none"
@@ -1133,27 +1075,89 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             />
           )}
 
-          {/* Center Play/Pause Button */}
+          {/* =========================================================================
+              TOP TITLE BAR (Directly inside 16:9 canvas, perfectly framing video)
+              - Soft top-to-bottom dark gradient: from-black/80 via-black/35 to-transparent
+              - Unified toggle with controlsVisible
+             ========================================================================= */}
+          <div 
+            className={`absolute top-0 inset-x-0 z-30 pt-3 sm:pt-4 pb-8 sm:pb-10 px-3 sm:px-4 flex items-center justify-between text-white bg-gradient-to-b from-black from-55% via-black/85 to-transparent transition-opacity duration-200 ease-in-out pointer-events-auto ${
+              controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+            }`}
+          >
+            <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 pr-2">
+              {/* Official Exam Portal App Icon */}
+              <div 
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-white shadow-md ring-1 ring-white/20 shrink-0"
+                style={{ 
+                  backgroundColor: 'var(--theme-logo, var(--theme-primary, #2563eb))', 
+                  boxShadow: '0 2px 10px -1px var(--theme-logo-glow, var(--theme-primary-glow, rgba(37, 99, 235, 0.5)))' 
+                }}
+                title="Exam Portal"
+              >
+                <GraduationCap className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[2.2]" />
+              </div>
+              
+              <div className="flex items-center min-w-0">
+                <span 
+                  className="font-bold text-xs sm:text-sm text-white truncate max-w-[200px] sm:max-w-md drop-shadow-md tracking-tight" 
+                  title={title}
+                >
+                  {title || 'Video Lecture'}
+                </span>
+              </div>
+            </div>
+
+            {/* Close Button */}
+            {onClose && !isInline && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClose();
+                }}
+                className="p-1 sm:p-1.5 text-white/90 hover:text-white hover:bg-white/20 active:bg-white/30 rounded-full transition-colors cursor-pointer shrink-0 drop-shadow-md"
+                title="Close Player"
+              >
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+            )}
+          </div>
+
+          {/* Center Play/Pause Button - 100% Solid Opaque to permanently conceal YouTube's native button underneath */}
           {!isDriveVideo && (
             <div 
               className={`absolute inset-0 z-30 flex items-center justify-center transition-opacity duration-200 ease-in-out ${
                 controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
               }`}
             >
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  togglePlay();
-                }}
-                className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-xs border border-white/20 text-white flex items-center justify-center shadow-2xl transition-transform hover:scale-105 active:scale-95 cursor-pointer drop-shadow-xl"
-                title={isPlaying ? 'Pause' : 'Play'}
-              >
-                {isPlaying ? (
-                  <Pause className="w-7 h-7 sm:w-8 sm:h-8 fill-white" />
-                ) : (
-                  <Play className="w-7 h-7 sm:w-8 sm:h-8 fill-white ml-0.5" />
-                )}
-              </button>
+              <div className="relative flex items-center justify-center">
+                {/* 100% Solid Opaque Backing Disc - Completely conceals YouTube's native center button & glow */}
+                <div 
+                  className="absolute rounded-full pointer-events-none"
+                  style={{
+                    width: '92px',
+                    height: '92px',
+                    backgroundColor: '#000000',
+                    boxShadow: '0 0 25px 6px rgba(0,0,0,0.9)'
+                  }}
+                />
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    togglePlay();
+                  }}
+                  className="relative z-10 w-18 h-18 sm:w-20 sm:h-20 rounded-full border-2 border-white/35 hover:border-white/70 text-white flex items-center justify-center shadow-2xl transition-all duration-150 hover:scale-105 active:scale-95 cursor-pointer drop-shadow-2xl"
+                  style={{ backgroundColor: '#000000' }}
+                  title={isPlaying ? 'Pause' : 'Play'}
+                >
+                  {isPlaying ? (
+                    <Pause className="w-8 h-8 sm:w-9 sm:h-9 fill-white text-white drop-shadow-md" />
+                  ) : (
+                    <Play className="w-8 h-8 sm:w-9 sm:h-9 fill-white text-white ml-0.5 drop-shadow-md" />
+                  )}
+                </button>
+              </div>
             </div>
           )}
 
@@ -1164,7 +1168,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 skipFeedback.side === 'left' ? 'left-0 bg-blue-600/20' : 'right-0 bg-blue-600/20'
               }`}
             >
-              <div className="flex flex-col items-center text-white bg-black/90 px-4 py-2.5 rounded-2xl backdrop-blur-md shadow-2xl border border-white/15 animate-in fade-in zoom-in duration-150">
+              <div className="flex flex-col items-center text-white bg-black/90 px-4 py-2.5 rounded-2xl shadow-2xl border border-white/15 animate-in fade-in zoom-in duration-150">
                 {skipFeedback.side === 'left' ? (
                   <RotateCcw className="w-6 h-6 mb-1 text-blue-400" />
                 ) : (
@@ -1175,197 +1179,195 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             </div>
           )}
 
-          {/* Brightness & Volume HUD Feedback */}
+          {/* Brightness & Volume HUD Feedback (Standard English) */}
           {gestureFeedback && (
-            <div className="absolute top-12 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-black/90 backdrop-blur-md text-white shadow-2xl pointer-events-none border border-white/15 animate-in fade-in duration-150">
+            <div className="absolute top-12 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-black/90 text-white shadow-2xl pointer-events-none border border-white/15 animate-in fade-in duration-150">
               {gestureFeedback.type === 'brightness' ? (
                 <>
                   <Sun className="w-4 h-4 text-amber-400" />
-                  <span className="text-xs font-bold font-mono">ব্রাইটনেস: {gestureFeedback.value}%</span>
+                  <span className="text-xs font-bold font-mono">Brightness: {gestureFeedback.value}%</span>
                 </>
               ) : (
                 <>
                   <Volume2 className="w-4 h-4 text-blue-400" />
-                  <span className="text-xs font-bold font-mono">ভলিউম: {gestureFeedback.value}%</span>
+                  <span className="text-xs font-bold font-mono">Volume: {gestureFeedback.value}%</span>
                 </>
               )}
             </div>
           )}
+
+          {/* =========================================================================
+              BOTTOM CONTROL BAR (Directly inside 16:9 canvas, perfectly framing video)
+              - Soft bottom-to-top dark gradient: from-black/85 via-black/40 to-transparent
+              - Unified toggle with controlsVisible
+             ========================================================================= */}
+          {!isDriveVideo && (
+            <div 
+              className={`absolute bottom-0 inset-x-0 z-30 pt-8 pb-2 sm:pb-3 px-2 sm:px-4 flex flex-col gap-1 text-white bg-gradient-to-t from-black from-65% via-black/85 to-transparent transition-opacity duration-200 ease-in-out pointer-events-auto ${
+                controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+              }`}
+              style={{
+                paddingLeft: 'max(8px, env(safe-area-inset-left))',
+                paddingRight: 'max(8px, env(safe-area-inset-right))',
+                paddingBottom: 'max(4px, env(safe-area-inset-bottom))'
+              }}
+            >
+              {/* Timeline Track */}
+              <div className="relative flex items-center w-full h-3.5 cursor-pointer group">
+                {/* Multi-layered Track Base */}
+                <div className="absolute inset-x-0 flex items-center h-[4px]">
+                  {/* Unplayed Portion */}
+                  <div className="absolute inset-x-0 h-[2px] bg-white/25 rounded-full overflow-hidden" />
+
+                  {/* Buffered Portion */}
+                  <div 
+                    className="absolute left-0 h-[3px] bg-white/50 rounded-full transition-[width] duration-300"
+                    style={{ width: `${bufferedPercent}%` }}
+                  />
+
+                  {/* Played Portion */}
+                  <div 
+                    className="absolute left-0 h-[4px] rounded-full transition-[width] duration-75 shadow-sm"
+                    style={{ 
+                      width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
+                      backgroundColor: themePrimary,
+                      boxShadow: `0 0 8px ${themePrimary}`
+                    }}
+                  />
+                </div>
+
+                {/* Draggable Scrubber Thumb */}
+                <div 
+                  className="absolute top-1/2 w-3.5 h-3.5 rounded-full border border-white shadow-md pointer-events-none transition-transform duration-75 -translate-x-1/2 -translate-y-1/2 z-10 group-hover:scale-125"
+                  style={{ 
+                    left: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
+                    backgroundColor: themePrimary
+                  }}
+                />
+
+                {/* Range Input */}
+                <input
+                  type="range"
+                  min={0}
+                  max={duration || 100}
+                  value={currentTime}
+                  onChange={handleSeek}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                />
+              </div>
+
+              {/* Controls Row: Compact, Responsive, Never Overflowing */}
+              <div className="flex items-center justify-between gap-1 w-full min-w-0">
+                {/* Left Section: Single-Line Timer Display (MM:SS if under 1h, H:MM:SS at 1+ hours) */}
+                <div className="flex items-center min-w-0 shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowRemainingTime(prev => !prev);
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0
+                    }}
+                    className="font-mono text-[11px] sm:text-xs text-slate-100 tracking-tight font-medium cursor-pointer hover:text-white transition-colors px-1 py-0.5 rounded select-none whitespace-nowrap shrink-0 drop-shadow-md"
+                    title={showRemainingTime ? 'ক্লিক করে অতিক্রান্ত সময় দেখুন' : 'ক্লিক করে অবশিষ্ট সময় দেখুন'}
+                  >
+                    <span 
+                      style={{ 
+                        display: 'inline-flex', 
+                        alignItems: 'center', 
+                        whiteSpace: 'nowrap', 
+                        gap: '3px' 
+                      }}
+                      className="whitespace-nowrap"
+                    >
+                      {showRemainingTime ? (
+                        <>
+                          <span className="font-bold whitespace-nowrap drop-shadow-md" style={{ color: themePrimary }}>
+                            -{formatTime(Math.max(0, duration - currentTime))}
+                          </span>
+                          <span className="text-slate-300 whitespace-nowrap drop-shadow-md">/</span>
+                          <span className="text-slate-300 whitespace-nowrap drop-shadow-md">{formatTime(duration)}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="whitespace-nowrap drop-shadow-md">{formatTime(currentTime)}</span>
+                          <span className="text-slate-300 whitespace-nowrap drop-shadow-md">/</span>
+                          <span className="text-slate-300 whitespace-nowrap drop-shadow-md">{formatTime(duration)}</span>
+                        </>
+                      )}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Right Section: Compact buttons with larger, clearer icons */}
+                <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                  {/* Quality Selector Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.history.pushState({ modal: 'quality' }, '');
+                      setShowQualityMenu(true);
+                    }}
+                    className="px-2 py-1 rounded-lg text-white font-mono text-[11px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer hover:bg-white/20 active:bg-white/30 shrink-0 drop-shadow-md"
+                    title="Resolution & Quality"
+                  >
+                    <Settings className="w-4 h-4 text-blue-400 shrink-0" />
+                    <span className="hidden xs:inline whitespace-nowrap">{currentQualityLabel}</span>
+                  </button>
+
+                  {/* Playback Speed Button (0.5x to 3.0x) */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.history.pushState({ modal: 'speed' }, '');
+                      setShowSpeedMenu(true);
+                    }}
+                    className="px-2 py-1 rounded-lg text-white font-mono text-[11px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer hover:bg-white/20 active:bg-white/30 shrink-0 drop-shadow-md"
+                    title="Playback Speed"
+                  >
+                    <Gauge className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="whitespace-nowrap font-bold">{playbackSpeed}x</span>
+                  </button>
+
+                  {/* Video Notes & Timestamp Bookmarks */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowNotesPanel(prev => !prev);
+                    }}
+                    className={`px-2 py-1 rounded-lg text-white text-[11px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer shrink-0 drop-shadow-md ${
+                      showNotesPanel
+                        ? 'text-amber-300 bg-amber-500/30'
+                        : 'hover:bg-white/20 active:bg-white/30'
+                    }`}
+                    title="Timestamp Notes & Bookmarks"
+                  >
+                    <Bookmark className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="hidden sm:inline">নোটস</span>
+                    <span className="text-[10px] font-bold">({videoNotes.length})</span>
+                  </button>
+
+                  {/* Fullscreen Toggle Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFullscreen();
+                    }}
+                    className="p-1.5 rounded-lg hover:bg-white/20 active:bg-white/30 text-white transition-colors cursor-pointer shrink-0 drop-shadow-md"
+                    title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                  >
+                    {isFullscreen ? <Minimize className="w-4 h-4 sm:w-4.5 sm:h-4.5" /> : <Maximize className="w-4 h-4 sm:w-4.5 sm:h-4.5" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-
-      {/* =========================================================================
-          1 & 5. YOUTUBE-STYLE BOTTOM CONTROL BAR WITH SOFT DARK GRADIENT BACKDROP
-          - Gentle bottom-to-top dark gradient: from-black/85 via-black/45 to-transparent
-          - Absolutely no hard borders!
-          - Responsive single-row layout where Fullscreen button is never cut off
-          - Smooth toggle with controlsVisible
-         ========================================================================= */}
-      {!isDriveVideo && (
-        <div 
-          className={`absolute bottom-0 inset-x-0 z-30 pt-8 sm:pt-10 pb-2.5 sm:pb-3 px-2 sm:px-4 flex flex-col gap-1.5 text-white bg-gradient-to-t from-black/85 via-black/45 to-transparent transition-opacity duration-200 ease-in-out pointer-events-auto ${
-            controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-          } ${isFullscreen ? 'pb-4 sm:pb-5' : ''}`}
-          style={{
-            paddingLeft: 'max(10px, env(safe-area-inset-left))',
-            paddingRight: 'max(10px, env(safe-area-inset-right))',
-            paddingBottom: isFullscreen ? 'max(10px, env(safe-area-inset-bottom))' : 'max(6px, env(safe-area-inset-bottom))'
-          }}
-        >
-          {/* Timeline Track */}
-          <div className="relative flex items-center w-full h-4 cursor-pointer group">
-            {/* Multi-layered Track Base */}
-            <div className="absolute inset-x-0 flex items-center h-[4px]">
-              {/* Unplayed Portion */}
-              <div className="absolute inset-x-0 h-[2px] bg-white/25 rounded-full overflow-hidden" />
-
-              {/* Buffered Portion */}
-              <div 
-                className="absolute left-0 h-[3px] bg-white/50 rounded-full transition-[width] duration-300"
-                style={{ width: `${bufferedPercent}%` }}
-              />
-
-              {/* Played Portion */}
-              <div 
-                className="absolute left-0 h-[4px] rounded-full transition-[width] duration-75 shadow-sm"
-                style={{ 
-                  width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
-                  backgroundColor: themePrimary,
-                  boxShadow: `0 0 8px ${themePrimary}`
-                }}
-              />
-            </div>
-
-            {/* Draggable Scrubber Thumb */}
-            <div 
-              className="absolute top-1/2 w-3.5 h-3.5 rounded-full border border-white shadow-md pointer-events-none transition-transform duration-75 -translate-x-1/2 -translate-y-1/2 z-10 group-hover:scale-125"
-              style={{ 
-                left: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
-                backgroundColor: themePrimary
-              }}
-            />
-
-            {/* Range Input */}
-            <input
-              type="range"
-              min={0}
-              max={duration || 100}
-              value={currentTime}
-              onChange={handleSeek}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-            />
-          </div>
-
-          {/* Controls Row: Compact, Responsive, Never Overflowing */}
-          <div className="flex items-center justify-between gap-1 w-full min-w-0">
-            {/* Left Section: Single-Line Timer Display (MM:SS if under 1h) */}
-            <div className="flex items-center min-w-0 shrink-0">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowRemainingTime(prev => !prev);
-                }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0
-                }}
-                className="font-mono text-[11px] sm:text-xs text-slate-100 tracking-tight font-medium cursor-pointer hover:text-white transition-colors px-1 py-0.5 rounded select-none whitespace-nowrap shrink-0 drop-shadow-md"
-                title={showRemainingTime ? 'ক্লিক করে অতিক্রান্ত সময় দেখুন' : 'ক্লিক করে অবশিষ্ট সময় দেখুন'}
-              >
-                <span 
-                  style={{ 
-                    display: 'inline-flex', 
-                    alignItems: 'center', 
-                    whiteSpace: 'nowrap', 
-                    gap: '3px' 
-                  }}
-                  className="whitespace-nowrap"
-                >
-                  {showRemainingTime ? (
-                    <>
-                      <span className="font-bold whitespace-nowrap drop-shadow-md" style={{ color: themePrimary }}>
-                        -{formatTime(Math.max(0, duration - currentTime), duration)}
-                      </span>
-                      <span className="text-slate-300 whitespace-nowrap drop-shadow-md">/</span>
-                      <span className="text-slate-300 whitespace-nowrap drop-shadow-md">{formatTime(duration, duration)}</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="whitespace-nowrap drop-shadow-md">{formatTime(currentTime, duration)}</span>
-                      <span className="text-slate-300 whitespace-nowrap drop-shadow-md">/</span>
-                      <span className="text-slate-300 whitespace-nowrap drop-shadow-md">{formatTime(duration, duration)}</span>
-                    </>
-                  )}
-                </span>
-              </button>
-            </div>
-
-            {/* Right Section: Compact buttons with larger, clearer icons */}
-            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-              {/* Quality Selector Button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  window.history.pushState({ modal: 'quality' }, '');
-                  setShowQualityMenu(true);
-                }}
-                className="px-2 py-1 rounded-lg text-white font-mono text-[11px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer hover:bg-white/20 active:bg-white/30 shrink-0 drop-shadow-md"
-                title="Resolution & Quality"
-              >
-                <Settings className="w-4 h-4 text-blue-400 shrink-0" />
-                <span className="hidden xs:inline whitespace-nowrap">{currentQualityLabel}</span>
-              </button>
-
-              {/* Playback Speed Button (0.5x to 3.0x) */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  window.history.pushState({ modal: 'speed' }, '');
-                  setShowSpeedMenu(true);
-                }}
-                className="px-2 py-1 rounded-lg text-white font-mono text-[11px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer hover:bg-white/20 active:bg-white/30 shrink-0 drop-shadow-md"
-                title="Playback Speed"
-              >
-                <Gauge className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span className="whitespace-nowrap font-bold">{playbackSpeed}x</span>
-              </button>
-
-              {/* Video Notes & Timestamp Bookmarks */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowNotesPanel(prev => !prev);
-                }}
-                className={`px-2 py-1 rounded-lg text-white text-[11px] sm:text-xs flex items-center gap-1 transition-colors cursor-pointer shrink-0 drop-shadow-md ${
-                  showNotesPanel
-                    ? 'text-amber-300 bg-amber-500/30'
-                    : 'hover:bg-white/20 active:bg-white/30'
-                }`}
-                title="Timestamp Notes & Bookmarks"
-              >
-                <Bookmark className="w-4 h-4 text-amber-400 shrink-0" />
-                <span className="hidden sm:inline">নোটস</span>
-                <span className="text-[10px] font-bold">({videoNotes.length})</span>
-              </button>
-
-              {/* Fullscreen Toggle Button (Prominent, clear, safely bounded) */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleFullscreen();
-                }}
-                className="p-1.5 rounded-lg hover:bg-white/20 active:bg-white/30 text-white transition-colors cursor-pointer shrink-0 drop-shadow-md"
-                title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-              >
-                {isFullscreen ? <Minimize className="w-4 h-4 sm:w-4.5 sm:h-4.5" /> : <Maximize className="w-4 h-4 sm:w-4.5 sm:h-4.5" />}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* VIDEO NOTES & TIMESTAMP BOOKMARKS DRAWER */}
       {showNotesPanel && (
