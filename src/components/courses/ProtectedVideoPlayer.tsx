@@ -371,9 +371,12 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             modestbranding: 1,  // Minimal YouTube branding
             rel: 0,             // Prevents related videos from external channels
             showinfo: 0,        // Hides video title and channel info
+            autohide: 1,        // Automatically hide controls
+            cc_load_policy: 0,  // Hide closed captions
             playsinline: 1,     // Inline playback on iOS/mobile
             enablejsapi: 1,     // Full programmatic API control
-            origin: typeof window !== 'undefined' ? window.location.origin : ''
+            origin: typeof window !== 'undefined' ? window.location.origin : '',
+            widget_referrer: typeof window !== 'undefined' ? window.location.origin : ''
           },
           events: {
             onReady: (event: any) => {
@@ -876,13 +879,15 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
   };
 
-  // Smart Timer Display: MM:SS under 1 hour, H:MM:SS at 1+ hours
+  // Smart Dynamic Timer Display: MM:SS under 1 hour, HH:MM:SS (or H:MM:SS) at 1+ hours
   const formatTime = (secs: number, totalDuration: number = duration) => {
     if (isNaN(secs) || secs < 0) return '00:00';
     const totalSecs = Math.floor(secs);
     const pad = (n: number) => (n < 10 ? '0' + n : '' + n);
 
-    if (totalDuration < 3600) {
+    const isOverHour = (totalDuration >= 3600) || (totalSecs >= 3600);
+
+    if (!isOverHour) {
       const m = Math.floor(totalSecs / 60);
       const s = totalSecs % 60;
       return `${pad(m)}:${pad(s)}`;
@@ -940,15 +945,12 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             <GraduationCap className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[2.2]" />
           </div>
           
-          <div className="flex flex-col min-w-0">
+          <div className="flex items-center min-w-0">
             <span 
-              className="font-bold text-xs sm:text-sm text-white truncate max-w-[200px] sm:max-w-md drop-shadow-md tracking-tight leading-tight" 
+              className="font-bold text-xs sm:text-sm text-white truncate max-w-[220px] sm:max-w-md drop-shadow-md tracking-tight" 
               title={title}
             >
-              {title || 'Video Lecture 1'}
-            </span>
-            <span className="text-[10px] text-slate-300 font-medium tracking-wide leading-none pt-0.5 drop-shadow-sm">
-              Exam Portal
+              {title || 'Video Lecture'}
             </span>
           </div>
         </div>
@@ -1009,15 +1011,14 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           {/* =========================================================================
               Case 1: YouTube Video Player
               - Managed via YouTube IFrame Player API
-              - Clipped slightly at top/bottom (110% height) to physically push out
-                YouTube's internal channel title and watermark outside clipping frame!
+              - 100% natural uncropped aspect ratio (zero zoom, zero crop)
               - ZERO user clicks reach iframe: pointer-events: none
              ========================================================================= */}
           {videoId && (
             <div className="absolute inset-0 w-full h-full overflow-hidden select-none pointer-events-none flex items-center justify-center bg-black">
               <div 
                 ref={ytMountContainerRef}
-                className="absolute -top-[5%] -bottom-[5%] -left-[1%] -right-[1%] w-[102%] h-[110%] pointer-events-none select-none flex items-center justify-center"
+                className="absolute inset-0 w-full h-full pointer-events-none select-none flex items-center justify-center"
                 style={{
                   pointerEvents: 'none',
                   userSelect: 'none'
@@ -1091,10 +1092,10 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             />
           )}
 
-          {/* Paused state clean mask: obscures YouTube's pause cards & related video shelf */}
+          {/* Paused state clean mask: zero blur, 100% natural clarity */}
           {videoId && !isPlaying && hasStarted && (
             <div 
-              className="absolute inset-0 z-24 bg-black/60 backdrop-blur-[3px] pointer-events-none transition-all duration-200" 
+              className="absolute inset-0 z-24 bg-black/35 pointer-events-none transition-opacity duration-150" 
             />
           )}
 
@@ -1647,7 +1648,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 
   // If standalone modal
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center p-0 ${isFullscreen ? 'bg-black' : 'sm:p-4 bg-black/95 backdrop-blur-md'}`}>
+    <div className={`fixed inset-0 z-50 flex items-center justify-center p-0 ${isFullscreen ? 'bg-black' : 'sm:p-4 bg-black/95'}`}>
       {videoPlayerMarkup}
     </div>
   );
