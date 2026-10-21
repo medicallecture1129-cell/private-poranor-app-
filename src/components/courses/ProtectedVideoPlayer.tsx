@@ -88,6 +88,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     volume: 100
   });
   const isDraggingRef = useRef(false);
+  const isPlayingRef = useRef(false);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
@@ -125,6 +126,10 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const videoIdentifier = videoId || url;
 
   // Sync ref values with state
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
   useEffect(() => {
     currentBrightnessRef.current = brightness;
   }, [brightness]);
@@ -245,6 +250,22 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         (document as any).msFullscreenElement
       );
       setIsFullscreen(isNowFullscreen);
+
+      // Keep video playing smoothly without freeze or stall upon entering/exiting fullscreen
+      if (isPlayingRef.current) {
+        setTimeout(() => {
+          if (ytPlayerRef.current && typeof ytPlayerRef.current.getPlayerState === 'function') {
+            try {
+              const state = ytPlayerRef.current.getPlayerState();
+              if (state === 2) { // 2 = paused
+                ytPlayerRef.current.playVideo();
+              }
+            } catch (e) {}
+          } else if (html5VideoRef.current && html5VideoRef.current.paused) {
+            html5VideoRef.current.play().catch(() => {});
+          }
+        }, 80);
+      }
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -390,10 +411,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               } else if (event.data === 0) {
                 // =============================================================
                 // 4. PREVENT YOUTUBE END-SCREEN "MORE VIDEOS" RECOMMENDATIONS:
-                // Immediately seek back to time 0 and pause so YouTube's
-                // end-screen grid of recommended videos NEVER appears!
+                // Immediately seek back to time 0, pause, and reset hasStarted
+                // so the solid black cover permanently blocks end-screen grid!
                 // =============================================================
                 setIsPlaying(false);
+                setHasStarted(false);
                 setIsBuffering(false);
                 setControlsVisible(true);
                 try {
@@ -817,12 +839,23 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const toggleFullscreen = async () => {
     if (!containerRef.current) return;
     try {
-      if (!isFullscreen) {
+      const isCurrentlyFs = !!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+      );
+
+      if (!isCurrentlyFs && !isFullscreen) {
         const el = containerRef.current as any;
         if (el.requestFullscreen) {
           await el.requestFullscreen();
         } else if (el.webkitRequestFullscreen) {
           await el.webkitRequestFullscreen();
+        } else if (el.mozRequestFullScreen) {
+          await el.mozRequestFullScreen();
+        } else if (el.msRequestFullscreen) {
+          await el.msRequestFullscreen();
         }
         setIsFullscreen(true);
       } else {
@@ -830,6 +863,10 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           await document.exitFullscreen();
         } else if ((document as any).webkitExitFullscreen) {
           await (document as any).webkitExitFullscreen();
+        } else if ((document as any).mozCancelFullScreen) {
+          await (document as any).mozCancelFullScreen();
+        } else if ((document as any).msExitFullscreen) {
+          await (document as any).msExitFullscreen();
         }
         setIsFullscreen(false);
       }
@@ -863,7 +900,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     <div 
       ref={containerRef}
       onMouseMove={handleMouseMove}
-      className={`relative w-full bg-black flex flex-col select-none overflow-hidden transition-all duration-200 ${
+      className={`relative w-full bg-black flex flex-col select-none overflow-hidden ${
         isFullscreen 
           ? 'fixed inset-0 w-screen h-screen max-w-none rounded-none z-[9999] justify-center items-center' 
           : 'w-full rounded-2xl overflow-hidden justify-center'
@@ -877,13 +914,13 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       onDragStart={(e) => e.preventDefault()}
     >
       {/* =========================================================================
-          1. CLEAN TOP APP BAR (NO BORDER, NO SHADE, CRYSTAL CLEAR)
-          - No dark background box or container border!
-          - Floats seamlessly over the video with clean text and icons
-          - Instant toggle with controlsVisible
+          1. YOUTUBE-STYLE TOP BAR WITH SOFT DARK GRADIENT BACKDROP
+          - Gentle top-to-bottom dark gradient: from-black/85 via-black/40 to-transparent
+          - Absolutely no hard borders! Soft subtle gradient for high visibility
+          - Smooth toggle with controlsVisible
          ========================================================================= */}
       <div 
-        className={`absolute top-2 sm:top-3 inset-x-0 z-30 px-3 sm:px-5 flex items-center justify-between text-white transition-opacity duration-100 ease-out pointer-events-auto ${
+        className={`absolute top-0 inset-x-0 z-30 pt-3 sm:pt-4 pb-8 sm:pb-10 px-3 sm:px-5 flex items-center justify-between text-white bg-gradient-to-b from-black/85 via-black/40 to-transparent transition-opacity duration-200 ease-in-out pointer-events-auto ${
           controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
       >
@@ -905,7 +942,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           
           <div className="flex items-center min-w-0">
             <span 
-              className="font-bold text-xs sm:text-sm text-white truncate max-w-[200px] sm:max-w-md drop-shadow-md" 
+              className="font-bold text-xs sm:text-sm text-white truncate max-w-[220px] sm:max-w-md drop-shadow-md tracking-tight" 
               title={title}
             >
               {title || 'ভিডিও লেকচার'}
@@ -940,16 +977,29 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             isFullscreen ? 'max-h-full max-w-full my-auto' : 'max-w-full'
           }`}
           style={{ 
-            filter: brightness !== 1 ? `brightness(${brightness})` : undefined,
             maxWidth: isFullscreen ? 'min(100vw, calc(100vh * 16 / 9))' : '100%',
             maxHeight: isFullscreen ? 'min(100vh, calc(100vw * 9 / 16))' : 'none'
           }}
         >
+          {/* Non-blocking Hardware Brightness Overlays (zero video decode stall) */}
+          {brightness < 1 && (
+            <div 
+              className="absolute inset-0 z-12 bg-black pointer-events-none transition-opacity duration-75"
+              style={{ opacity: (1 - brightness) * 0.85 }}
+            />
+          )}
+          {brightness > 1 && (
+            <div 
+              className="absolute inset-0 z-12 bg-white pointer-events-none mix-blend-screen transition-opacity duration-75"
+              style={{ opacity: (brightness - 1) * 0.45 }}
+            />
+          )}
+
           {/* =========================================================================
               Case 1: YouTube Video Player
               - Managed via YouTube IFrame Player API
               - 100% Width & 100% Height: ZERO Cropping! Fits lecture completely!
-              - NO dark gradient overlay on video: 100% bright & clear original picture!
+              - NO hard borders, unhindered video output
               - pointer-events: none prevents any external clicks
              ========================================================================= */}
           {videoId && (
@@ -1030,8 +1080,15 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             />
           )}
 
+          {/* Paused state clean mask: obscures YouTube's pause cards & related video shelf */}
+          {videoId && !isPlaying && hasStarted && (
+            <div 
+              className="absolute inset-0 z-15 bg-black/45 backdrop-blur-[2px] pointer-events-none transition-opacity duration-200" 
+            />
+          )}
+
           {/* Solid pure black cover to hide initial YouTube thumbnail & red button */}
-          {videoId && !isPlaying && (
+          {videoId && !hasStarted && (
             <div 
               className="absolute inset-0 bg-black z-15 pointer-events-none"
             />
@@ -1080,7 +1137,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           {/* Center Play/Pause Button */}
           {!isDriveVideo && (
             <div 
-              className={`absolute inset-0 z-30 flex items-center justify-center transition-opacity duration-100 ease-out ${
+              className={`absolute inset-0 z-30 flex items-center justify-center transition-opacity duration-200 ease-in-out ${
                 controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
               }`}
             >
@@ -1089,13 +1146,13 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                   e.stopPropagation();
                   togglePlay();
                 }}
-                className="w-14 h-14 sm:w-18 sm:h-18 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-xs border border-white/20 text-white flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 cursor-pointer drop-shadow-lg"
+                className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-black/45 hover:bg-black/65 backdrop-blur-xs border border-white/20 text-white flex items-center justify-center shadow-2xl transition-transform hover:scale-105 active:scale-95 cursor-pointer drop-shadow-lg"
                 title={isPlaying ? 'Pause' : 'Play'}
               >
                 {isPlaying ? (
-                  <Pause className="w-7 h-7 sm:w-9 sm:h-9 fill-white" />
+                  <Pause className="w-7 h-7 sm:w-8 sm:h-8 fill-white" />
                 ) : (
-                  <Play className="w-7 h-7 sm:w-9 sm:h-9 fill-white ml-1" />
+                  <Play className="w-7 h-7 sm:w-8 sm:h-8 fill-white ml-0.5" />
                 )}
               </button>
             </div>
@@ -1139,21 +1196,21 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       </div>
 
       {/* =========================================================================
-          1 & 5. CLEAN BOTTOM CONTROL BAR (ZERO BORDER, ZERO DARK SHADE, 100% RESPONSIVE)
-          - No dark background box or container border!
-          - Floats seamlessly with crystal clarity
+          1 & 5. YOUTUBE-STYLE BOTTOM CONTROL BAR WITH SOFT DARK GRADIENT BACKDROP
+          - Gentle bottom-to-top dark gradient: from-black/85 via-black/45 to-transparent
+          - Absolutely no hard borders!
           - Responsive single-row layout where Fullscreen button is never cut off
-          - Instant toggle on tap
+          - Smooth toggle with controlsVisible
          ========================================================================= */}
       {!isDriveVideo && (
         <div 
-          className={`absolute bottom-1.5 sm:bottom-2 inset-x-0 z-30 px-2 sm:px-4 flex flex-col gap-1 text-white transition-opacity duration-100 ease-out pointer-events-auto ${
+          className={`absolute bottom-0 inset-x-0 z-30 pt-8 sm:pt-10 pb-2.5 sm:pb-3 px-2 sm:px-4 flex flex-col gap-1.5 text-white bg-gradient-to-t from-black/85 via-black/45 to-transparent transition-opacity duration-200 ease-in-out pointer-events-auto ${
             controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-          } ${isFullscreen ? 'mb-1 sm:mb-2' : ''}`}
+          } ${isFullscreen ? 'pb-4 sm:pb-5' : ''}`}
           style={{
-            paddingLeft: 'max(8px, env(safe-area-inset-left))',
-            paddingRight: 'max(8px, env(safe-area-inset-right))',
-            paddingBottom: isFullscreen ? 'max(6px, env(safe-area-inset-bottom))' : '2px'
+            paddingLeft: 'max(10px, env(safe-area-inset-left))',
+            paddingRight: 'max(10px, env(safe-area-inset-right))',
+            paddingBottom: isFullscreen ? 'max(10px, env(safe-area-inset-bottom))' : 'max(6px, env(safe-area-inset-bottom))'
           }}
         >
           {/* Timeline Track */}
@@ -1600,14 +1657,14 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     </div>
   );
 
-  // If isInline and not isFullscreen, render inline
-  if (isInline && !isFullscreen) {
+  // Preserve component DOM hierarchy across fullscreen toggles to prevent iframe recreation
+  if (isInline) {
     return videoPlayerMarkup;
   }
 
-  // If standalone modal or fullscreen
+  // If standalone modal
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center ${isFullscreen ? 'p-0 bg-black' : 'p-0 sm:p-4 bg-black/95 backdrop-blur-md'}`}>
+    <div className={`fixed inset-0 z-50 flex items-center justify-center p-0 ${isFullscreen ? 'bg-black' : 'sm:p-4 bg-black/95 backdrop-blur-md'}`}>
       {videoPlayerMarkup}
     </div>
   );
