@@ -22,7 +22,8 @@ import {
   Trash2,
   ExternalLink,
   Clock,
-  Sparkles
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import { extractYouTubeId, getGoogleDriveEmbedUrl } from '../../utils/mediaUrl';
 import { useAuth } from '../../context/AuthContext';
@@ -71,8 +72,9 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const html5VideoRef = useRef<HTMLVideoElement | null>(null);
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const ytMountContainerRef = useRef<HTMLDivElement | null>(null);
   const ytPlayerRef = useRef<any>(null);
+  const isPlayerReadyRef = useRef<boolean>(false);
   const hideControlsTimerRef = useRef<any>(null);
   const pollTimerRef = useRef<any>(null);
   const hyperSpeedIntervalRef = useRef<any>(null);
@@ -95,6 +97,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [bufferedPercent, setBufferedPercent] = useState<number>(0);
@@ -143,8 +146,12 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       html5VideoRef.current.currentTime = targetSec;
       html5VideoRef.current.play().catch(() => {});
     } else if (videoId) {
-      dispatchCommand('seekTo', [targetSec, true]);
-      dispatchCommand('playVideo', []);
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
+        try {
+          ytPlayerRef.current.seekTo(targetSec, true);
+          ytPlayerRef.current.playVideo();
+        } catch (e) {}
+      }
     }
     setIsPlaying(true);
   };
@@ -180,25 +187,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       console.error('Delete note error:', err);
     }
   };
-
-  // Universal Player Command Dispatcher (Calls YT.Player API + postMessage fallback)
-  const dispatchCommand = useCallback((func: string, args: any[] = []) => {
-    if (ytPlayerRef.current && typeof ytPlayerRef.current[func] === 'function') {
-      try {
-        ytPlayerRef.current[func](...args);
-      } catch (err) {
-        console.debug('YT.Player call failed:', err);
-      }
-    }
-    if (iframeRef.current && iframeRef.current.contentWindow) {
-      try {
-        iframeRef.current.contentWindow.postMessage(
-          JSON.stringify({ event: 'command', func, args }),
-          '*'
-        );
-      } catch {}
-    }
-  }, []);
 
   // Autohide controls after 5 seconds while playing
   const resetHideTimer = useCallback(() => {
@@ -305,120 +293,153 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     };
   }, [showSpeedMenu, showQualityMenu, isFullscreen, onClose, isInline, isPlaying]);
 
-  // Initialize YouTube Iframe API
+  // =========================================================================
+  // Robust YouTube IFrame Player API Initialization
+  // =========================================================================
   useEffect(() => {
     if (!videoId) return;
 
-    let checkInterval: any = null;
+    let isMounted = true;
+    let pollInterval: any = null;
 
-    const initYT = () => {
-      if (window.YT && window.YT.Player && iframeRef.current) {
-        try {
-          ytPlayerRef.current = new window.YT.Player(uniquePlayerId.current, {
-            events: {
-              onReady: (e: any) => {
-                ytPlayerRef.current = e.target;
-                if (hasStarted) {
-                  e.target.playVideo();
-                }
-                const baseSpeed = Math.min(2.0, playbackSpeed);
-                e.target.setPlaybackRate(baseSpeed);
-                if (selectedQuality !== 'auto') {
-                  e.target.setPlaybackQuality(selectedQuality);
-                }
-              },
-              onStateChange: (e: any) => {
-                // 1 = PLAYING, 2 = PAUSED, 0 = ENDED
-                if (e.data === 1) {
-                  setIsPlaying(true);
-                  setHasStarted(true);
-                  resetHideTimer();
-                } else if (e.data === 2) {
-                  setIsPlaying(false);
-                  setControlsVisible(true);
-                } else if (e.data === 0) {
-                  setIsPlaying(false);
-                  setControlsVisible(true);
-                }
-              }
-            }
-          });
-        } catch {
-          // Fallback to postMessage
+    // 1. Clean up previous player instance
+    if (ytPlayerRef.current) {
+      try {
+        if (typeof ytPlayerRef.current.destroy === 'function') {
+          ytPlayerRef.current.destroy();
         }
+      } catch (err) {
+        console.debug('Error destroying previous YT player:', err);
+      }
+      ytPlayerRef.current = null;
+      isPlayerReadyRef.current = false;
+    }
+
+    // 2. Prepare clean mount container
+    const mountContainer = ytMountContainerRef.current;
+    if (mountContainer) {
+      mountContainer.innerHTML = '';
+      const targetDiv = document.createElement('div');
+      targetDiv.id = uniquePlayerId.current;
+      targetDiv.style.width = '100%';
+      targetDiv.style.height = '100%';
+      targetDiv.style.pointerEvents = 'none';
+      mountContainer.appendChild(targetDiv);
+    }
+
+    // 3. Instantiate YT.Player using the official API
+    const initPlayer = () => {
+      if (!isMounted || !window.YT || !window.YT.Player) return;
+      if (!document.getElementById(uniquePlayerId.current)) return;
+
+      try {
+        ytPlayerRef.current = new window.YT.Player(uniquePlayerId.current, {
+          videoId: videoId,
+          width: '100%',
+          height: '100%',
+          playerVars: {
+            autoplay: hasStarted ? 1 : 0,
+            controls: 0,        // Completely hide native YouTube controls
+            disablekb: 1,       // Disables native YouTube keyboard shortcuts
+            fs: 0,              // Disables native YouTube fullscreen button
+            iv_load_policy: 3,  // Hides video annotations
+            modestbranding: 1,  // Minimal YouTube branding
+            rel: 0,             // Prevents related videos from external channels
+            showinfo: 0,        // Hides video title and channel info
+            playsinline: 1,     // Inline playback on iOS/mobile
+            enablejsapi: 1,     // Full programmatic API control
+            origin: typeof window !== 'undefined' ? window.location.origin : ''
+          },
+          events: {
+            onReady: (event: any) => {
+              if (!isMounted) return;
+              ytPlayerRef.current = event.target;
+              isPlayerReadyRef.current = true;
+              
+              const dur = event.target.getDuration();
+              if (typeof dur === 'number' && dur > 0) {
+                setDuration(dur);
+              }
+
+              if (hasStarted) {
+                event.target.playVideo();
+              }
+
+              const baseSpeed = Math.min(2.0, playbackSpeed);
+              event.target.setPlaybackRate(baseSpeed);
+
+              if (selectedQuality !== 'auto') {
+                event.target.setPlaybackQuality(selectedQuality);
+              }
+            },
+            onStateChange: (event: any) => {
+              if (!isMounted) return;
+              // YouTube Player States: 1 = PLAYING, 2 = PAUSED, 0 = ENDED, 3 = BUFFERING
+              if (event.data === 1) {
+                setIsPlaying(true);
+                setHasStarted(true);
+                setIsBuffering(false);
+                resetHideTimer();
+              } else if (event.data === 2) {
+                setIsPlaying(false);
+                setIsBuffering(false);
+                setControlsVisible(true);
+              } else if (event.data === 0) {
+                setIsPlaying(false);
+                setIsBuffering(false);
+                setControlsVisible(true);
+              } else if (event.data === 3) {
+                setIsBuffering(true);
+              }
+            },
+            onError: (err: any) => {
+              console.warn('YouTube Player error event:', err);
+              if (isMounted) setIsBuffering(false);
+            }
+          }
+        });
+      } catch (err) {
+        console.warn('Failed to construct YT.Player:', err);
       }
     };
 
+    // 4. Ensure YouTube IFrame API script is available
     if (window.YT && window.YT.Player) {
-      initYT();
+      initPlayer();
     } else {
-      checkInterval = setInterval(() => {
+      if (!document.getElementById('yt-iframe-api-script')) {
+        const tag = document.createElement('script');
+        tag.id = 'yt-iframe-api-script';
+        tag.src = 'https://www.youtube.com/iframe_api';
+        document.head.appendChild(tag);
+      }
+
+      const prevCallback = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        if (typeof prevCallback === 'function') prevCallback();
+        if (isMounted) initPlayer();
+      };
+
+      pollInterval = setInterval(() => {
         if (window.YT && window.YT.Player) {
-          clearInterval(checkInterval);
-          initYT();
+          clearInterval(pollInterval);
+          if (isMounted) initPlayer();
         }
-      }, 300);
+      }, 200);
     }
 
     return () => {
-      if (checkInterval) clearInterval(checkInterval);
-    };
-  }, [videoId, hasStarted, playbackSpeed, selectedQuality, resetHideTimer]);
-
-  // PostMessage listener for YouTube IFrame API communication
-  useEffect(() => {
-    if (!videoId) return;
-
-    const handleMessage = (e: MessageEvent) => {
-      try {
-        let data = e.data;
-        if (typeof data === 'string') {
-          try {
-            data = JSON.parse(data);
-          } catch {
-            return;
+      isMounted = false;
+      if (pollInterval) clearInterval(pollInterval);
+      if (ytPlayerRef.current) {
+        try {
+          if (typeof ytPlayerRef.current.destroy === 'function') {
+            ytPlayerRef.current.destroy();
           }
-        }
-        if (data && data.event === 'infoDelivery' && data.info) {
-          if (typeof data.info.currentTime === 'number') {
-            setCurrentTime(data.info.currentTime);
-          }
-          if (typeof data.info.duration === 'number' && data.info.duration > 0) {
-            setDuration(data.info.duration);
-          }
-          if (typeof data.info.videoLoadedFraction === 'number') {
-            setBufferedPercent(Math.min(100, Math.max(0, data.info.videoLoadedFraction * 100)));
-          }
-          if (typeof data.info.playerState === 'number') {
-            // 1 = PLAYING, 2 = PAUSED, 0 = ENDED
-            if (data.info.playerState === 1) {
-              setIsPlaying(true);
-              setHasStarted(true);
-            } else if (data.info.playerState === 2) {
-              setIsPlaying(false);
-            } else if (data.info.playerState === 0) {
-              setIsPlaying(false);
-              setControlsVisible(true);
-            }
-          }
-        }
-      } catch {}
-    };
-
-    window.addEventListener('message', handleMessage);
-
-    const handshakeTimer = setTimeout(() => {
-      if (iframeRef.current && iframeRef.current.contentWindow) {
-        iframeRef.current.contentWindow.postMessage(
-          JSON.stringify({ event: 'listening', id: uniquePlayerId.current }),
-          '*'
-        );
+        } catch (e) {}
+        ytPlayerRef.current = null;
+        isPlayerReadyRef.current = false;
       }
-    }, 600);
-
-    return () => {
-      window.removeEventListener('message', handleMessage);
-      clearTimeout(handshakeTimer);
     };
   }, [videoId]);
 
@@ -426,18 +447,31 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   useEffect(() => {
     if (videoId && isPlaying) {
       pollTimerRef.current = setInterval(() => {
-        dispatchCommand('getCurrentTime');
-        dispatchCommand('getDuration');
-        dispatchCommand('getVideoLoadedFraction');
-        if (ytPlayerRef.current && typeof ytPlayerRef.current.getVideoLoadedFraction === 'function') {
+        if (ytPlayerRef.current) {
           try {
-            const frac = ytPlayerRef.current.getVideoLoadedFraction();
-            if (typeof frac === 'number') {
-              setBufferedPercent(Math.min(100, Math.max(0, frac * 100)));
+            if (typeof ytPlayerRef.current.getCurrentTime === 'function') {
+              const cur = ytPlayerRef.current.getCurrentTime();
+              if (typeof cur === 'number' && !isNaN(cur)) {
+                setCurrentTime(cur);
+              }
             }
-          } catch {}
+            if (typeof ytPlayerRef.current.getDuration === 'function') {
+              const dur = ytPlayerRef.current.getDuration();
+              if (typeof dur === 'number' && dur > 0) {
+                setDuration(dur);
+              }
+            }
+            if (typeof ytPlayerRef.current.getVideoLoadedFraction === 'function') {
+              const frac = ytPlayerRef.current.getVideoLoadedFraction();
+              if (typeof frac === 'number') {
+                setBufferedPercent(Math.min(100, Math.max(0, frac * 100)));
+              }
+            }
+          } catch (err) {
+            // Player transitioning
+          }
         }
-      }, 1000);
+      }, 500);
     } else {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
     }
@@ -445,12 +479,12 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     return () => {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
     };
-  }, [videoId, isPlaying, dispatchCommand]);
+  }, [videoId, isPlaying]);
 
   // 3.0x & 4.0x YouTube Speed Engine:
-  // Since YouTube iframe API caps setPlaybackRate at 2.0x, when user selects > 2.0x (e.g. 3.0x or 4.0x):
-  // We keep the player at 2.0x (maintaining audio decoding) and smoothly nudge the playhead forward
-  // by (targetSpeed - 2.0) * intervalSeconds every 400ms!
+  // YouTube iframe API natively caps setPlaybackRate at 2.0x.
+  // For speeds > 2.0x (e.g. 3.0x or 4.0x): we keep native playback rate at 2.0x (maintaining audio decoding)
+  // and smoothly nudge the playhead forward by (targetSpeed - 2.0) * intervalSeconds every 400ms!
   useEffect(() => {
     if (hyperSpeedIntervalRef.current) {
       clearInterval(hyperSpeedIntervalRef.current);
@@ -465,7 +499,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       hyperSpeedIntervalRef.current = setInterval(() => {
         setCurrentTime((prevTime) => {
           const nextTime = Math.min(duration || 999999, prevTime + deltaSeconds);
-          dispatchCommand('seekTo', [nextTime, true]);
+          if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
+            try {
+              ytPlayerRef.current.seekTo(nextTime, true);
+            } catch (e) {}
+          }
           return nextTime;
         });
       }, intervalMs);
@@ -477,7 +515,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         hyperSpeedIntervalRef.current = null;
       }
     };
-  }, [videoId, isPlaying, playbackSpeed, duration, dispatchCommand]);
+  }, [videoId, isPlaying, playbackSpeed, duration]);
 
   const prevPlayingRef = useRef(isPlaying);
   // Controls auto-hide timer management
@@ -521,7 +559,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 
     if (videoId) {
       if (isPlaying) {
-        dispatchCommand('pauseVideo');
+        if (ytPlayerRef.current && typeof ytPlayerRef.current.pauseVideo === 'function') {
+          try {
+            ytPlayerRef.current.pauseVideo();
+          } catch (e) {}
+        }
         setIsPlaying(false);
         setControlsVisible(true);
         if (hideControlsTimerRef.current) {
@@ -529,7 +571,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           hideControlsTimerRef.current = null;
         }
       } else {
-        dispatchCommand('playVideo');
+        if (ytPlayerRef.current && typeof ytPlayerRef.current.playVideo === 'function') {
+          try {
+            ytPlayerRef.current.playVideo();
+          } catch (e) {}
+        }
         setIsPlaying(true);
         setControlsVisible(true);
         resetHideTimer();
@@ -551,7 +597,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 
     if (videoId) {
       const newTime = Math.max(0, currentTime - 10);
-      dispatchCommand('seekTo', [newTime, true]);
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
+        try {
+          ytPlayerRef.current.seekTo(newTime, true);
+        } catch (e) {}
+      }
       setCurrentTime(newTime);
       setSkipFeedback({ side: 'left', text: '-10s' });
       setTimeout(() => setSkipFeedback(null), 500);
@@ -573,7 +623,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 
     if (videoId) {
       const newTime = Math.min(duration || 999999, currentTime + 10);
-      dispatchCommand('seekTo', [newTime, true]);
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
+        try {
+          ytPlayerRef.current.seekTo(newTime, true);
+        } catch (e) {}
+      }
       setCurrentTime(newTime);
       setSkipFeedback({ side: 'right', text: '+10s' });
       setTimeout(() => setSkipFeedback(null), 500);
@@ -621,7 +675,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
         if (isDirectVideo && html5VideoRef.current) {
           html5VideoRef.current.volume = newVol / 100;
         } else if (videoId) {
-          dispatchCommand('setVolume', [newVol]);
+          if (ytPlayerRef.current && typeof ytPlayerRef.current.setVolume === 'function') {
+            try {
+              ytPlayerRef.current.setVolume(newVol);
+            } catch (e) {}
+          }
         }
         setGestureFeedback({ type: 'volume', value: newVol });
       }
@@ -629,9 +687,9 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   };
 
   // Screen Tap Engine:
-  // 1. Single Tap: Toggles visibility of the ENTIRE control interface (center play button & bottom bar) simultaneously.
+  // 1. Single Tap: Toggles visibility of the ENTIRE control interface simultaneously.
   // 2. Hide Everything on Tap: Tapping anywhere outside active buttons hides everything completely.
-  // 3. Double Tap: Outer left = -10s, Outer right = +10s.
+  // 3. Double Tap: Outer left = -10s, Outer right = +10s, Center = toggle play/pause.
   const handleScreenTap = (clientX: number, clientY: number) => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -676,9 +734,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       singleTapTimerRef.current = null;
       lastTapRef.current = { time: 0, x: 0, y: 0 };
 
-      // SINGLE-TAP TOGGLE: Tapping anywhere on the video screen toggles the visibility
-      // of the ENTIRE control interface (Center Play/Pause button & Bottom control bar) simultaneously!
-      // HIDE EVERYTHING ON TAP: Tapping again anywhere hides the entire control overlay completely (including when paused).
       setControlsVisible(prev => {
         const next = !prev;
         if (next && isPlaying) {
@@ -720,8 +775,15 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     }
 
     if (videoId) {
-      const action = isMuted ? 'unMute' : 'mute';
-      dispatchCommand(action);
+      if (ytPlayerRef.current) {
+        try {
+          if (isMuted) {
+            ytPlayerRef.current.unMute();
+          } else {
+            ytPlayerRef.current.mute();
+          }
+        } catch (e) {}
+      }
       setIsMuted(!isMuted);
     }
   };
@@ -732,7 +794,11 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     if (isDirectVideo && html5VideoRef.current) {
       html5VideoRef.current.currentTime = targetTime;
     } else if (videoId) {
-      dispatchCommand('seekTo', [targetTime, true]);
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
+        try {
+          ytPlayerRef.current.seekTo(targetTime, true);
+        } catch (e) {}
+      }
     }
     showControlsTemporarily();
   };
@@ -747,16 +813,26 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
     } else if (videoId) {
       // In YouTube iframe, set base rate up to 2.0x (max supported natively by YouTube API)
       const baseRate = Math.min(2.0, clamped);
-      dispatchCommand('setPlaybackRate', [baseRate]);
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.setPlaybackRate === 'function') {
+        try {
+          ytPlayerRef.current.setPlaybackRate(baseRate);
+        } catch (e) {}
+      }
     }
   };
 
   // Video Quality handler
   const handleSetQuality = (qualityId: string) => {
     setSelectedQuality(qualityId);
-    if (videoId) {
-      dispatchCommand('setPlaybackQuality', [qualityId]);
-      dispatchCommand('setPlaybackQualityRange', [qualityId]);
+    if (videoId && ytPlayerRef.current) {
+      try {
+        if (typeof ytPlayerRef.current.setPlaybackQuality === 'function') {
+          ytPlayerRef.current.setPlaybackQuality(qualityId);
+        }
+        if (typeof ytPlayerRef.current.setPlaybackQualityRange === 'function') {
+          ytPlayerRef.current.setPlaybackQualityRange(qualityId);
+        }
+      } catch (e) {}
     }
     setShowQualityMenu(false);
   };
@@ -877,7 +953,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           isFullscreen ? 'flex-1 h-full' : ''
         }`}
       >
-        {/* Video Canvas Container (16:9 natural aspect ratio, object-fit contain, zero crop) */}
+        {/* Video Canvas Container (16:9 natural aspect ratio, object-fit contain) */}
         <div 
           className={`relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden ${
             isFullscreen ? 'max-h-full max-w-full my-auto' : 'max-w-full'
@@ -888,34 +964,37 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             maxHeight: isFullscreen ? 'min(100vh, calc(100vw * 9 / 16))' : 'none'
           }}
         >
-          {/* Case 1: YouTube video - Natural 16:9 In-App Fit with all external branding & overlays completely hidden */}
+          {/* =========================================================================
+              Case 1: YouTube Video Player
+              - Managed via YouTube IFrame Player API
+              - Scaled & positioned with offset to push YouTube's native header, channel title,
+                avatar, and bottom watermark OUTSIDE the canvas bounding box
+              - Layout shields at top & bottom corners guarantee 0% visibility of external branding
+              - pointer-events: none on the entire iframe hierarchy prevents any external click
+             ========================================================================= */}
           {videoId && (
             <div className="absolute inset-0 w-full h-full overflow-hidden select-none pointer-events-none flex items-center justify-center bg-black">
-              {/* Top edge barrier: completely blocks YouTube title bar, channel avatar, and share button */}
-              <div className="absolute top-0 inset-x-0 h-14 sm:h-18 bg-gradient-to-b from-black via-black/85 to-transparent pointer-events-none z-10" />
+              {/* Top Layout Mask Barrier: completely covers top edge channel title & buttons */}
+              <div className="absolute top-0 inset-x-0 h-16 sm:h-20 bg-gradient-to-b from-black via-black/95 to-transparent pointer-events-none z-10" />
 
-              <iframe
-                ref={iframeRef}
-                id={uniquePlayerId.current}
-                src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=${hasStarted ? 1 : 0}&enablejsapi=1&rel=0&playsinline=1&modestbranding=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&showinfo=0&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`}
-                title={title}
-                className="border-0 pointer-events-none select-none"
+              {/* YouTube Player Mount Container (Programmatically managed by YT.Player) */}
+              <div 
+                ref={ytMountContainerRef}
+                className="absolute w-[106%] h-[130%] -top-[15%] -left-[3%] pointer-events-none select-none flex items-center justify-center"
                 style={{
-                  position: 'absolute',
-                  top: '-15%',
-                  left: '-3%',
-                  width: '106%',
-                  height: '130%',
                   pointerEvents: 'none',
                   userSelect: 'none'
                 }}
-                sandbox="allow-scripts allow-same-origin allow-presentation"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
               />
 
-              {/* Bottom edge barrier: completely blocks YouTube 'More videos' shelf, recommendations, and logo */}
-              <div className="absolute bottom-0 inset-x-0 h-16 sm:h-20 bg-gradient-to-t from-black via-black/85 to-transparent pointer-events-none z-10" />
+              {/* Bottom Layout Mask Barrier: completely blocks YouTube watermark and branding */}
+              <div className="absolute bottom-0 inset-x-0 h-16 sm:h-20 bg-gradient-to-t from-black via-black/95 to-transparent pointer-events-none z-10" />
+
+              {/* Bottom-right Corner Layout Shield: specifically guards against YouTube watermark logo */}
+              <div className="absolute bottom-0 right-0 w-32 h-16 bg-gradient-to-tl from-black via-black/95 to-transparent pointer-events-none z-10" />
+
+              {/* Top-left Corner Layout Shield: specifically guards against YouTube channel info badge */}
+              <div className="absolute top-0 left-0 w-56 h-16 bg-gradient-to-br from-black via-black/95 to-transparent pointer-events-none z-10" />
             </div>
           )}
 
@@ -984,28 +1063,50 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             />
           )}
 
-          {/* Transparent DOM Shield Overlay: Captures screen taps to toggle controls */}
+          {/* =========================================================================
+              CRITICAL: Transparent Overlay Div (Transparent Shield)
+              - Placed over the entire video canvas at z-20 (above video and masks)
+              - pointer-events: auto ensures ALL clicks, taps, and gestures are intercepted
+              - Physically blocks ANY click from reaching the YouTube iframe underneath
+              - Redirection to YouTube or opening channel link is 100% prevented
+              - Intercepts single-tap to toggle controls, double-tap for ±10s seek, drag for brightness/volume
+             ========================================================================= */}
           {!isDriveVideo && (
             <div 
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
               onClick={handleMouseClick}
+              onDoubleClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
               onContextMenu={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 return false;
               }}
-              className="absolute inset-0 z-15 cursor-pointer pointer-events-auto"
+              className="absolute inset-0 z-20 cursor-pointer pointer-events-auto bg-transparent select-none touch-none"
               style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
+              aria-label="Video playback surface shield"
             />
+          )}
+
+          {/* Buffering Indicator */}
+          {isBuffering && (
+            <div className="absolute inset-0 z-25 flex items-center justify-center pointer-events-none">
+              <div className="flex flex-col items-center gap-2 px-4 py-3 rounded-2xl bg-black/75 backdrop-blur-md border border-white/10 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+                <div className="w-8 h-8 border-3 border-white/20 border-t-blue-500 rounded-full animate-spin" />
+                <span className="text-[11px] font-semibold text-slate-300">লোড হচ্ছে...</span>
+              </div>
+            </div>
           )}
 
           {/* 3. DEDICATED CENTER PLAY/PAUSE BUTTON:
               Appears in the exact center when controls are visible.
               Tapping it toggles play/pause without hiding controls! */}
           {controlsVisible && !isDriveVideo && (
-            <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none animate-in fade-in zoom-in-95 duration-150">
+            <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none animate-in fade-in zoom-in-95 duration-150">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1026,7 +1127,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           {/* Double-Tap 10s Skip Feedback Overlay */}
           {skipFeedback && (
             <div 
-              className={`absolute top-0 bottom-0 z-20 w-1/3 flex items-center justify-center pointer-events-none ${
+              className={`absolute top-0 bottom-0 z-30 w-1/3 flex items-center justify-center pointer-events-none ${
                 skipFeedback.side === 'left' ? 'left-0 bg-gradient-to-r from-blue-600/30 to-transparent' : 'right-0 bg-gradient-to-l from-blue-600/30 to-transparent'
               }`}
             >
@@ -1043,7 +1144,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
 
           {/* Brightness & Volume HUD Feedback */}
           {gestureFeedback && (
-            <div className="absolute top-14 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-black/85 backdrop-blur-md text-white shadow-2xl pointer-events-none border border-white/10 animate-in fade-in duration-150">
+            <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-black/85 backdrop-blur-md text-white shadow-2xl pointer-events-none border border-white/10 animate-in fade-in duration-150">
               {gestureFeedback.type === 'brightness' ? (
                 <>
                   <Sun className="w-4 h-4 text-amber-400" />
@@ -1116,10 +1217,10 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
             />
           </div>
 
-          {/* Clean Controls Row (No bottom play/pause, No volume slider) */}
+          {/* Clean Controls Row */}
           <div className="flex items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-2">
-              {/* 3. Interactive Time Display: Tapping toggles between Elapsed Time and Remaining Time */}
+              {/* Interactive Time Display: Tapping toggles between Elapsed Time and Remaining Time */}
               <button
                 type="button"
                 onClick={(e) => {
@@ -1142,6 +1243,19 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                     <span className="text-slate-400"> / {formatTime(duration, duration)}</span>
                   </span>
                 )}
+              </button>
+
+              {/* Mute / Unmute Toggle */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleMute();
+                }}
+                className="p-1 rounded-lg hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                title={isMuted ? 'Unmute' : 'Mute'}
+              >
+                {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
               </button>
             </div>
 
@@ -1206,8 +1320,6 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           </div>
         </div>
       )}
-
-
 
       {/* VIDEO NOTES & TIMESTAMP BOOKMARKS DRAWER */}
       {showNotesPanel && (
