@@ -128,6 +128,98 @@
       margin-left: 3px;
     }
 
+    /* 1. TOP APP BAR */
+    .top-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 30;
+      padding: 14px 20px;
+      background: linear-gradient(to bottom, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.6) 70%, transparent 100%);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: opacity 0.22s cubic-bezier(0.4, 0, 0.2, 1), transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .top-bar.is-hidden {
+      opacity: 0;
+      transform: translateY(-100%);
+      pointer-events: none !important;
+    }
+
+    .top-bar-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .app-logo {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .app-logo img {
+      width: 18px;
+      height: 18px;
+      object-fit: contain;
+    }
+
+    .app-titles {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .app-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #ffffff;
+      white-space: nowrap;
+    }
+
+    .video-name {
+      font-size: 11px;
+      color: #cbd5e1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 260px;
+    }
+
+    .btn-close-app {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .btn-close-app:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .btn-close-app svg {
+      width: 16px;
+      height: 16px;
+      stroke: #ffffff;
+    }
+
     /* 4 & 5. CLEAN BOTTOM CONTROL BAR */
     .bottom-bar {
       position: absolute;
@@ -180,35 +272,37 @@
       transition: width 0.25s ease;
     }
 
-    /* Played Portion: Bold, bright, solid-colored red line (5.5px #ef4444) */
+    /* Played Portion: Bold, bright, theme-colored line (5.5px) */
     .timeline-track-played {
       position: absolute;
       left: 0;
       height: 5.5px;
       width: 0%;
-      background: #ef4444;
+      background: #2563eb;
       border-radius: 4px;
-      box-shadow: 0 0 8px rgba(239, 68, 68, 0.7);
+      box-shadow: 0 0 10px rgba(37, 99, 235, 0.8);
       transition: width 0.08s linear;
     }
 
-    /* Scrubber Thumb */
+    /* Scrubber Thumb - Always Visible Dot at front of played line */
     .timeline-thumb {
       position: absolute;
       top: 50%;
       left: 0%;
-      width: 12px;
-      height: 12px;
+      width: 14px;
+      height: 14px;
       border-radius: 50%;
-      background: #ef4444;
-      box-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
-      transform: translate(-50%, -50%) scale(0);
-      transition: transform 0.15s ease;
+      background: #2563eb;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 8px rgba(37, 99, 235, 0.9), 0 2px 6px rgba(0, 0, 0, 0.6);
+      transform: translate(-50%, -50%) scale(1);
+      transition: transform 0.1s ease;
       pointer-events: none;
+      z-index: 6;
     }
 
     .timeline-container:hover .timeline-thumb {
-      transform: translate(-50%, -50%) scale(1);
+      transform: translate(-50%, -50%) scale(1.2);
     }
 
     /* Invisible Scrubber Range Input */
@@ -311,6 +405,22 @@
   <!-- Fullscreen / Responsive Video Player Application -->
   <div class="player-container" id="playerContainer">
     
+    <!-- 1. Top App Bar: App Logo + Medical Admission Hub + Video Title + Close Button -->
+    <div class="top-bar" id="topBar">
+      <div class="top-bar-left">
+        <div class="app-logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;color:#3b82f6;"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        </div>
+        <div class="app-titles">
+          <span class="app-name">Medical Admission Hub</span>
+          <span class="video-name">Lec-2; Botany-08 • ইন-অ্যাপ ভিডিও প্লেয়ার</span>
+        </div>
+      </div>
+      <button class="btn-close-app" id="btnCloseApp" title="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </div>
+
     <!-- Video Canvas (Aspect Ratio Contain, Zero Dark Border Letterboxing) -->
     <div class="video-canvas" id="videoCanvas">
       
@@ -384,6 +494,8 @@
   <script>
     // DOM Elements
     const playerContainer = document.getElementById('playerContainer');
+    const topBar = document.getElementById('topBar');
+    const btnCloseApp = document.getElementById('btnCloseApp');
     const video = document.getElementById('videoElement');
     const touchShield = document.getElementById('touchShield');
     const centerPlayWrapper = document.getElementById('centerPlayWrapper');
@@ -406,8 +518,23 @@
     let autoHideTimer = null;
     let lastTapTime = 0;
     let singleTapTimeout = null;
+    let showRemainingTime = false;
     const speeds = [1.0, 1.25, 1.5, 2.0];
     let currentSpeedIndex = 0;
+
+    // Toggle Remaining / Elapsed Time on Time Display Click
+    timeDisplay.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showRemainingTime = !showRemainingTime;
+      updateTimeDisplay();
+    });
+
+    if (btnCloseApp) {
+      btnCloseApp.addEventListener('click', (e) => {
+        e.stopPropagation();
+        alert('Player closed');
+      });
+    }
 
     // 6. SMART DURATION & TIME FORMATTING RULE:
     // If total duration < 60 minutes: mm:ss (e.g. 00:00 / 45:30)
@@ -431,7 +558,13 @@
     function updateTimeDisplay() {
       const cur = video.currentTime || 0;
       const dur = video.duration || 0;
-      timeDisplay.textContent = `${formatSmartTime(cur, dur)} / ${formatSmartTime(dur, dur)}`;
+
+      if (showRemainingTime) {
+        const remaining = Math.max(0, dur - cur);
+        timeDisplay.innerHTML = `<span style="color:#60a5fa;font-weight:700;">-${formatSmartTime(remaining, dur)}</span> <span style="color:#94a3b8;">/ ${formatSmartTime(dur, dur)}</span>`;
+      } else {
+        timeDisplay.innerHTML = `<span>${formatSmartTime(cur, dur)}</span> <span style="color:#94a3b8;">/ ${formatSmartTime(dur, dur)}</span>`;
+      }
 
       if (dur > 0) {
         const percent = (cur / dur) * 100;
@@ -455,6 +588,7 @@
     // 3. SHOW / HIDE CONTROLS (YOUTUBE-STYLE TOGGLE)
     function showControls() {
       controlsVisible = true;
+      if (topBar) topBar.classList.remove('is-hidden');
       centerPlayWrapper.classList.remove('is-hidden');
       bottomBar.classList.remove('is-hidden');
 
@@ -476,6 +610,7 @@
       if (isTimer && video.paused) return;
 
       controlsVisible = false;
+      if (topBar) topBar.classList.add('is-hidden');
       centerPlayWrapper.classList.add('is-hidden');
       bottomBar.classList.add('is-hidden');
     }

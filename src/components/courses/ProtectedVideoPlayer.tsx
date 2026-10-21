@@ -28,6 +28,7 @@ import { extractYouTubeId, getGoogleDriveEmbedUrl } from '../../utils/mediaUrl';
 import { useAuth } from '../../context/AuthContext';
 import { subscribeVideoNotes, addVideoNote, deleteVideoNote } from '../../services/db';
 import { VideoNote } from '../../types';
+import { useTheme } from '../../context/ThemeContext';
 
 interface ProtectedVideoPlayerProps {
   title: string;
@@ -106,6 +107,9 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [showRemainingTime, setShowRemainingTime] = useState(false);
+  const { customColors } = useTheme();
+  const themePrimary = customColors?.primaryColor || '#2563eb';
 
   // Video Timestamp Notes & Bookmarks State
   const { user } = useAuth();
@@ -816,25 +820,56 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
       }}
       onDragStart={(e) => e.preventDefault()}
     >
-      {/* Floating Close Button (Clean & Minimal, without title bar) */}
-      {onClose && !isInline && (
-        <div 
-          className={`absolute top-3 right-3 z-30 transition-opacity duration-200 ${
-            controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}
-        >
+      {/* 1. TOP APP BAR: App Logo + App Title + Video Name + Close Button */}
+      <div 
+        className={`absolute top-0 inset-x-0 z-30 px-3 sm:px-6 py-2.5 sm:py-3.5 bg-gradient-to-b from-black/95 via-black/85 to-transparent flex items-center justify-between text-white transition-all duration-300 ${
+          controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-full pointer-events-none'
+        }`}
+      >
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 pr-2">
+          {/* App Logo */}
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-black/60 border border-white/20 p-1 flex items-center justify-center shrink-0 shadow-md">
+            <img 
+              src="/icon.svg" 
+              alt="App Logo" 
+              className="w-full h-full object-contain rounded" 
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
+          </div>
+          
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="font-bold text-xs sm:text-sm tracking-wide text-white shrink-0">
+                Medical Admission Hub
+              </span>
+              <span className="text-[10px] sm:text-xs px-1.5 py-0.5 rounded-full font-semibold bg-white/10 text-white/80 border border-white/10 shrink-0 hidden xs:inline">
+                প্রোটেক্টেড প্লেয়ার
+              </span>
+            </div>
+            {title && (
+              <span className="text-[11px] sm:text-xs text-slate-300 font-medium truncate max-w-[200px] sm:max-w-md lg:max-w-xl" title={title}>
+                {title}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Close Button */}
+        {onClose && !isInline && (
           <button
             onClick={(e) => {
               e.stopPropagation();
               onClose();
             }}
-            className="p-2 bg-black/60 hover:bg-black/80 backdrop-blur-md rounded-full text-white/80 hover:text-white transition-colors cursor-pointer border border-white/10 shadow-lg"
+            className="p-1.5 sm:p-2 bg-white/10 hover:bg-white/20 active:bg-white/30 backdrop-blur-md rounded-full text-white/90 hover:text-white transition-all cursor-pointer border border-white/15 shrink-0 shadow-lg"
             title="Close Player"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Video Stage Container: Seamless, uncropped, zero dark border letterboxing */}
       <div 
@@ -857,7 +892,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           {videoId && (
             <div className="absolute inset-0 w-full h-full overflow-hidden select-none pointer-events-none flex items-center justify-center bg-black">
               {/* Top edge barrier: completely blocks YouTube title bar, channel avatar, and share button */}
-              <div className="absolute top-0 inset-x-0 h-10 sm:h-14 bg-gradient-to-b from-black via-black/70 to-transparent pointer-events-none z-10" />
+              <div className="absolute top-0 inset-x-0 h-14 sm:h-18 bg-gradient-to-b from-black via-black/85 to-transparent pointer-events-none z-10" />
 
               <iframe
                 ref={iframeRef}
@@ -867,10 +902,10 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 className="border-0 pointer-events-none select-none"
                 style={{
                   position: 'absolute',
-                  top: '-10%',
-                  left: '-2%',
-                  width: '104%',
-                  height: '120%',
+                  top: '-15%',
+                  left: '-3%',
+                  width: '106%',
+                  height: '130%',
                   pointerEvents: 'none',
                   userSelect: 'none'
                 }}
@@ -880,7 +915,7 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               />
 
               {/* Bottom edge barrier: completely blocks YouTube 'More videos' shelf, recommendations, and logo */}
-              <div className="absolute bottom-0 inset-x-0 h-10 sm:h-14 bg-gradient-to-t from-black via-black/70 to-transparent pointer-events-none z-10" />
+              <div className="absolute bottom-0 inset-x-0 h-16 sm:h-20 bg-gradient-to-t from-black via-black/85 to-transparent pointer-events-none z-10" />
             </div>
           )}
 
@@ -1033,9 +1068,10 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
           } ${isFullscreen ? 'pb-4 sm:pb-6' : ''}`}
         >
           {/* ADVANCED TIMELINE / PROGRESS BAR STYLING:
-              - Played portion: Noticeably thicker (5.5px), bold and highlighted solid red (#ef4444)
-              - Buffered portion: 3.5px translucent white loaded in advance to prevent pausing/stuttering
-              - Remaining unplayed portion: 2.5px thin faded line */}
+              - Played portion: Highlighted with the App's Theme Color (5.5px)
+              - Buffered portion: 3.5px translucent white loaded in advance
+              - Remaining unplayed portion: 2.5px thin faded line
+              - Scrubber dot: Always visible at front of line for intuitive seeking */}
           <div className="relative flex items-center w-full mb-2 h-5 cursor-pointer group">
             {/* Multi-layered Track Base */}
             <div className="absolute inset-x-0 flex items-center h-[5.5px]">
@@ -1048,17 +1084,25 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
                 style={{ width: `${bufferedPercent}%` }}
               />
 
-              {/* 3. Played Portion: 5.5px bold, bright, highlighted solid red track */}
+              {/* 3. Played Portion: Highlighted using App Theme Color (5.5px) */}
               <div 
-                className="absolute left-0 h-[5.5px] bg-red-600 rounded-full transition-[width] duration-75 shadow-[0_0_8px_rgba(239,68,68,0.7)]"
-                style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                className="absolute left-0 h-[5.5px] rounded-full transition-[width] duration-75 shadow-md"
+                style={{ 
+                  width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
+                  backgroundColor: themePrimary,
+                  boxShadow: `0 0 10px ${themePrimary}99`
+                }}
               />
             </div>
 
-            {/* Scrubber Knob / Thumb indicator */}
+            {/* Draggable Scrubber Dot (Thumb) - Always Visible at the front of played line */}
             <div 
-              className="absolute top-1/2 w-3.5 h-3.5 bg-red-600 rounded-full border-2 border-white shadow-lg pointer-events-none transition-transform duration-100 -translate-x-1/2 -translate-y-1/2 group-hover:scale-125"
-              style={{ left: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+              className="absolute top-1/2 w-4 h-4 rounded-full border-2 border-white shadow-xl pointer-events-none transition-transform duration-75 -translate-x-1/2 -translate-y-1/2 z-10 group-hover:scale-125"
+              style={{ 
+                left: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
+                backgroundColor: themePrimary,
+                boxShadow: `0 0 8px ${themePrimary}, 0 2px 6px rgba(0,0,0,0.6)`
+              }}
             />
 
             {/* Seamless Scrub Range Input */}
@@ -1068,17 +1112,37 @@ export const ProtectedVideoPlayer: React.FC<ProtectedVideoPlayerProps> = ({
               max={duration || 100}
               value={currentTime}
               onChange={handleSeek}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
             />
           </div>
 
           {/* Clean Controls Row (No bottom play/pause, No volume slider) */}
           <div className="flex items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-2">
-              {/* 6. SMART TIME DURATION: Converts >= 60 min to hours, e.g. 1:27:50 instead of 87:50 */}
-              <span className="font-mono text-xs sm:text-sm text-slate-200 tracking-wide font-medium">
-                {formatTime(currentTime, duration)} / {formatTime(duration, duration)}
-              </span>
+              {/* 3. Interactive Time Display: Tapping toggles between Elapsed Time and Remaining Time */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowRemainingTime(prev => !prev);
+                }}
+                className="font-mono text-xs sm:text-sm text-slate-200 tracking-wide font-medium cursor-pointer hover:text-white transition-colors px-1.5 py-0.5 rounded-md hover:bg-white/10 active:scale-95 flex items-center gap-1 select-none border border-transparent hover:border-white/15"
+                title={showRemainingTime ? 'ক্লিক করে অতিক্রান্ত সময় দেখুন' : 'ক্লিক করে অবশিষ্ট সময় দেখুন'}
+              >
+                {showRemainingTime ? (
+                  <span>
+                    <span className="font-bold" style={{ color: themePrimary }}>
+                      -{formatTime(Math.max(0, duration - currentTime), duration)}
+                    </span>
+                    <span className="text-slate-400"> / {formatTime(duration, duration)}</span>
+                  </span>
+                ) : (
+                  <span>
+                    <span>{formatTime(currentTime, duration)}</span>
+                    <span className="text-slate-400"> / {formatTime(duration, duration)}</span>
+                  </span>
+                )}
+              </button>
             </div>
 
             <div className="flex items-center gap-1.5 sm:gap-2">
