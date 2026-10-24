@@ -8,12 +8,14 @@ import { X, Plus, Trash2, Sparkles, FileText, CheckCircle2, AlertCircle, Check, 
 
 interface CreateExamModalProps {
   courses: Course[];
+  isOffline?: boolean;
   onClose: () => void;
   onExamCreated: (exam: Exam) => void;
 }
 
 export const CreateExamModal: React.FC<CreateExamModalProps> = ({
   courses,
+  isOffline = false,
   onClose,
   onExamCreated
 }) => {
@@ -215,10 +217,12 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
         startTime: startMs,
         endTime: endMs,
         resultPublishTime: pubMs,
-        questions: readyQuestions
+        questions: readyQuestions,
+        isOffline: Boolean(isOffline),
+        examType: isOffline ? 'offline' : 'live'
       });
 
-      toastSuccess(`Exam "${created.title}" published successfully!`);
+      toastSuccess(`${isOffline ? 'অফলাইন' : ''} Exam "${created.title}" published successfully!`);
       onExamCreated(created);
       onClose();
     } catch (err: unknown) {
@@ -237,13 +241,19 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 flex items-center justify-between">
           <div>
             <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
-              <span>Create New Exam</span>
-              <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 text-[11px] font-semibold border border-blue-200 dark:border-blue-800">
-                Live & Practice
+              <span>{isOffline ? 'নিউ অফলাইন এক্সাম তৈরি করুন' : 'Create New Exam'}</span>
+              <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                isOffline
+                  ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                  : 'bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+              }`}>
+                {isOffline ? 'Offline Exam' : 'Live & Practice'}
               </span>
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Set schedules, negative marking, question banks, and result publishing time
+              {isOffline
+                ? 'অফলাইন পরীক্ষার নাম, কোর্স, মোট মার্কস ও প্রশ্নপত্র যুক্ত করুন'
+                : 'Set schedules, negative marking, question banks, and result publishing time'}
             </p>
           </div>
           <button

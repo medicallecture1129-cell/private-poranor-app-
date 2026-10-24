@@ -45,7 +45,7 @@ const MainApp: React.FC = () => {
   // Hardware back button / popstate handler for 1-step backward navigation
   useEffect(() => {
     const handlePopState = (e: PopStateEvent) => {
-      // 1. If inside ExamHub and ExamHub can step back 1 level (e.g. out of OfflineOmrManager or active exam):
+      // 1. If inside ExamHub and ExamHub can step back 1 level (e.g. out of modal or active exam):
       if (activeTab === 'exams') {
         if (examBackHandlerRef.current) {
           const handled = examBackHandlerRef.current();

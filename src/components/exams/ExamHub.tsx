@@ -6,9 +6,7 @@ import { EditExamModal } from './EditExamModal';
 import { ExamRunner } from './ExamRunner';
 import { PracticeResultModal } from './PracticeResultModal';
 import { OmrGeneratorModal } from './OmrGeneratorModal';
-import { OmrScannerModal } from './OmrScannerModal';
 import { OfflineLeaderboardModal } from './OfflineLeaderboardModal';
-import { OfflineOmrManager } from './OfflineOmrManager';
 import { deleteExam, updateExam } from '../../services/db';
 import { useToast } from '../../context/ToastContext';
 import { ModernSelect } from '../ui/ModernSelect';
@@ -31,9 +29,7 @@ import {
   X,
   ArrowRight,
   Sparkles,
-  Layers,
   Printer,
-  Scan,
   Trophy,
   FileText
 } from 'lucide-react';
@@ -62,24 +58,19 @@ export const ExamHub: React.FC<ExamHubProps> = ({
 
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isCreatingOffline, setIsCreatingOffline] = useState(false);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
   const [activeExamRunning, setActiveExamRunning] = useState<{ exam: Exam; isLive: boolean } | null>(null);
   const [practiceResultData, setPracticeResultData] = useState<{ exam: Exam; submission: ExamSubmission } | null>(null);
   
-  // OMR Generator, Scanner & Offline Leaderboard Modals
+  // OMR Generator & Offline Leaderboard Modals
   const [omrGeneratorExam, setOmrGeneratorExam] = useState<Exam | null>(null);
-  const [omrScannerExam, setOmrScannerExam] = useState<Exam | null>(null);
   const [offlineLeaderboardExam, setOfflineLeaderboardExam] = useState<Exam | null>(null);
-  const [showOfflineOmrManager, setShowOfflineOmrManager] = useState<boolean>(false);
 
   // 1-step backward handler registration for native back button / popstate
   useEffect(() => {
     if (registerBackHandler) {
       registerBackHandler(() => {
-        if (showOfflineOmrManager) {
-          setShowOfflineOmrManager(false);
-          return true;
-        }
         if (activeExamRunning) {
           setActiveExamRunning(null);
           return true;
@@ -90,10 +81,6 @@ export const ExamHub: React.FC<ExamHubProps> = ({
         }
         if (omrGeneratorExam) {
           setOmrGeneratorExam(null);
-          return true;
-        }
-        if (omrScannerExam) {
-          setOmrScannerExam(null);
           return true;
         }
         if (offlineLeaderboardExam) {
@@ -120,23 +107,14 @@ export const ExamHub: React.FC<ExamHubProps> = ({
     };
   }, [
     registerBackHandler,
-    showOfflineOmrManager,
     activeExamRunning,
     practiceResultData,
     omrGeneratorExam,
-    omrScannerExam,
     offlineLeaderboardExam,
     editingExam,
     showCreateModal,
     activeSegment
   ]);
-
-  const handleOpenOfflineOmrManager = () => {
-    try {
-      window.history.pushState({ view: 'offlineOmrManager' }, '');
-    } catch {}
-    setShowOfflineOmrManager(true);
-  };
 
   // Re-live Exam Modal State
   const [reLiveTargetExam, setReLiveTargetExam] = useState<Exam | null>(null);
@@ -321,20 +299,6 @@ export const ExamHub: React.FC<ExamHubProps> = ({
     ...courses.map(c => ({ value: c.id, label: c.name, badge: c.batch }))
   ];
 
-  if (showOfflineOmrManager) {
-    return (
-      <OfflineOmrManager
-        onBack={() => {
-          if (window.history.state?.view === 'offlineOmrManager') {
-            window.history.back();
-          } else {
-            setShowOfflineOmrManager(false);
-          }
-        }}
-      />
-    );
-  }
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 pb-24 space-y-6">
       {/* Top Bar */}
@@ -348,35 +312,31 @@ export const ExamHub: React.FC<ExamHubProps> = ({
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             {role === 'admin'
-              ? 'Admin Dashboard: Manage live schedules, offline exams & OMR sets, evaluation, and leaderboards'
-              : 'Official Exams: Live tests, offline model tests with smart OMR verification, and combined merit lists'}
+              ? 'Admin Dashboard: Manage live schedules, offline exams, evaluation, and leaderboards'
+              : 'Official Exams: Live tests, offline model tests, and combined merit lists'}
           </p>
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-          {/* EdTech Offline Exam & OMR Manager Button */}
-          <button
-            onClick={handleOpenOfflineOmrManager}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-950/40 cursor-pointer transition-all border border-emerald-400/30"
-            title="মাস্টার প্রশ্ন ইনপুট ও ইউনিক ওএমআর সেট (Set A-T) জেনারেটর"
-          >
-            <Layers className="w-4 h-4 text-amber-300" />
-            <span>ইউনিক ওএমআর ও সেট ম্যানেজার</span>
-          </button>
-
           {role === 'admin' && (
             <>
               <button
-                onClick={() => setOmrScannerExam(offlineExams[0] || availableExams[0] || exams[0] || null)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm shadow-sm cursor-pointer transition-colors"
-                title="ওএমআর শিট স্ক্যানার ও মূল্যায়নকারী"
+                onClick={() => {
+                  setIsCreatingOffline(true);
+                  setShowCreateModal(true);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-950/40 cursor-pointer transition-all border border-blue-400/30"
+                title="নতুন অফলাইন এক্সাম তৈরি করুন"
               >
-                <Scan className="w-4 h-4" />
-                <span>QR ও ওএমআর স্ক্যানার</span>
+                <Plus className="w-4 h-4" />
+                <span>নিউ অফলাইন এক্সাম</span>
               </button>
 
               <button
-                onClick={() => setShowCreateModal(true)}
+                onClick={() => {
+                  setIsCreatingOffline(false);
+                  setShowCreateModal(true);
+                }}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl btn-theme-primary font-semibold text-xs sm:text-sm shadow-sm cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
@@ -470,12 +430,15 @@ export const ExamHub: React.FC<ExamHubProps> = ({
 
         {activeSegment === 'offline' && role === 'admin' && (
           <button
-            onClick={handleOpenOfflineOmrManager}
-            className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md shadow-emerald-950/40 transition-all cursor-pointer shrink-0"
-            title="মাস্টার প্রশ্ন ইনপুট ও ইউনিক ওএমআর সেট ম্যানেজার"
+            onClick={() => {
+              setIsCreatingOffline(true);
+              setShowCreateModal(true);
+            }}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md shadow-blue-950/40 transition-all cursor-pointer shrink-0"
+            title="নতুন অফলাইন এক্সাম তৈরি করুন"
           >
-            <Layers className="w-4 h-4 text-amber-300" />
-            <span>মাস্টার প্রশ্ন ও ইউনিক সেট ম্যানেজার</span>
+            <Plus className="w-4 h-4" />
+            <span>নিউ অফলাইন এক্সাম</span>
           </button>
         )}
 
@@ -515,7 +478,7 @@ export const ExamHub: React.FC<ExamHubProps> = ({
           </h4>
           <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto">
             {activeSegment === 'offline'
-              ? 'মেডিকেল ও বিশ্ববিদ্যালয় ভর্তি পরীক্ষার আদলে ৪-কলাম বিশিষ্ট ওএমআর শিট ও কিউআর কোডসহ প্রশ্নপত্র তৈরি করুন।'
+              ? 'নতুন অফলাইন এক্সাম তৈরি করুন এবং প্রশ্নপত্র ও উত্তরপত্র পরিচালনা করুন।'
               : activeSegment === 'live'
               ? 'No live exams are currently scheduled or active. When live exams expire or are converted, they appear in Practice exams.'
               : 'No practice exams match your selected course or search query.'}
@@ -524,11 +487,14 @@ export const ExamHub: React.FC<ExamHubProps> = ({
           {activeSegment === 'offline' && role === 'admin' && (
             <div className="pt-2 flex items-center justify-center gap-3">
               <button
-                onClick={handleOpenOfflineOmrManager}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-2 cursor-pointer shadow-md shadow-emerald-950/40 transition-all"
+                onClick={() => {
+                  setIsCreatingOffline(true);
+                  setShowCreateModal(true);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center gap-2 cursor-pointer shadow-md shadow-blue-950/40 transition-all"
               >
-                <Layers className="w-4 h-4 text-amber-300" />
-                <span>মাস্টার প্রশ্ন ও ইউনিক সেট তৈরি করুন</span>
+                <Plus className="w-4 h-4" />
+                <span>নিউ অফলাইন এক্সাম তৈরি করুন</span>
               </button>
             </div>
           )}
@@ -724,15 +690,15 @@ export const ExamHub: React.FC<ExamHubProps> = ({
                         </button>
                       </div>
 
-                      {/* OMR Printable Sheet & Scanner for this exam */}
-                      <div className="flex items-center gap-2 pt-1 border-t border-slate-100 dark:border-white/[0.06]">
+                      {/* Question sets & paper layout */}
+                      <div className="pt-1 border-t border-slate-100 dark:border-white/[0.06]">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             setOmrGeneratorExam(exam);
                           }}
-                          className={`flex-1 py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
+                          className={`w-full py-1.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
                             activeSegment === 'offline' || exam.isOffline
                               ? 'bg-blue-600/15 hover:bg-blue-600/25 text-blue-700 dark:text-blue-300 border-blue-500/30'
                               : 'bg-purple-500/15 hover:bg-purple-500/25 text-purple-700 dark:text-purple-300 border-purple-500/30'
@@ -741,18 +707,6 @@ export const ExamHub: React.FC<ExamHubProps> = ({
                         >
                           <FileText className="w-3.5 h-3.5" />
                           <span>ইউনিক question set দেখুন</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOmrScannerExam(exam);
-                          }}
-                          className="py-1.5 px-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-emerald-500/30 transition-all cursor-pointer"
-                          title="এই পরীক্ষার ওএমআর স্ক্যান ও মূল্যায়ন করুন"
-                        >
-                          <Scan className="w-3.5 h-3.5" />
-                          <span>ওএমআর স্ক্যান</span>
                         </button>
                       </div>
                     </div>
@@ -872,8 +826,14 @@ export const ExamHub: React.FC<ExamHubProps> = ({
       {showCreateModal && (
         <CreateExamModal
           courses={courses}
+          isOffline={isCreatingOffline}
           onClose={() => setShowCreateModal(false)}
-          onExamCreated={() => setShowCreateModal(false)}
+          onExamCreated={() => {
+            setShowCreateModal(false);
+            if (isCreatingOffline) {
+              setActiveSegment('offline');
+            }
+          }}
         />
       )}
 
@@ -1029,21 +989,6 @@ export const ExamHub: React.FC<ExamHubProps> = ({
           onClose={() => setOmrGeneratorExam(null)}
         />
       )}
-
-      {/* OMR Scanner & Evaluation Modal */}
-      {omrScannerExam && (
-        <OmrScannerModal
-          exam={omrScannerExam}
-          students={students}
-          isOpen={!!omrScannerExam}
-          onClose={() => setOmrScannerExam(null)}
-          onSubmissionCreated={() => {
-            toastSuccess('ওএমআর ফলাফল সফলভাবে ডাটাবেজে সংরক্ষিত হয়েছে!');
-          }}
-        />
-      )}
-
-
 
       {/* Offline Exam Combined Merit List / Leaderboard Modal */}
       {offlineLeaderboardExam && (
